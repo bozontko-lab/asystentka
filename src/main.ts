@@ -5,7 +5,7 @@ import "./style.css";
 
 import { Dymek, kwestia } from "./dymki";
 import { KONFETTI_DLUGIE_MS, KONFETTI_MS, konfetti } from "./efekty";
-import { Grafiki } from "./grafiki";
+import { type Geometria, Grafiki } from "./grafiki";
 import { type Akcja, type Most, mostTauri, wTauri } from "./most";
 import { mostPodglad } from "./podglad";
 import { Postac } from "./postac";
@@ -33,6 +33,16 @@ function element<T extends HTMLElement = HTMLElement>(id: string): T {
   return znaleziony as T;
 }
 
+/** Rozmiar postaci i linie stóp oraz siedziska z postac.json jako zmienne CSS. */
+function ustawGeometrie(g: Geometria): void {
+  const styl = document.documentElement.style;
+  styl.setProperty("--postac-w", `${g.szer}px`);
+  styl.setProperty("--postac-h", `${g.wys}px`);
+  styl.setProperty("--pod-siedziskiem", `${g.podSiedziskiem}px`);
+  styl.setProperty("--pod-stopami", `${g.podStopami}px`);
+  styl.setProperty("--oddech-max", String(g.oddech));
+}
+
 const most: Most = wTauri() ? mostTauri() : mostPodglad();
 
 const opisBledu = (e: unknown) => (e instanceof Error ? `${e.message}\n${e.stack ?? ""}` : String(e));
@@ -43,7 +53,9 @@ async function start(): Promise<void> {
   const scena = element("scena");
   const miejscePanelu = element("miejsce-panelu");
   const konfettiEl = element("konfetti");
-  const postac = new Postac(element("postac"), new Grafiki());
+  const grafiki = new Grafiki();
+  ustawGeometrie(grafiki.geometria);
+  const postac = new Postac(element("postac"), grafiki);
 
   let migawka: Migawka | null = null;
   let widoczna = true;

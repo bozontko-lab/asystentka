@@ -1,0 +1,234 @@
+{
+  "opis": "Grafiki postaci do widgetu. Wszystkie pozy mają to samo płótno, więc podmiana klatek nie przesuwa postaci.",
+  "plotno_px": [
+    457,
+    560
+  ],
+  "wyswietlanie_css_px": [
+    228,
+    280
+  ],
+  "gestosc": "2x (ostre na ekranach 200%)",
+  "pozy": {
+    "stand_idle": {
+      "plik": "stand_idle.png",
+      "typ": "stoi",
+      "obrys_px": [
+        5,
+        5,
+        451,
+        553
+      ],
+      "stopy_y_px": 553
+    },
+    "stand_idle_blink": {
+      "plik": "stand_idle_blink.png",
+      "typ": "stoi",
+      "obrys_px": [
+        5,
+        5,
+        451,
+        552
+      ],
+      "stopy_y_px": 552
+    },
+    "wave_1": {
+      "plik": "wave_1.png",
+      "typ": "stoi",
+      "obrys_px": [
+        5,
+        5,
+        451,
+        553
+      ],
+      "stopy_y_px": 553
+    },
+    "wave_2": {
+      "plik": "wave_2.png",
+      "typ": "stoi",
+      "obrys_px": [
+        5,
+        4,
+        451,
+        552
+      ],
+      "stopy_y_px": 552
+    },
+    "point": {
+      "plik": "point.png",
+      "typ": "stoi",
+      "obrys_px": [
+        5,
+        5,
+        451,
+        553
+      ],
+      "stopy_y_px": 553
+    },
+    "idle_check": {
+      "plik": "idle_check.png",
+      "typ": "stoi",
+      "obrys_px": [
+        5,
+        5,
+        451,
+        552
+      ],
+      "stopy_y_px": 552
+    },
+    "cheer_1": {
+      "plik": "cheer_1.png",
+      "typ": "stoi",
+      "obrys_px": [
+        4,
+        5,
+        451,
+        555
+      ],
+      "stopy_y_px": 555
+    },
+    "cheer_2": {
+      "plik": "cheer_2.png",
+      "typ": "stoi",
+      "obrys_px": [
+        5,
+        5,
+        451,
+        553
+      ],
+      "stopy_y_px": 553
+    },
+    "bye": {
+      "plik": "bye.png",
+      "typ": "stoi",
+      "obrys_px": [
+        5,
+        5,
+        451,
+        552
+      ],
+      "stopy_y_px": 552
+    },
+    "loading": {
+      "plik": "loading.png",
+      "typ": "stoi",
+      "obrys_px": [
+        5,
+        5,
+        451,
+        553
+      ],
+      "stopy_y_px": 553
+    },
+    "sit_watch": {
+      "plik": "sit_watch.png",
+      "typ": "siedzi",
+      "obrys_px": [
+        5,
+        5,
+        451,
+        482
+      ],
+      "siedzisko_y_px": 368
+    },
+    "sit_watch_blink": {
+      "plik": "sit_watch_blink.png",
+      "typ": "siedzi",
+      "obrys_px": [
+        5,
+        5,
+        451,
+        482
+      ],
+      "siedzisko_y_px": 368
+    },
+    "sit_watch_front": {
+      "plik": "sit_watch_front.png",
+      "typ": "siedzi",
+      "obrys_px": [
+        5,
+        5,
+        451,
+        482
+      ],
+      "siedzisko_y_px": 368
+    },
+    "sit_console_1": {
+      "plik": "sit_console_1.png",
+      "typ": "siedzi",
+      "obrys_px": [
+        5,
+        4,
+        451,
+        542
+      ],
+      "siedzisko_y_px": 337
+    },
+    "sit_console_2": {
+      "plik": "sit_console_2.png",
+      "typ": "siedzi",
+      "obrys_px": [
+        5,
+        4,
+        452,
+        543
+      ],
+      "siedzisko_y_px": 346
+    },
+    "sit_drink": {
+      "plik": "sit_drink.png",
+      "typ": "siedzi",
+      "obrys_px": [
+        5,
+        5,
+        451,
+        542
+      ],
+      "siedzisko_y_px": 340
+    },
+    "pause_stretch": {
+      "plik": "pause_stretch.png",
+      "typ": "siedzi",
+      "obrys_px": [
+        5,
+        5,
+        451,
+        482
+      ],
+      "siedzisko_y_px": 376
+    },
+    "pause_nap": {
+      "plik": "pause_nap.png",
+      "typ": "siedzi",
+      "obrys_px": [
+        5,
+        5,
+        451,
+        542
+      ],
+      "siedzisko_y_px": 346
+    }
+  },
+  "ikona": {
+    "plik": "icon.png",
+    "rozmiar_px": 1024,
+    "uwaga": "źródło dla komendy: npx tauri icon src/assets/postac/icon.png"
+  },
+  "pary_klatek": {
+    "mrugniecie": {
+      "stand_idle": "stand_idle_blink",
+      "sit_watch": "sit_watch_blink"
+    },
+    "machanie": [
+      "wave_1",
+      "wave_2"
+    ],
+    "spojrzenie_przy_kursorze": {
+      "sit_watch": "sit_watch_front"
+    }
+  },
+  "uwagi": [
+    "siedzisko_y_px to orientacyjna linia, na której postać siedzi: górna krawędź panelu z zadaniem.",
+    "sit_watch_front na razie różni się od sit_watch tylko otwartym uśmiechem; oczy patrzą w górę."
+  ]
+}

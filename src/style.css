@@ -5,13 +5,17 @@
   --zolty: #ffd84d;
   --cyjan: #2edbe8;
   --granat: #1e2140;
-  --tlo-panelu: rgba(30, 33, 64, 0.95);
+  --tlo-panelu: #1e2140;
   --tekst: #f3f1ff;
   --tekst-cichy: #b8b4dc;
   --bialy: #ffffff;
 
-  /* Wartości startowe z B6; wariant B z A2b: 280px i oddech 1.008. */
+  /* Wartości startowe z B6. Rozmiar postaci, linie stóp i siedziska oraz
+     oddech ustawia main.ts na podstawie src/assets/postac/postac.json. */
+  --postac-w: 200px;
   --postac-h: 200px;
+  --pod-siedziskiem: 8px;
+  --pod-stopami: 4px;
   --panel-w: 280px;
   --oddech-max: 1.015;
 
@@ -89,13 +93,20 @@ body {
 #scena[data-uklad="sama"][data-strona="lewa"] .postac-z-dymkiem {
   flex-direction: row-reverse;
 }
+/* Panel leży przed postacią: stojąca stoi na jego górnej krawędzi, a siedząca
+   (Praca, Pauza) ma tam linię siedziska i chowa resztę za panelem. */
 #scena[data-uklad="nad"] .postac-z-dymkiem {
   position: relative;
   z-index: 1;
-  margin-bottom: -6px;
+  margin-bottom: calc(-1 * var(--pod-stopami));
+}
+#scena[data-stan="praca"] .postac-z-dymkiem,
+#scena[data-stan="pauza"] .postac-z-dymkiem {
+  margin-bottom: calc(-1 * var(--pod-siedziskiem));
 }
 #scena[data-uklad="nad"] #miejsce-panelu {
-  margin-right: 0;
+  position: relative;
+  z-index: 2;
 }
 
 /* ---- postać --------------------------------------------------------------- */
@@ -103,7 +114,7 @@ body {
 .postac {
   position: relative;
   flex: none;
-  width: var(--postac-h);
+  width: var(--postac-w);
   height: var(--postac-h);
   cursor: grab;
 }
@@ -301,7 +312,8 @@ body {
 /* obok głowy (układy „nad” i „sama”) */
 #scena[data-uklad="nad"] .dymek,
 #scena[data-uklad="sama"] .dymek {
-  margin-top: 34px;
+  /* ogonek mniej więcej na wysokości twarzy */
+  margin-top: calc(var(--postac-h) * 0.17);
   margin-right: -14px;
 }
 #scena[data-uklad="nad"] .dymek::after,

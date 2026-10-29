@@ -17,7 +17,7 @@ CSS bez frameworka.
 | 2 | Odczyt planu i lista zadań na plikach z `przyklady/` | gotowe (`npm run piaskownica`) |
 | 3 | Licznik, pauza, zapis dziennika i stanu zadań | gotowe, sprawdzone testami i na żywo |
 | 4 | Zdarzenia Windows: blokada, uśpienie, bezczynność, pełny ekran, ukrycie przed nagrywaniem | kod gotowy i kompiluje się pod Windows, wymaga testu na Windows |
-| 5 | Grafiki z części A, animacje i dymki | animacje i dymki gotowe; do czasu PNG z Gemini rysuje się postać zastępcza |
+| 5 | Grafiki z części A, animacje i dymki | gotowe: 18 póz i ikona w `src/assets/postac/`, animacje i dymki |
 | 6 | Prawdziwe foldery z B2 i zmiany w porannym zadaniu z B8 | po Twojej stronie (foldery) i w czacie (poranne zadanie) |
 
 ## Wymagania na Windows
@@ -139,12 +139,13 @@ asystentka/
   przyklady/               plan-2026-10-30.json, stan-zadan.json
   scripts/piaskownica.mjs  widget na przykładach w .piaskownica/
   src/                     frontend: TypeScript, HTML, CSS
-    assets/postac/         grafiki z części A (zasady w README.md tam)
+    assets/postac/         grafiki z części A i opis postac.json (zasady w README.md tam)
     kwestie.json           dymki
     main.ts                rysowanie migawek, dymki, efekty, rozmiar okna
     widok.ts               panele stanów, licznik
     postac.ts              pozy, mrugnięcia, klatki, zmiany pozy
-    zastepcza.ts           postać zastępcza w SVG
+    grafiki.ts             pliki póz i rozmiar postaci z postac.json
+    zastepcza.ts           postać zastępcza w SVG (gdy brak PNG)
   src-tauri/               backend: Rust
     src/rdzen.rs           stany postaci i przejścia (B4, B5), bez zależności od Tauri
     src/sesja.rs           sesja: odcinki pracy, pauzy, bezczynność, odtworzenie po awarii
@@ -193,5 +194,8 @@ asystentka/
 - **Ustawienia:** zmiany w pliku są wczytywane same co 30 s (także skrót).
   „Ukryj przed nagrywaniem” w zasobniku zapisuje się do pliku. Uszkodzony plik nie
   jest nadpisywany; zostają poprzednie ustawienia, a postać o tym mówi.
-- **Wariant B postaci** (A2b): w `src/style.css` zmień `--postac-h` na `280px` i
-  `--oddech-max` na `1.008`.
+- **Postać:** rozmiar (228 × 280 px), linie stóp i siedziska widget bierze z
+  `src/assets/postac/postac.json`. W Pracy i Pauzie siedzi na górnej krawędzi
+  panelu, a reszta postaci chowa się za nim. Jest wysoka jak wariant B z A2b, więc
+  oddycha delikatniej (skala do 1,008). Inny zestaw grafik wystarczy podmienić
+  razem z jego `postac.json`.
