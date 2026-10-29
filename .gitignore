@@ -1,0 +1,16 @@
+# zależności i wyniki budowania
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/schemas/
+
+# piaskownica do testów (npm run piaskownica)
+.piaskownica/
+
+# system i edytory
+.DS_Store
+Thumbs.db
+*.log
+.vscode/*
+!.vscode/extensions.json
+.idea/

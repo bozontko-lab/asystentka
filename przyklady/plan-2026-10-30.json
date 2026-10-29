@@ -1,0 +1,14 @@
+{
+  "data": "2026-10-30",
+  "utworzono": "2026-10-30T07:41:12+01:00",
+  "naglowek": "Film #1 — 6 dni do publikacji (5.11), zostało 26 h → 4,5 h dziennie",
+  "tempo": "ok",
+  "dni_do_publikacji": 6,
+  "zadania": [
+    {"id": "12", "nazwa": "Scenariusz: intro", "etap": "Scenariusz", "szac_min": 60, "czesc": null},
+    {"id": "15", "nazwa": "Montaż", "etap": "Montaż", "szac_min": 120, "czesc": "plansze 1–5"}
+  ],
+  "zapasowe": [
+    {"id": "18", "nazwa": "Miniatura: szkic", "etap": "Miniatura", "szac_min": 30, "czesc": null}
+  ]
+}
