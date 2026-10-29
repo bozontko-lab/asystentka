@@ -23,7 +23,7 @@ CSS bez frameworka.
 ## Wymagania na Windows
 
 - Windows 10 w wersji 2004 lub nowszej albo Windows 11 (WebView2 jest w systemie);
-- Node.js 22 LTS;
+- Node.js 26 LTS (wystarczy też 22.12 lub nowszy);
 - Rust z [rustup](https://rustup.rs) (toolchain MSVC) i Microsoft C++ Build Tools
   z zestawem „Programowanie aplikacji klasycznych w języku C++”
   ([wymagania Tauri](https://v2.tauri.app/start/prerequisites/)).
