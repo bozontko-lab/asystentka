@@ -84,7 +84,13 @@ function przyklad(stan: NazwaStanu, strona: "prawa" | "lewa"): Migawka {
     sesja: ["praca", "pauza", "jestes"].includes(stan) ? sesja : null,
     gratulacje:
       stan === "gratulacje"
-        ? { zadanie: "Scenariusz: intro", czas_min: 47, szac_min: 60, czas_dnia_min: 132, plan_wykonany: false }
+        ? {
+            zadanie: "Scenariusz: intro",
+            czas_min: 47,
+            szac_min: 60,
+            czas_dnia_min: 132,
+            plan_wykonany: parametry.get("plan") === "wykonany",
+          }
         : null,
     dzien: { minuty: 132, cel_min: 240 },
     blad_pliku: null,

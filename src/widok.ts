@@ -178,12 +178,22 @@ function panelJestes(s: SesjaWidok): HTMLElement {
 }
 
 function panelGratulacji(g: Gratulacje): HTMLElement {
-  const szacunek = g.szac_min != null ? ` (szac. ${g.szac_min})` : "";
+  const szacunek = g.szac_min != null ? ` (szac. ${minutyTekst(g.szac_min)})` : "";
   return el(
     "section",
     { class: "panel panel-gratulacje" },
     el("div", { class: "tytul" }, `✓ ${g.zadanie}`),
     el("p", { class: "opis" }, `${minutyTekst(g.czas_min)}${szacunek} · dziś razem ${minutyTekst(g.czas_dnia_min)}`),
+    // Po ostatnim zadaniu planu to Ty wybierasz, co dalej.
+    g.plan_wykonany && [
+      el("p", { class: "opis" }, "Plan na dziś wykonany."),
+      el(
+        "div",
+        { class: "przyciski" },
+        el("button", { class: "przycisk", type: "button", "data-akcja": "zmien_plan" }, "Dodaj z listy"),
+        el("button", { class: "przycisk cichy", type: "button", "data-akcja": "wroc_do_listy" }, "Wróć do listy"),
+      ),
+    ],
   );
 }
 

@@ -38,6 +38,7 @@ export class Postac {
   private wariant: Wariant = "patrzy";
   private pauzaOd: number | null = null;
   private krokKreatoraNr = 0;
+  private numerZmiany = 0;
   private zegarMrugania: number | undefined;
   private zegarWariantu: number | undefined;
   private zegarStanu: number | undefined;
@@ -203,7 +204,11 @@ export class Postac {
     if (klucz === this.obecne) return;
     const pierwszy = this.obecne === "";
     this.obecne = klucz;
+    // Każda zmiana pozy unieważnia wcześniejsze, jeszcze niezastosowane przejścia:
+    // przestarzałe zanikanie nie może nadpisać nowszej pozy.
+    const numer = ++this.numerZmiany;
     const zastosuj = () => {
+      this.cialo.classList.remove("zanik");
       this.obrazA.src = adresA;
       this.obrazA.dataset.poza = k.a;
       if (adresB) this.obrazB.src = adresB;
@@ -218,8 +223,8 @@ export class Postac {
     if (zanik && !pierwszy) {
       this.cialo.classList.add("zanik");
       window.setTimeout(() => {
-        zastosuj();
-        this.cialo.classList.remove("zanik");
+        if (numer === this.numerZmiany) zastosuj();
+        else this.cialo.classList.remove("zanik");
       }, ZANIK_MS);
     } else {
       zastosuj();

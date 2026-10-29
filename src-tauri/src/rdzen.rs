@@ -439,10 +439,7 @@ impl Rdzen {
         self.zmiana_dnia(teraz);
         match &self.faza {
             Faza::Powitanie { do_ } if teraz >= *do_ => self.po_powitaniu(),
-            Faza::Gratulacje { do_: Some(do_), .. } if teraz >= *do_ => {
-                self.faza = Faza::Lista;
-                self.brudny = true;
-            }
+            Faza::Gratulacje { do_: Some(do_), .. } if teraz >= *do_ => self.po_gratulacjach(),
             _ => {}
         }
         self.przypomnienie_o_przerwie(teraz);
@@ -503,6 +500,34 @@ impl Rdzen {
         }
         let _ = teraz;
         self.dz.plan.iter().filter(|k| self.zadanie(k).is_some_and(|z| !z.zrobione)).cloned().collect()
+    }
+
+    /// Po 4 s gratulacje wracają do listy z dymkiem o tym, co jeszcze zostało.
+    /// Po ostatnim zadaniu planu zostają z przyciskami, bo to Ty decydujesz,
+    /// czy kończysz dzień, czy coś dokładasz.
+    fn po_gratulacjach(&mut self) {
+        let Faza::Gratulacje { info, .. } = self.faza.clone() else { return };
+        self.brudny = true;
+        if info.plan_wykonany {
+            self.faza = Faza::Gratulacje { do_: None, info };
+            self.dymek("plan_wykonany", &[]);
+        } else {
+            self.faza = Faza::Lista;
+            self.dymek_zostalo();
+        }
+    }
+
+    /// „Zostało 2 zadania, ok. 1 h 30 min.” Bez dymku, gdy nic nie zostało albo
+    /// pozostałe zadania nie mają szacunków.
+    fn dymek_zostalo(&mut self) {
+        let otwarte: Vec<&Zadanie> = self.plan_zadania().into_iter().filter(|z| !z.zrobione).collect();
+        let pozostalo: u32 = otwarte.iter().map(|z| self.pozostaly_czas(z)).sum();
+        if otwarte.is_empty() || pozostalo == 0 {
+            return;
+        }
+        let wstawki =
+            [("zadan", czas::zadan_tekst(otwarte.len() as u32)), ("pozostalo", czas::minuty_tekst(pozostalo))];
+        self.dymek("zostalo", &wstawki);
     }
 
     fn przypomnienie_o_przerwie(&mut self, teraz: Chwila) {
@@ -1592,6 +1617,121 @@ mod testy {
         r.tick(chwila("2026-10-31T00:30:10+01:00"));
         r.tick(chwila("2026-10-31T00:30:20+01:00"));
         assert_eq!(r.stan(), Stan::WyborZadan);
+    }
+
+    // ---- krok 4: podsumowanie po zadaniu --------------------------------------------------------
+
+    #[test]
+    fn po_zadaniu_dymek_pokazuje_czas_zadania_szacunek_i_czas_dnia() {
+        let sr = Srodowisko::nowe();
+        let mut r = sr.rdzen(t("09:00:00"));
+        r.tick(t("09:00:06"));
+        r.przelacz_wybor(&miniatura());
+        r.zatwierdz_wybor(t("09:00:30"));
+        // Miniatura: 40 min; Montaż ma już 45 min w pliku i dochodzi 30 min.
+        r.rozpocznij(&miniatura(), t("10:00:00")).unwrap();
+        r.wez_zdarzenia();
+        r.zrobione(t("10:40:00"));
+        let zd = r.wez_zdarzenia();
+        let w = wstawki(&zd, "zrobione");
+        assert_eq!(w["zadanie"], "Miniatura");
+        assert_eq!(w["czas"], "40 min");
+        assert_eq!(w["szac"], "30 min");
+        assert_eq!(w["czas_dnia"], "40 min");
+        assert!(zd.contains(&Zdarzenie::Efekt { nazwa: "konfetti".into() }));
+        let g = r.migawka().gratulacje.unwrap();
+        assert_eq!((g.czas_min, g.szac_min, g.czas_dnia_min, g.plan_wykonany), (40, Some(30), 40, false));
+
+        // Drugie zadanie tego samego dnia: łączny czas zadania z pliku i czas całego dnia.
+        r.tick(t("10:40:04"));
+        assert_eq!(dymki(&mut r), vec!["zostalo"]);
+        r.rozpocznij(&montaz(), t("11:00:00")).unwrap();
+        r.zrobione(t("11:30:00"));
+        let w = wstawki(&r.wez_zdarzenia(), "zrobione");
+        assert_eq!(w["czas"], "1 h 15 min", "45 min z pliku plus 30 min tej sesji");
+        assert_eq!(w["szac"], "2 h");
+        assert_eq!(w["czas_dnia"], "1 h 10 min");
+    }
+
+    #[test]
+    fn zadanie_bez_szacunku_pomija_szacunek_w_dymku() {
+        let sr = Srodowisko::nowe();
+        fs::write(
+            sr.plik(),
+            "## P
+- [ ] Bez szacunku
+- [ ] Drugie [szac:: 20]
+",
+        )
+        .unwrap();
+        let mut r = sr.rdzen(t("09:00:00"));
+        r.tick(t("09:00:06"));
+        r.przelacz_wybor(&k("P", "Bez szacunku"));
+        r.przelacz_wybor(&k("P", "Drugie"));
+        r.zatwierdz_wybor(t("09:00:30"));
+        r.rozpocznij(&k("P", "Bez szacunku"), t("10:00:00")).unwrap();
+        r.wez_zdarzenia();
+        r.zrobione(t("10:10:00"));
+        let zd = r.wez_zdarzenia();
+        assert!(!wstawki(&zd, "zrobione").contains_key("szac"));
+        assert_eq!(r.migawka().gratulacje.unwrap().szac_min, None);
+    }
+
+    #[test]
+    fn zostalo_liczy_zadania_i_pozostaly_czas() {
+        let sr = Srodowisko::nowe();
+        let mut r = sr.rdzen(t("09:00:00"));
+        r.tick(t("09:00:06"));
+        r.przelacz_wybor(&miniatura());
+        r.przelacz_wybor(&mail());
+        r.zatwierdz_wybor(t("09:00:30"));
+        r.rozpocznij(&mail(), t("10:00:00")).unwrap();
+        r.zrobione(t("10:10:00"));
+        r.tick(t("10:10:04"));
+        let zd = r.wez_zdarzenia();
+        let w = wstawki(&zd, "zostalo");
+        // Zostają Montaż (120 − 45) i Miniatura (30): 2 zadania, 1 h 45 min.
+        assert_eq!((w["zadan"].as_str(), w["pozostalo"].as_str()), ("2 zadania", "1 h 45 min"));
+        assert_eq!(r.migawka().lista.unwrap().pozostalo_min, 105);
+    }
+
+    #[test]
+    fn po_ostatnim_zadaniu_planu_postac_pyta_czy_konczymy() {
+        let sr = Srodowisko::nowe();
+        let mut r = sr.rdzen(t("09:00:00"));
+        r.tick(t("09:00:06"));
+        r.przelacz_wybor(&montaz()); // tylko Miniatura
+        r.przelacz_wybor(&miniatura());
+        r.zatwierdz_wybor(t("09:00:30"));
+        r.rozpocznij(&miniatura(), t("10:00:00")).unwrap();
+        r.zrobione(t("10:40:00"));
+        assert!(r.migawka().gratulacje.unwrap().plan_wykonany);
+        r.wez_zdarzenia();
+        r.tick(t("10:40:04"));
+        assert_eq!(r.stan(), Stan::Gratulacje, "po ostatnim zadaniu to Ty wybierasz, co dalej");
+        assert_eq!(dymki(&mut r), vec!["plan_wykonany"]);
+        r.tick(t("10:50:00"));
+        assert_eq!(r.stan(), Stan::Gratulacje, "bez automatycznego powrotu do listy");
+        assert!(r.najblizszy_termin(t("10:50:00")) > t("10:50:00"));
+        // „Dodaj z listy”: ten sam wybór z planem jako punktem wyjścia.
+        r.otworz_wybor();
+        assert_eq!(r.stan(), Stan::WyborZadan);
+        r.przelacz_wybor(&mail());
+        r.zatwierdz_wybor(t("10:51:00"));
+        let lista = r.migawka().lista.unwrap();
+        assert_eq!((lista.zrobione, lista.razem), (1, 2));
+    }
+
+    #[test]
+    fn zadanie_dopisane_w_ciagu_dnia_wydluza_plan() {
+        let sr = Srodowisko::nowe();
+        let mut r = sr.rdzen(t("09:00:00"));
+        r.tick(t("09:00:06"));
+        r.zatwierdz_wybor(t("09:00:30"));
+        r.rozpocznij(&montaz(), t("10:00:00")).unwrap();
+        r.dodaj_zadanie("Pilne", Some(10), "Inbox").unwrap();
+        r.zrobione(t("10:30:00"));
+        assert!(!r.migawka().gratulacje.unwrap().plan_wykonany, "dopisane w trakcie pracy zadanie liczy się do planu");
     }
 
     // ---- bezczynność, pauza automatyczna, pełny ekran (z wersji 1) -------------------------------
