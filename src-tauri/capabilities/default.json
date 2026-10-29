@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Uprawnienia okna widgetu: zdarzenia, komendy aplikacji, przeciąganie okna i zapis błędów frontendu do logu.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "log:allow-log"
+  ]
+}
