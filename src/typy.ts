@@ -3,6 +3,7 @@
 export type NazwaStanu =
   | "powitanie"
   | "lista"
+  | "konfiguracja"
   | "czeka_na_plan"
   | "praca"
   | "pauza"
@@ -71,3 +72,25 @@ export type Zdarzenie =
 
 export const ZROBIONE = "Zrobione";
 export const W_TOKU = "W toku";
+
+/** Ustawienia z %APPDATA%\Asystentka\ustawienia.json (SPEC.md, B7). */
+export interface Ustawienia {
+  imie: string;
+  plik_zadan: string;
+  folder_dziennika: string;
+  cel_dzienny_min: number;
+  godzina_konca_dnia: string;
+  autostart: boolean;
+  prog_bezczynnosci_min: number;
+  przypomnienie_przerwy_min: number;
+  ukryj_przed_nagrywaniem: boolean;
+  chowaj_przy_pelnym_ekranie: boolean;
+  skrot_pokaz_ukryj: string;
+}
+
+export interface PodpowiedzKreatora {
+  ustawienia: Ustawienia;
+  /** Wskazany plik zadań już istnieje, więc kreator ma go użyć. */
+  plik_istnieje: boolean;
+  vaulty: string[];
+}

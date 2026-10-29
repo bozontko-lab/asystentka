@@ -3,6 +3,7 @@
 
 mod aplikacja;
 mod komendy;
+mod obsidian;
 mod okno;
 mod system;
 mod zasobnik;
@@ -33,9 +34,14 @@ pub fn run() {
     let poziom = if cfg!(debug_assertions) { log::LevelFilter::Debug } else { log::LevelFilter::Info };
     let aplikacja = tauri::Builder::default()
         // Drugie uruchomienie tylko pokazuje istniejące okno (B6).
-        .plugin(tauri_plugin_single_instance::init(|app, _argumenty, _katalog| {
+        .plugin(tauri_plugin_single_instance::init(|app, argumenty, _katalog| {
             if let Some(apl) = apl(app) {
-                apl.wykonaj(|r, _| r.pokaz());
+                // `asystentka --ustawienia` (np. ze skrótu) otwiera okno ustawień.
+                if argumenty.iter().any(|a| a == "--ustawienia") {
+                    apl.otworz_okno_ustawien();
+                } else {
+                    apl.wykonaj(|r, _| r.pokaz());
+                }
             }
         }))
         .plugin(
@@ -64,6 +70,7 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             komendy::migawka,
             komendy::gotowy,
@@ -75,16 +82,25 @@ pub fn run() {
             komendy::przerwij,
             komendy::odpowiedz_jestes,
             komendy::pokaz_liste,
+            komendy::kreator_dane,
+            komendy::kreator_zakoncz,
+            komendy::ustawienia_pobierz,
+            komendy::ustawienia_zapisz,
+            komendy::otworz_ustawienia,
+            komendy::plik_istnieje,
+            komendy::ustaw_fokus,
+            komendy::wybierz_plik,
+            komendy::wybierz_folder,
         ])
         .setup(|app| aplikacja::uruchom(app))
         .on_window_event(|okno, zdarzenie| match zdarzenie {
-            WindowEvent::Moved(pozycja) => {
+            WindowEvent::Moved(pozycja) if okno.label() == aplikacja::OKNO => {
                 if let Some(apl) = apl(okno.app_handle()) {
                     apl.przesunieto(*pozycja);
                 }
             }
             // Widget się nie zamyka (np. Alt+F4), tylko chowa; wyjście jest w zasobniku.
-            WindowEvent::CloseRequested { api, .. } => {
+            WindowEvent::CloseRequested { api, .. } if okno.label() == aplikacja::OKNO => {
                 api.prevent_close();
                 if let Some(apl) = apl(okno.app_handle()) {
                     apl.wykonaj(|r, _| r.przelacz_widocznosc());

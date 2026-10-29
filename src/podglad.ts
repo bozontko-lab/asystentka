@@ -3,9 +3,28 @@
 // Parametry adresu: ?stan=praca&strona=lewa&dymek=start
 
 import type { Akcja, Most } from "./most";
-import type { Migawka, NazwaStanu, Zdarzenie } from "./typy";
+import type { Migawka, NazwaStanu, PodpowiedzKreatora, Ustawienia, Zdarzenie } from "./typy";
 
 const MINUTA = 60_000;
+
+/** Ustawienia z wersji 1 w podglądzie: kreator ma je wypełnić. */
+export const PODPOWIEDZ: PodpowiedzKreatora = {
+  ustawienia: {
+    imie: "Dżiordżio",
+    plik_zadan: "D:\\Second Brain\\Zadania.md",
+    folder_dziennika: "D:\\Second Brain\\Dziennik pracy",
+    cel_dzienny_min: 240,
+    godzina_konca_dnia: "22:00",
+    autostart: true,
+    prog_bezczynnosci_min: 15,
+    przypomnienie_przerwy_min: 50,
+    ukryj_przed_nagrywaniem: true,
+    chowaj_przy_pelnym_ekranie: true,
+    skrot_pokaz_ukryj: "Ctrl+Alt+Space",
+  } satisfies Ustawienia,
+  plik_istnieje: false,
+  vaulty: ["D:\\Second Brain", "D:\\Notatki"],
+};
 
 function przyklad(stan: NazwaStanu, strona: "prawa" | "lewa"): Migawka {
   const teraz = Date.now();
@@ -46,6 +65,7 @@ function przyklad(stan: NazwaStanu, strona: "prawa" | "lewa"): Migawka {
 }
 
 const DYMKI: Partial<Record<NazwaStanu, Zdarzenie>> = {
+  konfiguracja: { rodzaj: "dymek", klucz: "konfiguracja_imie", wstawki: {} },
   powitanie: { rodzaj: "dymek", klucz: "powitanie", wstawki: { imie: "Dżiordżio", dni: "6 dni" } },
   lista: { rodzaj: "dymek", klucz: "lista", wstawki: {} },
   czeka_na_plan: { rodzaj: "dymek", klucz: "czeka_na_plan", wstawki: { godzina_planu: "7:40" } },
@@ -56,7 +76,7 @@ const DYMKI: Partial<Record<NazwaStanu, Zdarzenie>> = {
   koniec_dnia: { rodzaj: "dymek", klucz: "koniec_dnia", wstawki: {} },
 };
 
-const STANY: NazwaStanu[] = ["powitanie", "lista", "czeka_na_plan", "praca", "pauza", "jestes", "gratulacje", "koniec_dnia"];
+const STANY: NazwaStanu[] = ["konfiguracja", "powitanie", "lista", "czeka_na_plan", "praca", "pauza", "jestes", "gratulacje", "koniec_dnia"];
 
 export function mostPodglad(): Most {
   const parametry = new URLSearchParams(location.search);
@@ -87,6 +107,16 @@ export function mostPodglad(): Most {
     naKursor: async () => undefined,
     przeciagnij: () => undefined,
     zglosBlad: (tekst) => console.error(tekst),
+    kreatorDane: async () => PODPOWIEDZ,
+    kreatorZakoncz: async (ustawienia, utworz) => console.info("kreator zakończony", ustawienia, utworz),
+    plikIstnieje: async (sciezka) => sciezka.endsWith("Zadania.md") && sciezka.includes("Istnieje"),
+    wybierzPlik: async () => "D:\\Second Brain\\Zadania.md",
+    wybierzFolder: async () => "D:\\Second Brain",
+    fokus: async () => undefined,
+    ustawieniaPobierz: async () => PODPOWIEDZ.ustawienia,
+    ustawieniaZapisz: async (ustawienia) => console.info("zapisano", ustawienia),
+    otworzUstawienia: async () => undefined,
+    zamknijOkno: async () => console.info("zamknij okno"),
   };
 }
 

@@ -3,11 +3,13 @@
   "identifier": "default",
   "description": "Uprawnienia okna widgetu: zdarzenia, komendy aplikacji, przeciąganie okna i zapis błędów frontendu do logu.",
   "windows": [
-    "main"
+    "main",
+    "ustawienia"
   ],
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",
+    "core:window:allow-close",
     "log:allow-log"
   ]
 }

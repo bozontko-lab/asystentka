@@ -1,11 +1,13 @@
 // Widget: rysuje migawki z backendu, pokazuje dymki i efekty, zgłasza
 // rozmiar treści, żeby okno było dopasowane do stanu (B6).
 
+import "./formularz.css";
 import "./style.css";
 
 import { Dymek, kwestia } from "./dymki";
 import { KONFETTI_DLUGIE_MS, KONFETTI_MS, konfetti } from "./efekty";
 import { type Geometria, Grafiki } from "./grafiki";
+import { Kreator } from "./kreator";
 import { type Akcja, type Most, mostTauri, wTauri } from "./most";
 import { mostPodglad } from "./podglad";
 import { Postac } from "./postac";
@@ -14,6 +16,7 @@ import { aktualizuj, panel } from "./widok";
 
 /** obok: panel z lewej, postać stoi z prawej; nad: postać siedzi na panelu. */
 const UKLADY: Record<NazwaStanu, "obok" | "nad" | "sama"> = {
+  konfiguracja: "obok",
   powitanie: "sama",
   lista: "obok",
   czeka_na_plan: "obok",
@@ -62,6 +65,15 @@ async function start(): Promise<void> {
   let gotowy = false;
   let ostatniRozmiar = "";
   let zegarLicznika: number | undefined;
+  let kreator: Kreator | null = null;
+  let fokus = false;
+
+  // Okno widgetu nie przejmuje fokusu, więc pola tekstowe (kreator) włączają go na czas wpisywania.
+  const ustawFokus = (potrzebny: boolean) => {
+    if (fokus === potrzebny) return;
+    fokus = potrzebny;
+    most.fokus(potrzebny).catch((e) => most.zglosBlad(opisBledu(e)));
+  };
 
   const rozmiar = () => {
     const r = scena.getBoundingClientRect();
@@ -132,8 +144,27 @@ async function start(): Promise<void> {
     scena.dataset.stan = m.stan;
     scena.dataset.uklad = UKLADY[m.stan];
     scena.dataset.strona = m.strona;
-    const nowy = panel(m);
-    miejscePanelu.replaceChildren(...(nowy ? [nowy] : []));
+    if (m.stan === "konfiguracja") {
+      // Kreator trzyma swój stan, więc nie przebudowujemy go przy każdej migawce.
+      if (!kreator) {
+        kreator = new Kreator(most, {
+          poKroku: (krok) => {
+            postac.krokKreatora(krok);
+            if (krok === 1) {
+              const tekst = kwestia("konfiguracja_plik", {});
+              if (tekst) dymek.pokaz(tekst);
+            }
+          },
+        });
+        miejscePanelu.replaceChildren(kreator.korzen);
+        kreator.start().catch((e) => most.zglosBlad(opisBledu(e)));
+      }
+    } else {
+      kreator = null;
+      const nowy = panel(m);
+      miejscePanelu.replaceChildren(...(nowy ? [nowy] : []));
+    }
+    ustawFokus(m.stan === "konfiguracja");
     aktualizuj(miejscePanelu, m, Date.now());
     postac.ustaw(m);
     ustawWidocznosc(m.widoczna);

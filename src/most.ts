@@ -6,7 +6,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { error as logBlad } from "@tauri-apps/plugin-log";
 
-import type { Migawka, Zdarzenie } from "./typy";
+import type { Migawka, PodpowiedzKreatora, Ustawienia, Zdarzenie } from "./typy";
 
 export type Akcja = "pauza" | "wznow" | "zrobione" | "przerwij" | "pokaz_liste";
 
@@ -23,6 +23,17 @@ export interface Most {
   przeciagnij(): void;
   /** Błąd frontendu do pliku logu (na Windows konsoli WebView2 nie widać). */
   zglosBlad(tekst: string): void;
+  kreatorDane(): Promise<PodpowiedzKreatora>;
+  kreatorZakoncz(ustawienia: Ustawienia, utworzPlik: boolean): Promise<void>;
+  plikIstnieje(sciezka: string): Promise<boolean>;
+  wybierzPlik(start?: string): Promise<string | null>;
+  wybierzFolder(start?: string, tytul?: string): Promise<string | null>;
+  /** Okno widgetu nie przejmuje fokusu; pola tekstowe włączają go na czas wpisywania. */
+  fokus(wlacz: boolean): Promise<void>;
+  ustawieniaPobierz(): Promise<Ustawienia>;
+  ustawieniaZapisz(ustawienia: Ustawienia): Promise<void>;
+  otworzUstawienia(): Promise<void>;
+  zamknijOkno(): Promise<void>;
 }
 
 export function wTauri(): boolean {
@@ -43,6 +54,16 @@ export function mostTauri(): Most {
     przeciagnij: () => {
       void getCurrentWindow().startDragging();
     },
+    kreatorDane: () => invoke<PodpowiedzKreatora>("kreator_dane"),
+    kreatorZakoncz: (ustawienia, utworzPlik) => invoke("kreator_zakoncz", { ustawienia, utworzPlik }),
+    plikIstnieje: (sciezka) => invoke<boolean>("plik_istnieje", { sciezka }),
+    wybierzPlik: (start) => invoke<string | null>("wybierz_plik", { start }),
+    wybierzFolder: (start, tytul) => invoke<string | null>("wybierz_folder", { start, tytul }),
+    fokus: (wlacz) => invoke("ustaw_fokus", { wlacz }),
+    ustawieniaPobierz: () => invoke<Ustawienia>("ustawienia_pobierz"),
+    ustawieniaZapisz: (ustawienia) => invoke("ustawienia_zapisz", { ustawienia }),
+    otworzUstawienia: () => invoke("otworz_ustawienia"),
+    zamknijOkno: () => getCurrentWindow().close(),
     zglosBlad: (tekst) => {
       console.error(tekst);
       void logBlad(`frontend: ${tekst}`).catch(() => undefined);

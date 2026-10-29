@@ -29,6 +29,7 @@ const MIN_SESJA_S: i64 = 60;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stan {
+    Konfiguracja,
     Powitanie,
     Lista,
     CzekaNaPlan,
@@ -42,6 +43,7 @@ pub enum Stan {
 impl Stan {
     pub fn nazwa(self) -> &'static str {
         match self {
+            Stan::Konfiguracja => "konfiguracja",
             Stan::Powitanie => "powitanie",
             Stan::Lista => "lista",
             Stan::CzekaNaPlan => "czeka_na_plan",
@@ -66,6 +68,7 @@ pub struct Gratulacje {
 /// Faza poza sesją. W czasie sesji stan wynika z samej sesji (Praca, Pauza, Jesteś?).
 #[derive(Debug, Clone, PartialEq)]
 enum Faza {
+    Konfiguracja,
     Powitanie { do_: Chwila },
     Lista,
     Gratulacje { do_: Chwila, info: Gratulacje, potem_koniec: bool },
@@ -170,6 +173,7 @@ pub struct Rdzen {
     zdarzenia: Vec<Zdarzenie>,
     brudny: bool,
     ostatni_dymek_powrotu: Option<Chwila>,
+    kreator: bool,
 }
 
 impl Rdzen {
@@ -189,6 +193,7 @@ impl Rdzen {
             zdarzenia: Vec::new(),
             brudny: false,
             ostatni_dymek_powrotu: None,
+            kreator: false,
         }
     }
 
@@ -209,6 +214,7 @@ impl Rdzen {
             Faza::Lista if self.plan.is_some() => Stan::Lista,
             Faza::Lista => Stan::CzekaNaPlan,
             Faza::Gratulacje { .. } => Stan::Gratulacje,
+            Faza::Konfiguracja => Stan::Konfiguracja,
             Faza::KoniecDnia => Stan::KoniecDnia,
         }
     }
@@ -271,6 +277,22 @@ impl Rdzen {
 
     // ---- start, cykl i zegar -------------------------------------------
 
+    /// Pierwsze uruchomienie wersji 2: zamiast powitania otwiera się kreator.
+    pub fn wymus_kreator(&mut self) {
+        self.kreator = true;
+    }
+
+    /// Kreator skończony: ustawienia są zapisane, plik zadań istnieje.
+    pub fn zakoncz_kreator(&mut self, nowe: Ustawienia, teraz: Chwila) {
+        self.kreator = false;
+        self.lok.ostatnie_powitanie = Some(self.dzien);
+        self.faza = Faza::Lista;
+        self.zmien_ustawienia(nowe, teraz);
+        self.dymek("konfiguracja_gotowe", &[]);
+        self.brudny = true;
+        self.zapisz_stan(teraz);
+    }
+
     pub fn start(&mut self, teraz: Chwila) {
         self.dzien = czas::dzien(teraz);
         self.dzis = self.magazyn.wczytaj_dzien(self.dzien);
@@ -283,7 +305,10 @@ impl Rdzen {
         self.wczytaj_plan();
         self.scal_stan_zadan_z_dysku();
         self.efekt("glitch_wejscie");
-        if self.lok.sesja.is_some() {
+        if self.kreator && self.lok.sesja.is_none() {
+            self.faza = Faza::Konfiguracja;
+            self.dymek("konfiguracja_imie", &[]);
+        } else if self.lok.sesja.is_some() {
             self.faza = Faza::Lista;
             self.dymek("po_blokadzie", &[]);
         } else if self.lok.ostatnie_powitanie != Some(self.dzien) {
@@ -869,6 +894,7 @@ mod testy {
 
         fn ustawienia(&self) -> Ustawienia {
             Ustawienia {
+                imie: "Dżiordżio".into(),
                 folder_planow: self.dysk.join("plany").to_string_lossy().into(),
                 plik_stanu: self.dysk.join("stan-zadan.json").to_string_lossy().into(),
                 folder_dziennika: self.vault.join("Dziennik pracy").to_string_lossy().into(),
@@ -929,6 +955,26 @@ mod testy {
         r.tick(t("09:00:06"));
         assert_eq!(r.stan(), Stan::Lista);
         assert_eq!(dymki(&mut r), vec!["lista"]);
+    }
+
+    #[test]
+    fn kreator_zastepuje_powitanie_i_prowadzi_do_listy() {
+        let sr = Srodowisko::nowe();
+        sr.wrzuc_plan();
+        let mut r = Rdzen::nowy(Magazyn::new(sr.lokalny.clone()), Ustawienia::default(), t("09:00:00"));
+        r.wymus_kreator();
+        r.start(t("09:00:00"));
+        assert_eq!(r.stan(), Stan::Konfiguracja);
+        assert_eq!(dymki(&mut r), vec!["konfiguracja_imie"]);
+        r.tick(t("09:00:30"));
+        assert_eq!(r.stan(), Stan::Konfiguracja, "kreator czeka na użytkownika");
+        r.zakoncz_kreator(sr.ustawienia(), t("09:02:00"));
+        assert_eq!(r.stan(), Stan::Lista);
+        assert_eq!(r.ust.imie, "Dżiordżio");
+        assert_eq!(dymki(&mut r), vec!["konfiguracja_gotowe"]);
+        // Kolejny start tego samego dnia nie wita ponownie.
+        let mut r2 = sr.rdzen(t("11:00:00"));
+        assert_eq!(dymki(&mut r2), vec!["powrot"]);
     }
 
     #[test]

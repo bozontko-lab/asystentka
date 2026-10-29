@@ -728,3 +728,10 @@ body.tryb-podgladu #scena {
   background: var(--cyjan);
   color: var(--granat);
 }
+
+/* ---- kreator ------------------------------------------------------------------ */
+
+.panel-kreator {
+  width: 330px;
+  max-height: none;
+}

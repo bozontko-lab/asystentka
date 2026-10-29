@@ -1,0 +1,150 @@
+/* Pola formularzy: kreator w widgecie i okno ustawień. Kolory z paleta/style. */
+
+.pole {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 11px;
+}
+
+.pole > label,
+.pole > .etykieta {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tekst, #f3f1ff);
+}
+
+.pole .podpowiedz {
+  color: var(--tekst-cichy, #b8b4dc);
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+.pole input[type="text"],
+.pole input[type="number"],
+.pole input[type="time"] {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 7px 9px;
+  border: 1.5px solid rgba(185, 166, 255, 0.45);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--tekst, #f3f1ff);
+  font: inherit;
+  user-select: text;
+}
+
+.pole input:focus {
+  outline: none;
+  border-color: var(--cyjan, #2edbe8);
+  background: rgba(46, 219, 232, 0.08);
+}
+
+.pole input[aria-invalid="true"] {
+  border-color: var(--brzoskwinia, #ffb59a);
+}
+
+.wiersz-sciezki {
+  display: flex;
+  gap: 6px;
+}
+
+.wiersz-sciezki input {
+  flex: 1;
+  min-width: 0;
+}
+
+.pole-przelacznik {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.pole-przelacznik input {
+  margin-top: 2px;
+  accent-color: var(--cyjan, #2edbe8);
+}
+
+.pole-przelacznik label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wybor-trybu {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0 0 11px;
+}
+
+.wybor-trybu label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 9px;
+  border: 1px solid rgba(185, 166, 255, 0.3);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.wybor-trybu label:has(input:checked) {
+  border-color: var(--cyjan, #2edbe8);
+  background: rgba(46, 219, 232, 0.09);
+}
+
+.wybor-trybu input {
+  accent-color: var(--cyjan, #2edbe8);
+}
+
+.vaulty {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.mala {
+  padding: 3px 8px;
+  border: 1px solid rgba(185, 166, 255, 0.45);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--tekst, #f3f1ff);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.mala:hover {
+  background: rgba(185, 166, 255, 0.2);
+}
+
+.blad-formularza {
+  margin: 0 0 9px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: rgba(255, 181, 154, 0.14);
+  color: var(--brzoskwinia, #ffb59a);
+  font-size: 12px;
+  line-height: 1.35;
+  white-space: pre-line;
+}
+
+.krok {
+  margin: 0 0 3px;
+  color: var(--tekst-cichy, #b8b4dc);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.pytanie {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.podsumowanie-sciezek {
+  overflow-wrap: anywhere;
+}

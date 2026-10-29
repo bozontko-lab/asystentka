@@ -4,6 +4,8 @@
 //
 //   npm run piaskownica                 przygotuj pliki i uruchom `tauri dev`
 //   npm run piaskownica -- --od-nowa    wyczyść piaskownicę przed startem
+//   npm run piaskownica -- --v1         ustawienia z wersji 1: kreator wypełnia się nimi
+//   npm run piaskownica -- --kreator    bez pliku ustawień: kreator od zera
 //   npm run piaskownica -- --bez-planu  bez dzisiejszego planu (stan „Czeka na plan”)
 //   npm run piaskownica -- --dodaj-plan dopisz dzisiejszy plan i zakończ
 //                                       (jak poranne zadanie; widget zauważy go w 30 s)
@@ -48,14 +50,13 @@ if (argumenty.has("--dodaj-plan")) {
 if (!argumenty.has("--bez-planu")) dodajPlan();
 if (!existsSync(plikStanu)) copyFileSync(join(repo, "przyklady", "stan-zadan.json"), plikStanu);
 
+const vault = join(katalog, "vault");
 const ustawienia = join(dane, "ustawienia.json");
-if (!existsSync(ustawienia)) {
-  const wartosci = {
+const plikZadan = join(vault, "Zadania.md");
+if (argumenty.has("--kreator")) rmSync(ustawienia, { force: true });
+else if (!existsSync(ustawienia)) {
+  const wspolne = {
     imie: "Dżiordżio",
-    folder_planow: plany,
-    plik_stanu: plikStanu,
-    folder_dziennika: dziennik,
-    godzina_planu: "07:40",
     godzina_konca_dnia: "22:00",
     prog_bezczynnosci_min: 15,
     przypomnienie_przerwy_min: 50,
@@ -63,7 +64,16 @@ if (!existsSync(ustawienia)) {
     chowaj_przy_pelnym_ekranie: true,
     skrot_pokaz_ukryj: "Ctrl+Alt+Space",
   };
+  // Pola z wersji 1 zostają, dopóki widget korzysta jeszcze z planu na Dysku.
+  const v1 = { folder_planow: plany, plik_stanu: plikStanu, folder_dziennika: dziennik, godzina_planu: "07:40" };
+  // --v1: plik ustawień z wersji 1, bez plik_zadan, więc otwiera się kreator wypełniony tymi danymi.
+  const wartosci = argumenty.has("--v1")
+    ? { ...wspolne, ...v1 }
+    : { ...wspolne, plik_zadan: plikZadan, folder_dziennika: dziennik, cel_dzienny_min: 240, autostart: false, ...v1 };
   writeFileSync(ustawienia, `${JSON.stringify(wartosci, null, 2)}\n`);
+}
+if (!argumenty.has("--v1") && !argumenty.has("--kreator") && !existsSync(plikZadan)) {
+  copyFileSync(join(repo, "przyklady", "Zadania.md"), plikZadan);
 }
 
 console.log(`piaskownica: ${katalog}`);

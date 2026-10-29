@@ -37,6 +37,7 @@ export class Postac {
   private drzemka = false;
   private wariant: Wariant = "patrzy";
   private pauzaOd: number | null = null;
+  private krokKreatoraNr = 0;
   private zegarMrugania: number | undefined;
   private zegarWariantu: number | undefined;
   private zegarStanu: number | undefined;
@@ -65,6 +66,12 @@ export class Postac {
       this.zaplanujDrzemke();
     }
     this.odswiez(false);
+  }
+
+  /** Kreator: przy pierwszym kroku macha, potem wskazuje plik. */
+  krokKreatora(krok: number): void {
+    this.krokKreatoraNr = krok;
+    this.odswiez(true);
   }
 
   widocznosc(widoczna: boolean): void {
@@ -163,6 +170,8 @@ export class Postac {
       g.ma(b) && g.adres(a) !== g.adres(b) ? { a, b, tryb: "klatki", cykl } : { a, tryb: "brak" };
     const stoi: Klatki = { a: "stand_idle", b: "stand_idle_blink", tryb: "mrug" };
     switch (this.stan) {
+      case "konfiguracja":
+        return this.krokKreatoraNr === 0 ? dwie("wave_1", "wave_2", "0.7s") : { a: "point", tryb: "brak" };
       case "powitanie":
         return dwie("wave_1", "wave_2", "0.7s");
       case "lista":

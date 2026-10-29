@@ -1,28 +1,9 @@
 // Panele stanów z B4. Panel rysuje się na nowo przy każdej migawce, a licznik
 // i pasek czasu aktualizuje `aktualizuj` raz na sekundę, bez przebudowy DOM.
 
+import { el } from "./dom";
 import { godzinaBezZera, licznik, minutyTekst, naMinuty, szacunekTekst } from "./format";
 import { W_TOKU, ZROBIONE, type Gratulacje, type Migawka, type SesjaWidok, type ZadanieWidok } from "./typy";
-
-type Dziecko = Node | string | null | undefined | false;
-type Atrybuty = Record<string, string | boolean | undefined>;
-
-function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  atrybuty: Atrybuty = {},
-  ...dzieci: (Dziecko | Dziecko[])[]
-): HTMLElementTagNameMap[K] {
-  const element = document.createElement(tag);
-  for (const [nazwa, wartosc] of Object.entries(atrybuty)) {
-    if (wartosc === true) element.setAttribute(nazwa, "");
-    else if (typeof wartosc === "string") element.setAttribute(nazwa, wartosc);
-  }
-  for (const dziecko of dzieci.flat()) {
-    if (dziecko === null || dziecko === undefined || dziecko === false) continue;
-    element.append(dziecko);
-  }
-  return element;
-}
 
 const NAZWY_SCIEZEK: Record<string, string> = {
   folder_planow: "folder planów",
@@ -159,6 +140,7 @@ function panelKonca(m: Migawka): HTMLElement {
 /** Panel dla stanu; Powitanie ma sam dymek. */
 export function panel(m: Migawka): HTMLElement | null {
   switch (m.stan) {
+    case "konfiguracja":
     case "powitanie":
       return null;
     case "lista":
