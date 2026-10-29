@@ -1,63 +1,69 @@
-//! Dziennik pracy w Obsidianie (SPEC.md, B3): jeden plik `RRRR-MM-DD.md` na
-//! dzień, jedna linia na sesję. Widget zmienia tylko swoje pola we
+//! Dziennik pracy w Obsidianie (SPEC.md, B3): jedna notatka `RRRR-MM-DD.md`
+//! na dzień i jedna linia na sesję. Widget zmienia tylko swoje pola we
 //! frontmatterze i blok między znacznikami; reszta pliku zostaje nietknięta.
 
-use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 
 use crate::czas::{self, Chwila};
+use crate::plik_zadan::BEZ_PROJEKTU;
 use crate::pliki;
-use crate::zadania::ZROBIONE;
 
 pub const ZNACZNIK_START: &str = "<!-- widget:start -->";
 pub const ZNACZNIK_KONIEC: &str = "<!-- widget:end -->";
 
-/// Zakończona sesja w lokalnym rejestrze dnia, z którego odtwarzany jest blok.
+/// Zakończona sesja w rejestrze dnia, z którego odtwarzany jest blok w dzienniku.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct WpisSesji {
-    pub id: String,
-    /// Nazwa z dzisiejszym fragmentem, np. `Montaż: plansze 1–5`.
-    pub nazwa: String,
+    pub projekt: String,
+    pub zadanie: String,
     pub szac_min: Option<u32>,
     pub start: Chwila,
     pub koniec: Chwila,
     pub sekundy: i64,
     pub minuty: u32,
-    /// `Zrobione` albo `W toku`.
-    pub status: String,
+    /// `true` po „Zrobione”, `false` po „Przerwij” i po końcu dnia („w toku”).
+    pub zrobione: bool,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+/// Sekcja „Podsumowanie dnia”, dopisywana przy końcu pracy.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Podsumowanie {
+    /// Nazwa reakcji, np. „lekko pochwalająca”.
+    pub reakcja: String,
+    /// Zadania z planu bez ptaszka.
+    pub na_jutro: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct DzienPracy {
     pub data: NaiveDate,
     pub sesje: Vec<WpisSesji>,
+    pub cel_min: u32,
+    pub zaplanowane: u32,
+    pub zrobione: u32,
+    pub podsumowanie: Option<Podsumowanie>,
+}
+
+impl Default for DzienPracy {
+    fn default() -> Self {
+        DzienPracy {
+            data: NaiveDate::from_ymd_opt(1970, 1, 1).expect("poprawna data"),
+            sesje: Vec::new(),
+            cel_min: 240,
+            zaplanowane: 0,
+            zrobione: 0,
+            podsumowanie: None,
+        }
+    }
 }
 
 impl DzienPracy {
-    pub fn nowy(data: NaiveDate) -> DzienPracy {
-        DzienPracy { data, sesje: Vec::new() }
-    }
-
     pub fn minuty(&self) -> u32 {
         self.sesje.iter().map(|s| s.minuty).sum()
-    }
-
-    pub fn minuty_zadania(&self, id: &str) -> u32 {
-        self.sesje.iter().filter(|s| s.id == id).map(|s| s.minuty).sum()
-    }
-
-    /// Nazwy zrobionych dziś zadań, bez powtórzeń, w kolejności zakończenia.
-    pub fn zrobione(&self) -> Vec<String> {
-        let mut widziane = BTreeSet::new();
-        self.sesje
-            .iter()
-            .filter(|s| s.status == ZROBIONE && widziane.insert(s.id.clone()))
-            .map(|s| s.nazwa.clone())
-            .collect()
     }
 
     pub fn blok(&self) -> String {
@@ -66,19 +72,35 @@ impl DzienPracy {
             blok.push_str(&linia(sesja));
             blok.push('\n');
         }
-        blok.push_str(&format!("\n**Razem:** {}\n{ZNACZNIK_KONIEC}", czas::minuty_tekst(self.minuty())));
+        let zadan = if self.zaplanowane == 1 { "zadania" } else { "zadań" };
+        blok.push_str(&format!(
+            "\n**Razem:** {} z celu {} · **Plan:** {} z {} {zadan}\n",
+            czas::minuty_tekst(self.minuty()),
+            czas::minuty_tekst(self.cel_min),
+            self.zrobione,
+            self.zaplanowane,
+        ));
+        if let Some(p) = &self.podsumowanie {
+            blok.push_str(&format!("\n### Podsumowanie dnia\nReakcja: {}\n", p.reakcja));
+            if !p.na_jutro.is_empty() {
+                blok.push_str(&format!("Na jutro: {}\n", p.na_jutro.join(", ")));
+            }
+        }
+        blok.push_str(ZNACZNIK_KONIEC);
         blok
     }
 }
 
-/// `- [x] 09:12–10:05 · Scenariusz: intro · 47 min (szac. 60) · #12`
+/// `- [x] 09:12–10:05 · Scenariusz: intro · 47 min (szac. 60) · Film #1 · FIFA`
 pub fn linia(s: &WpisSesji) -> String {
     let godziny = format!("{}–{}", czas::godzina_minuta(s.start), czas::godzina_minuta(s.koniec));
-    if s.status == ZROBIONE {
+    let projekt =
+        if s.projekt.is_empty() || s.projekt == BEZ_PROJEKTU { String::new() } else { format!(" · {}", s.projekt) };
+    if s.zrobione {
         let szacunek = s.szac_min.map(|m| format!(" (szac. {m})")).unwrap_or_default();
-        format!("- [x] {godziny} · {} · {} min{szacunek} · #{}", s.nazwa, s.minuty, s.id)
+        format!("- [x] {godziny} · {} · {} min{szacunek}{projekt}", s.zadanie, s.minuty)
     } else {
-        format!("- [ ] {godziny} · {} · {} min · w toku · #{}", s.nazwa, s.minuty, s.id)
+        format!("- [ ] {godziny} · {} · {} min · w toku{projekt}", s.zadanie, s.minuty)
     }
 }
 
@@ -122,7 +144,9 @@ pub fn aktualizuj_tresc(stara: Option<&str>, dzien: &DzienPracy) -> String {
     let pola = [
         ("data", czas::data_iso(dzien.data)),
         ("minuty", dzien.minuty().to_string()),
-        ("zrobione", dzien.zrobione().len().to_string()),
+        ("cel_min", dzien.cel_min.to_string()),
+        ("zaplanowane", dzien.zaplanowane.to_string()),
+        ("zrobione", dzien.zrobione.to_string()),
     ];
     let (frontmatter, reszta) = rozdziel_frontmatter(&tekst);
     let frontmatter = ustaw_pola(frontmatter.unwrap_or_default(), &pola);
@@ -188,34 +212,40 @@ pub fn zapisz(folder: &Path, dzien: &DzienPracy) -> Result<(), String> {
 mod testy {
     use super::*;
     use crate::czas::chwila;
-    use crate::zadania::W_TOKU;
 
+    /// Przykład z B3 (lekko pochwalająca, plan 2 z 4).
     const PRZYKLAD: &str = "---
 data: 2026-10-30
 minuty: 132
+cel_min: 240
+zaplanowane: 4
 zrobione: 2
 ---
 <!-- widget:start -->
 ## Praca · 30.10.2026
 
-- [x] 09:12–10:05 · Scenariusz: intro · 47 min (szac. 60) · #12
-- [ ] 10:20–11:05 · Montaż: plansze 1–5 · 45 min · w toku · #15
-- [x] 11:30–12:10 · Miniatura: szkic · 40 min (szac. 30) · #18
+- [x] 09:12–10:05 · Scenariusz: intro · 47 min (szac. 60) · Film #1 · FIFA
+- [ ] 10:20–11:05 · Montaż: plansze 1–5 · 45 min · w toku · Film #1 · FIFA
+- [x] 11:30–12:10 · Miniatura · 40 min (szac. 30) · Film #1 · FIFA
 
-**Razem:** 2 h 12 min
+**Razem:** 2 h 12 min z celu 4 h · **Plan:** 2 z 4 zadań
+
+### Podsumowanie dnia
+Reakcja: lekko pochwalająca
+Na jutro: Montaż: plansze 1–5, Odpisać na maila od montażysty
 <!-- widget:end -->
 ";
 
-    fn wpis(id: &str, nazwa: &str, szac: u32, start: &str, koniec: &str, minuty: u32, status: &str) -> WpisSesji {
+    fn wpis(zadanie: &str, szac: u32, start: &str, koniec: &str, minuty: u32, zrobione: bool) -> WpisSesji {
         WpisSesji {
-            id: id.into(),
-            nazwa: nazwa.into(),
+            projekt: "Film #1 · FIFA".into(),
+            zadanie: zadanie.into(),
             szac_min: Some(szac),
             start: chwila(start),
             koniec: chwila(koniec),
             sekundy: i64::from(minuty) * 60,
             minuty,
-            status: status.into(),
+            zrobione,
         }
     }
 
@@ -223,34 +253,17 @@ zrobione: 2
         DzienPracy {
             data: NaiveDate::from_ymd_opt(2026, 10, 30).unwrap(),
             sesje: vec![
-                wpis(
-                    "12",
-                    "Scenariusz: intro",
-                    60,
-                    "2026-10-30T09:12:00+01:00",
-                    "2026-10-30T10:05:00+01:00",
-                    47,
-                    ZROBIONE,
-                ),
-                wpis(
-                    "15",
-                    "Montaż: plansze 1–5",
-                    120,
-                    "2026-10-30T10:20:00+01:00",
-                    "2026-10-30T11:05:00+01:00",
-                    45,
-                    W_TOKU,
-                ),
-                wpis(
-                    "18",
-                    "Miniatura: szkic",
-                    30,
-                    "2026-10-30T11:30:00+01:00",
-                    "2026-10-30T12:10:00+01:00",
-                    40,
-                    ZROBIONE,
-                ),
+                wpis("Scenariusz: intro", 60, "2026-10-30T09:12:00+01:00", "2026-10-30T10:05:00+01:00", 47, true),
+                wpis("Montaż: plansze 1–5", 120, "2026-10-30T10:20:00+01:00", "2026-10-30T11:05:00+01:00", 45, false),
+                wpis("Miniatura", 30, "2026-10-30T11:30:00+01:00", "2026-10-30T12:10:00+01:00", 40, true),
             ],
+            cel_min: 240,
+            zaplanowane: 4,
+            zrobione: 2,
+            podsumowanie: Some(Podsumowanie {
+                reakcja: "lekko pochwalająca".into(),
+                na_jutro: vec!["Montaż: plansze 1–5".into(), "Odpisać na maila od montażysty".into()],
+            }),
         }
     }
 
@@ -260,52 +273,60 @@ zrobione: 2
     }
 
     #[test]
-    fn notatki_poza_blokiem_zostaja() {
-        let mut dzien = dzien_z_przykladu();
-        let pierwszy = dzien.sesje.remove(2);
-        let stary = format!(
-            "---\ndata: 2026-10-30\ntags: [praca]\nminuty: 92\nzrobione: 1\n---\n# Moje notatki\n\nRano kawa.\n\n{}\n\n## Wieczór\n- [ ] własne zadanie\n",
-            DzienPracy { sesje: dzien.sesje.clone(), ..dzien.clone() }.blok()
+    fn bez_podsumowania_blok_konczy_sie_linia_razem() {
+        let dzien = DzienPracy { podsumowanie: None, ..dzien_z_przykladu() };
+        let tresc = aktualizuj_tresc(None, &dzien);
+        assert!(tresc.contains("**Plan:** 2 z 4 zadań\n<!-- widget:end -->\n"));
+        assert!(!tresc.contains("Podsumowanie dnia"));
+    }
+
+    #[test]
+    fn wroc_do_pracy_usuwa_podsumowanie_i_zachowuje_notatki() {
+        let stara = format!("# Moje notatki\n\n{PRZYKLAD}\n## Wieczór\n- coś\n");
+        let dzien = DzienPracy { podsumowanie: None, ..dzien_z_przykladu() };
+        let nowa = aktualizuj_tresc(Some(&stara), &dzien);
+        assert!(!nowa.contains("Podsumowanie dnia"));
+        assert!(nowa.ends_with("<!-- widget:end -->\n\n## Wieczór\n- coś\n"));
+        // Frontmatter bez notatek powstaje przed nimi.
+        assert!(
+            nowa.starts_with("---\ndata: 2026-10-30\nminuty: 132\ncel_min: 240\nzaplanowane: 4\nzrobione: 2\n---\n")
         );
-        dzien.sesje.push(pierwszy);
-        let nowy = aktualizuj_tresc(Some(&stary), &dzien);
-        assert!(nowy.starts_with("---\ndata: 2026-10-30\ntags: [praca]\nminuty: 132\nzrobione: 2\n---\n# Moje notatki\n\nRano kawa.\n\n<!-- widget:start -->"));
-        assert!(nowy.ends_with("<!-- widget:end -->\n\n## Wieczór\n- [ ] własne zadanie\n"));
-        assert!(nowy.contains("Miniatura: szkic · 40 min (szac. 30) · #18"));
-        assert_eq!(nowy.matches(ZNACZNIK_START).count(), 1);
     }
 
     #[test]
-    fn plik_bez_bloku_dostaje_go_po_frontmatterze() {
-        let stary = "---\ntags: [dziennik]\n---\nNotatka z rana.\n";
-        let nowy = aktualizuj_tresc(Some(stary), &dzien_z_przykladu());
-        assert!(nowy.starts_with(
-            "---\ntags: [dziennik]\ndata: 2026-10-30\nminuty: 132\nzrobione: 2\n---\n<!-- widget:start -->"
+    fn notatka_z_wersji_1_dostaje_nowe_pola_we_frontmatterze() {
+        let stara = "---\ndata: 2026-10-30\nminuty: 92\nzrobione: 1\ntags: [praca]\n---\n<!-- widget:start -->\nstary blok\n<!-- widget:end -->\n";
+        let nowa = aktualizuj_tresc(Some(stara), &dzien_z_przykladu());
+        assert!(nowa.starts_with(
+            "---\ndata: 2026-10-30\nminuty: 132\nzrobione: 2\ntags: [praca]\ncel_min: 240\nzaplanowane: 4\n---\n<!-- widget:start -->\n## Praca"
         ));
-        assert!(nowy.ends_with("<!-- widget:end -->\n\nNotatka z rana.\n"));
+        assert!(!nowa.contains("stary blok"));
     }
 
     #[test]
-    fn plik_bez_frontmattera() {
-        let nowy = aktualizuj_tresc(Some("Tylko notatka\n"), &dzien_z_przykladu());
-        assert!(nowy.starts_with("---\ndata: 2026-10-30\nminuty: 132\nzrobione: 2\n---\n<!-- widget:start -->"));
-        assert!(nowy.ends_with("<!-- widget:end -->\n\nTylko notatka\n"));
+    fn plik_bez_bloku_i_bez_frontmattera() {
+        let nowa = aktualizuj_tresc(Some("Tylko notatka\n"), &dzien_z_przykladu());
+        assert!(nowa.starts_with("---\ndata: 2026-10-30\n"));
+        assert!(nowa.ends_with("<!-- widget:end -->\n\nTylko notatka\n"));
     }
 
     #[test]
     fn zachowuje_crlf_i_bom() {
-        let stary =
-            format!("\u{feff}{}", PRZYKLAD.replace('\n', "\r\n")).replace("Razem:** 2 h 12 min", "Razem:** stare");
+        let stary = format!("\u{feff}{}", PRZYKLAD.replace('\n', "\r\n")).replace("2 h 12 min z celu", "1 min z celu");
         let nowy = aktualizuj_tresc(Some(&stary), &dzien_z_przykladu());
         assert_eq!(nowy, format!("\u{feff}{}", PRZYKLAD.replace('\n', "\r\n")));
     }
 
     #[test]
-    fn podsumowanie_dnia() {
-        let dzien = dzien_z_przykladu();
-        assert_eq!(dzien.minuty(), 132);
-        assert_eq!(dzien.minuty_zadania("15"), 45);
-        assert_eq!(dzien.zrobione(), vec!["Scenariusz: intro", "Miniatura: szkic"]);
+    fn zadanie_bez_projektu_i_jedno_zaplanowane() {
+        let mut w = wpis("Luźne", 10, "2026-10-30T09:00:00+01:00", "2026-10-30T09:10:00+01:00", 10, true);
+        w.projekt = BEZ_PROJEKTU.into();
+        assert_eq!(linia(&w), "- [x] 09:00–09:10 · Luźne · 10 min (szac. 10)");
+        let d = DzienPracy { sesje: vec![w], zaplanowane: 1, zrobione: 1, ..DzienPracy::default() };
+        assert!(d.blok().contains("**Plan:** 1 z 1 zadania"));
+        w = wpis("Bez szacunku", 0, "2026-10-30T09:00:00+01:00", "2026-10-30T09:05:00+01:00", 5, true);
+        w.szac_min = None;
+        assert_eq!(linia(&w), "- [x] 09:00–09:05 · Bez szacunku · 5 min · Film #1 · FIFA");
     }
 
     #[test]
@@ -313,8 +334,7 @@ zrobione: 2
         let vault = tempfile::tempdir().unwrap();
         let folder = vault.path().join("Dziennik pracy");
         zapisz(&folder, &dzien_z_przykladu()).unwrap();
-        let tresc = std::fs::read_to_string(folder.join("2026-10-30.md")).unwrap();
-        assert_eq!(tresc, PRZYKLAD);
+        assert_eq!(std::fs::read_to_string(folder.join("2026-10-30.md")).unwrap(), PRZYKLAD);
         let brak = vault.path().join("brak").join("Dziennik pracy");
         assert!(zapisz(&brak, &dzien_z_przykladu()).is_err());
         assert!(!brak.exists());

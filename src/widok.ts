@@ -2,83 +2,144 @@
 // i pasek czasu aktualizuje `aktualizuj` raz na sekundę, bez przebudowy DOM.
 
 import { el } from "./dom";
-import { godzinaBezZera, licznik, minutyTekst, naMinuty, szacunekTekst } from "./format";
-import { W_TOKU, ZROBIONE, type Gratulacje, type Migawka, type SesjaWidok, type ZadanieWidok } from "./typy";
+import { licznik, minutyTekst, naMinuty, szacunekTekst, terminTekst } from "./format";
+import type { Gratulacje, ListaWidok, Migawka, SesjaWidok, WyborWidok, ZadanieWidok } from "./typy";
 
-const NAZWY_SCIEZEK: Record<string, string> = {
-  folder_planow: "folder planów",
-  plik_stanu: "plik stanu zadań",
-  folder_dziennika: "folder dziennika",
-};
+const BEZ_PROJEKTU = "Bez projektu";
 
-function wierszZadania(z: ZadanieWidok): HTMLElement {
-  const zrobione = z.status === ZROBIONE;
-  const wToku = z.status === W_TOKU;
-  const czas = zrobione
+function ostrzezenie(tresc: string | null): HTMLElement | null {
+  if (!tresc) return null;
+  return el(
+    "div",
+    { class: "ostrzezenie" },
+    tresc,
+    " ",
+    el("button", { class: "link", type: "button", "data-akcja": "otworz_ustawienia" }, "Ustawienia"),
+  );
+}
+
+// ---- wybór zadań ---------------------------------------------------------------------------
+
+function wierszWyboru(z: ZadanieWidok): HTMLElement {
+  const wej = el("input", { type: "checkbox", "data-projekt": z.projekt, "data-zadanie": z.zadanie });
+  wej.checked = z.zaznaczone;
+  const meta: (string | false)[] = [
+    z.szac_min != null ? `szac. ${minutyTekst(z.szac_min)}` : false,
+    z.w_toku && `w toku · ${minutyTekst(z.czas_min)}`,
+    z.termin != null && `termin ${terminTekst(z.termin)}`,
+  ];
+  return el(
+    "li",
+    {},
+    el(
+      "label",
+      { class: z.w_toku ? "wiersz-wyboru w-toku" : "wiersz-wyboru" },
+      wej,
+      el(
+        "span",
+        { class: "opis-zadania" },
+        el("span", { class: "nazwa" }, z.zadanie),
+        el("span", { class: "znacznik" }, meta.filter(Boolean).join(" · ")),
+      ),
+      z.szac_min == null && el("span", { class: "bez-szacunku", title: "Zadanie bez szacunku liczy się w sumie jako 0" }, "bez szacunku"),
+    ),
+  );
+}
+
+export function sumaWyboru(w: Pick<WyborWidok, "suma_min" | "cel_min">): string {
+  return `Razem ${minutyTekst(w.suma_min)} z celu ${minutyTekst(w.cel_min)}`;
+}
+
+function panelWyboru(w: WyborWidok, blad: string | null): HTMLElement {
+  return el(
+    "section",
+    { class: "panel panel-wybor" },
+    el("header", { class: "naglowek" }, "Wybierz zadania na dziś"),
+    ostrzezenie(blad),
+    el(
+      "div",
+      { class: "przewijany" },
+      w.projekty.length === 0
+        ? el("p", { class: "opis" }, "Nie ma otwartych zadań. Dopisz je w pliku albo przyciskiem poniżej.")
+        : w.projekty.flatMap((p) => [
+            el("div", { class: "sekcja" }, p.nazwa),
+            el("ul", { class: "zadania" }, p.zadania.map(wierszWyboru)),
+          ]),
+    ),
+    el("div", { class: w.przekroczony ? "suma-wyboru koral" : "suma-wyboru", "data-suma": true }, sumaWyboru(w)),
+    el(
+      "div",
+      { class: "przyciski" },
+      el("button", { class: "przycisk", type: "button", "data-akcja": "dodaj" }, "Dodaj zadanie"),
+      w.mozna_wrocic && el("button", { class: "przycisk cichy", type: "button", "data-akcja": "anuluj_wybor" }, "Wróć"),
+      el(
+        "button",
+        {
+          class: "przycisk glowny",
+          type: "button",
+          "data-akcja": "zatwierdz_wybor",
+          disabled: w.zaznaczonych === 0 && !w.mozna_wrocic,
+        },
+        "Zaczynamy",
+      ),
+    ),
+  );
+}
+
+// ---- lista planu na dziś -------------------------------------------------------------------
+
+function wierszListy(z: ZadanieWidok): HTMLElement {
+  const czas = z.zrobione
     ? "✓"
-    : z.minuty_dzis > 0
-      ? szacunekTekst(z.minuty_dzis, z.szac_min)
+    : z.czas_min > 0
+      ? szacunekTekst(z.czas_min, z.szac_min)
       : z.szac_min != null
         ? `${z.szac_min} min`
         : "";
-  const klasy = ["zadanie", zrobione && "zrobione", wToku && "w-toku"].filter(Boolean).join(" ");
+  const klasy = ["zadanie", z.zrobione && "zrobione", z.w_toku && "w-toku"].filter(Boolean).join(" ");
   return el(
     "li",
     {},
     el(
       "button",
-      { class: klasy, "data-id": z.id, disabled: zrobione, type: "button" },
+      { class: klasy, "data-projekt": z.projekt, "data-zadanie": z.zadanie, disabled: z.zrobione, type: "button" },
       el(
         "span",
         { class: "opis-zadania" },
-        el("span", { class: "nazwa" }, z.nazwa),
-        wToku && z.minuty_razem > 0 && el("span", { class: "znacznik" }, `w toku · ${minutyTekst(z.minuty_razem)}`),
+        el("span", { class: "nazwa" }, z.zadanie),
+        z.w_toku && el("span", { class: "znacznik" }, `w toku · ${minutyTekst(z.czas_min)}`),
+        z.projekt !== BEZ_PROJEKTU && !z.w_toku && el("span", { class: "znacznik cichy" }, z.projekt),
       ),
       el("span", { class: "czas" }, czas),
     ),
   );
 }
 
-function panelListy(m: Migawka): HTMLElement {
-  const plan = m.plan!;
+function panelListy(l: ListaWidok, blad: string | null): HTMLElement {
+  const stan = `${l.zrobione} z ${l.razem} zrobione`;
   return el(
     "section",
     { class: "panel panel-lista" },
-    el("header", { class: plan.zagrozone ? "naglowek zagrozone" : "naglowek" }, plan.naglowek || "Plan na dziś"),
-    plan.zadania.length > 0
-      ? el("ul", { class: "zadania" }, plan.zadania.map(wierszZadania))
-      : el("p", { class: "opis" }, "Na dziś nie ma zadań w planie."),
-    plan.zapasowe.length > 0 && [
-      el("div", { class: "sekcja" }, "Zapasowe"),
-      el("ul", { class: "zadania zapasowe" }, plan.zapasowe.map(wierszZadania)),
-    ],
+    el("header", { class: "naglowek" }, "Plan na dziś"),
+    el("p", { class: "opis" }, l.pozostalo_min > 0 ? `${stan} · zostało ok. ${minutyTekst(l.pozostalo_min)}` : stan),
+    ostrzezenie(blad),
+    el("div", { class: "przewijany" }, el("ul", { class: "zadania" }, l.zadania.map(wierszListy))),
+    el(
+      "div",
+      { class: "przyciski" },
+      el("button", { class: "przycisk", type: "button", "data-akcja": "zmien_plan" }, "Zmień plan"),
+      el("button", { class: "przycisk", type: "button", "data-akcja": "dodaj" }, "Dodaj zadanie"),
+    ),
   );
 }
 
-function panelCzekania(m: Migawka): HTMLElement {
-  return el(
-    "section",
-    { class: "panel panel-czekanie" },
-    el("header", { class: "naglowek" }, `Plan będzie po ${godzinaBezZera(m.godzina_planu)}`),
-    m.w_toku.length > 0
-      ? [el("p", { class: "opis" }, "Możesz wrócić do zadań w toku:"), el("ul", { class: "zadania" }, m.w_toku.map(wierszZadania))]
-      : el("p", { class: "opis" }, "Na razie nie ma zadań w toku."),
-    m.brakujace_sciezki.length > 0 &&
-      el(
-        "p",
-        { class: "ostrzezenie" },
-        "Uzupełnij w ustawieniach (zasobnik → Ustawienia): ",
-        m.brakujace_sciezki.map((s) => NAZWY_SCIEZEK[s] ?? s).join(", "),
-        ".",
-      ),
-  );
-}
+// ---- praca, pauza, pytanie, gratulacje -----------------------------------------------------------
 
 function panelPracy(s: SesjaWidok, pauza: boolean): HTMLElement {
   return el(
     "section",
     { class: pauza ? "panel panel-praca pauza" : "panel panel-praca" },
-    el("div", { class: "tytul", title: s.nazwa }, s.nazwa),
+    el("div", { class: "tytul", title: s.zadanie }, s.zadanie),
     el(
       "div",
       { class: "licznik-wiersz" },
@@ -105,7 +166,7 @@ function panelJestes(s: SesjaWidok): HTMLElement {
   return el(
     "section",
     { class: "panel panel-jestes" },
-    el("div", { class: "tytul", title: s.nazwa }, s.nazwa),
+    el("div", { class: "tytul", title: s.zadanie }, s.zadanie),
     el("p", { class: "opis" }, "Bez ruchu od ", el("span", { "data-bezczynnosc": true }), ". Przerwa czy praca?"),
     el(
       "div",
@@ -121,32 +182,21 @@ function panelGratulacji(g: Gratulacje): HTMLElement {
   return el(
     "section",
     { class: "panel panel-gratulacje" },
-    el("div", { class: "tytul" }, `✓ ${g.nazwa}`),
-    el("p", { class: "opis" }, `${g.minuty} min${szacunek} · zapisane w dzienniku`),
+    el("div", { class: "tytul" }, `✓ ${g.zadanie}`),
+    el("p", { class: "opis" }, `${minutyTekst(g.czas_min)}${szacunek} · dziś razem ${minutyTekst(g.czas_dnia_min)}`),
   );
 }
 
-function panelKonca(m: Migawka): HTMLElement {
-  return el(
-    "section",
-    { class: "panel panel-koniec" },
-    el("header", { class: "naglowek" }, "Podsumowanie dnia"),
-    el("div", { class: "suma" }, m.dzien.minuty > 0 ? `${minutyTekst(m.dzien.minuty)} pracy` : "Dziś bez zapisanej pracy"),
-    m.dzien.zrobione.length > 0 && el("ul", { class: "zrobione-lista" }, m.dzien.zrobione.map((n) => el("li", {}, `✓ ${n}`))),
-    el("button", { class: "link", "data-akcja": "pokaz_liste", type: "button" }, "Wróć do listy"),
-  );
-}
-
-/** Panel dla stanu; Powitanie ma sam dymek. */
+/** Panel dla stanu; Konfiguracja ma kreator, a Powitanie sam dymek. */
 export function panel(m: Migawka): HTMLElement | null {
   switch (m.stan) {
     case "konfiguracja":
     case "powitanie":
       return null;
+    case "wybor_zadan":
+      return m.wybor ? panelWyboru(m.wybor, m.blad_pliku) : null;
     case "lista":
-      return m.plan ? panelListy(m) : panelCzekania(m);
-    case "czeka_na_plan":
-      return panelCzekania(m);
+      return m.lista ? panelListy(m.lista, m.blad_pliku) : null;
     case "praca":
     case "pauza":
       return m.sesja ? panelPracy(m.sesja, m.stan === "pauza") : null;
@@ -154,12 +204,10 @@ export function panel(m: Migawka): HTMLElement | null {
       return m.sesja ? panelJestes(m.sesja) : null;
     case "gratulacje":
       return m.gratulacje ? panelGratulacji(m.gratulacje) : null;
-    case "koniec_dnia":
-      return panelKonca(m);
   }
 }
 
-/** Sekundy aktywnej pracy w sesji: zamknięte odcinki plus trwający. */
+/** Sekundy aktywnej pracy w sesji: czas z pliku, zamknięte odcinki i trwający. */
 export function sekundySesji(s: SesjaWidok, teraz: number): number {
   const trwa = s.odcinek_od_ms != null ? Math.max(0, (teraz - s.odcinek_od_ms) / 1000) : 0;
   return s.sekundy_zamkniete + trwa;
@@ -175,9 +223,8 @@ export function aktualizuj(korzen: ParentNode, m: Migawka, teraz: number): void 
   const s = m.sesja;
   if (!s) return;
   const sekundy = sekundySesji(s, teraz);
-  const minutyDzis = s.minuty_wczesniej + naMinuty(sekundy);
   ustawTekst(korzen, "[data-licznik]", licznik(sekundy));
-  ustawTekst(korzen, "[data-szacunek]", szacunekTekst(minutyDzis, s.szac_min));
+  ustawTekst(korzen, "[data-szacunek]", szacunekTekst(naMinuty(sekundy), s.szac_min));
   if (s.pauza_od_ms != null) ustawTekst(korzen, "[data-pauza]", licznik((teraz - s.pauza_od_ms) / 1000));
   if (s.bezczynna_od_ms != null) {
     const minuty = Math.max(1, Math.round((teraz - s.bezczynna_od_ms) / 60000));
@@ -186,7 +233,7 @@ export function aktualizuj(korzen: ParentNode, m: Migawka, teraz: number): void 
   }
   const pasek = korzen.querySelector<HTMLElement>("[data-pasek]");
   if (pasek) {
-    const czesc = s.szac_min ? (s.minuty_wczesniej * 60 + sekundy) / (s.szac_min * 60) : 0;
+    const czesc = s.szac_min ? sekundy / (s.szac_min * 60) : 0;
     pasek.style.transform = `scaleX(${Math.min(1, czesc).toFixed(4)})`;
     // Po przekroczeniu szacunku pasek robi się brzoskwiniowy, bez komunikatów o winie.
     pasek.classList.toggle("ponad", czesc > 1);

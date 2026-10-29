@@ -1,73 +1,30 @@
 {
-  "konfiguracja_imie": [
-    "Cześć! Jestem Twoją asystentką. Jak mam się do Ciebie zwracać?"
-  ],
-  "konfiguracja_plik": [
-    "Gdzie trzymasz zadania? Mogę założyć nowy plik albo użyć Twojego."
-  ],
-  "konfiguracja_gotowe": [
-    "Gotowe, {imie}! Dopisz zadania w pliku, a ja zaraz je wczytam."
-  ],
-  "powitanie": [
-    "Dzień dobry, {imie}! Do premiery {dni}.",
-    "Hej! Plan na dziś gotowy, rzuć okiem."
-  ],
-  "powitanie_bez_planu": [
-    "Dzień dobry, {imie}!",
-    "Hej, {imie}! Dobrze Cię widzieć."
-  ],
-  "powrot": [
-    "O, wróciłeś!"
-  ],
-  "lista": [
-    "Od czego zaczynamy?"
-  ],
-  "plan_dotarl": [
-    "Plan dotarł! Od czego zaczynamy?",
-    "Jest plan na dziś. Rzuć okiem!"
-  ],
-  "start": [
-    "{zadanie}? Dobra, pilnuję czasu.",
-    "Siadam obok. Działaj!"
-  ],
-  "pauza": [
-    "Przerwa? Jasne, czekam."
-  ],
-  "wznowienie": [
-    "Wracamy!"
-  ],
-  "po_blokadzie": [
-    "Wracamy?"
-  ],
-  "jestes": [
-    "Halo? Przerwa czy praca?"
-  ],
-  "przypomnienie_przerwy": [
-    "{minuty} za nami. Może chwila przerwy?"
-  ],
-  "zrobione": [
-    "Brawo! {zadanie} odhaczone.",
-    "Mamy to! {minuty} roboty."
-  ],
-  "ponad_szacunek": [
-    "Trochę dłużej niż plan, spoko. Zapisuję."
-  ],
-  "przerwij": [
-    "Zapisane: {minuty}. Wrócimy do tego."
-  ],
-  "wszystko_zrobione": [
-    "Wszystko na dziś zrobione! Jestem z Ciebie dumna."
-  ],
-  "czeka_na_plan": [
-    "Plan jeszcze się układa, będzie po {godzina_planu}."
-  ],
-  "koniec_dnia": [
-    "Na dziś koniec. Śpij dobrze!"
-  ],
-  "blad_ustawien": [
-    "Coś nie tak z plikiem ustawień, zostaję przy poprzednich."
-  ],
-  "nie_znaleziono": [
-    "Nie znalazłam „{zadanie}” w pliku. Czas zapisałam w dzienniku."
-  ]
+  "konfiguracja_imie": ["Cześć! Jestem Twoją asystentką. Jak mam się do Ciebie zwracać?"],
+  "konfiguracja_plik": ["Gdzie trzymasz zadania? Mogę założyć nowy plik albo użyć Twojego."],
+  "konfiguracja_gotowe": ["Gotowe, {imie}! Dopisz zadania w pliku, a ja zaraz je wczytam."],
+  "powitanie": ["Dzień dobry, {imie}!", "Hej, {imie}! Co dziś robimy?"],
+  "powrot": ["O, wróciłeś!"],
+  "wybor": ["Co bierzemy na dziś?"],
+  "wybor_za_duzo": ["To sporo jak na jeden dzień. Na pewno?"],
+  "wybor_pusty": ["Nie widzę otwartych zadań. Dopisz coś w pliku, a ja poczekam."],
+  "lista": ["Od czego zaczynamy?"],
+  "start": ["{zadanie}? Dobra, pilnuję czasu.", "Siadam obok. Działaj!"],
+  "pauza": ["Przerwa? Jasne, czekam."],
+  "wznowienie": ["Wracamy!"],
+  "po_blokadzie": ["Wracamy?"],
+  "jestes": ["Halo? Przerwa czy praca?"],
+  "przypomnienie_przerwy": ["{minuty} za nami. Może chwila przerwy?"],
+  "zrobione": ["Brawo! {zadanie}: {czas} (szac. {szac}). Dziś razem {czas_dnia}.", "Mamy to! {zadanie} w {czas}. Dziś już {czas_dnia}."],
+  "zostalo": ["Zostało {zadan}, ok. {pozostalo}."],
+  "plan_wykonany": ["Plan na dziś wykonany! Kończymy czy dokładasz coś jeszcze?"],
+  "nie_znaleziono": ["Nie znalazłam „{zadanie}” w pliku. Czas zapisałam w dzienniku."],
+  "koniec_zachwycona": ["Wszystko zrobione i {czas_dnia} pracy! Jestem zachwycona!"],
+  "koniec_zadowolona": ["{czas_dnia} pracy, szacun! Plan był chyba trochę za duży, resztę dokończymy jutro."],
+  "koniec_dumna": ["Plan wykonany! Jestem z Ciebie dumna."],
+  "koniec_pochwala": ["{czas_dnia} to dobra robota. Resztę bierzemy jutro."],
+  "koniec_czula": ["Miłego dnia, wróć jutro :*"],
+  "koniec_zmartwiona": ["Jutro będzie lepiej. Dopóki walczysz, jesteś zwycięzcą :3"],
+  "do_jutra": ["Do jutra!"],
+  "zamkniety_wczoraj": ["Wczorajszy dzień zamknęłam za Ciebie. Oto podsumowanie."],
+  "blad_ustawien": ["Coś nie tak z plikiem ustawień, zostaję przy poprzednich."]
 }

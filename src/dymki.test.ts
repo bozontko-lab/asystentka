@@ -6,27 +6,28 @@ import { kwestia } from "./dymki";
 import kwestie from "./kwestie.json";
 
 describe("kwestia", () => {
-  it("podstawia wstawki z rzeczownikiem w poprawnej formie", () => {
+  it("podstawia wstawki z jednostkami", () => {
     const pierwszy = () => 0;
-    expect(kwestia("powitanie", { imie: "Dżiordżio", dni: "6 dni" }, kwestie, pierwszy)).toBe(
-      "Dzień dobry, Dżiordżio! Do premiery 6 dni.",
-    );
-    expect(kwestia("czeka_na_plan", { godzina_planu: "7:40" }, kwestie, pierwszy)).toBe(
-      "Plan jeszcze się układa, będzie po 7:40.",
+    expect(kwestia("powitanie", { imie: "Dżiordżio" }, kwestie, pierwszy)).toBe("Dzień dobry, Dżiordżio!");
+    expect(kwestia("konfiguracja_gotowe", { imie: "Pawle" }, kwestie, pierwszy)).toBe(
+      "Gotowe, Pawle! Dopisz zadania w pliku, a ja zaraz je wczytam.",
     );
   });
 
   it("pomija warianty z nieznanymi wstawkami", () => {
-    // Bez {dni} zostaje tylko drugi wariant powitania.
-    expect(kwestia("powitanie", { imie: "Ola" }, kwestie, () => 0)).toBe("Hej! Plan na dziś gotowy, rzuć okiem.");
+    // Bez {szac} zostaje drugi wariant „Brawo”, który go nie używa.
+    const wstawki = { zadanie: "Miniatura", czas: "40 min", czas_dnia: "2 h 12 min" };
+    expect(kwestia("zrobione", wstawki, kwestie, () => 0)).toBe("Mamy to! Miniatura w 40 min. Dziś już 2 h 12 min.");
+    expect(kwestia("zrobione", { ...wstawki, szac: "30 min" }, kwestie, () => 0)).toBe(
+      "Brawo! Miniatura: 40 min (szac. 30 min). Dziś razem 2 h 12 min.",
+    );
     expect(kwestia("przypomnienie_przerwy", {}, kwestie)).toBeNull();
     expect(kwestia("nie_ma_takiego", {}, kwestie)).toBeNull();
   });
 
   it("losuje spośród pasujących wariantów", () => {
-    const wstawki = { zadanie: "Montaż", minuty: "47 min" };
-    expect(kwestia("zrobione", wstawki, kwestie, () => 0)).toBe("Brawo! Montaż odhaczone.");
-    expect(kwestia("zrobione", wstawki, kwestie, () => 0.99)).toBe("Mamy to! 47 min roboty.");
+    expect(kwestia("powitanie", { imie: "Ola" }, kwestie, () => 0)).toBe("Dzień dobry, Ola!");
+    expect(kwestia("powitanie", { imie: "Ola" }, kwestie, () => 0.99)).toBe("Hej, Ola! Co dziś robimy?");
   });
 });
 
@@ -44,7 +45,7 @@ describe("kwestie.json a backend", () => {
   });
 
   it("używa tylko wstawek, które backend umie podać", () => {
-    const znane = new Set(["imie", "dni", "minuty", "zadanie", "godzina_planu"]);
+    const znane = new Set(["imie", "minuty", "zadanie", "czas", "szac", "czas_dnia", "pozostalo", "zadan"]);
     for (const warianty of Object.values(kwestie)) {
       for (const wzor of warianty) {
         for (const [, nazwa] of wzor.matchAll(/\{(\w+)\}/g)) {

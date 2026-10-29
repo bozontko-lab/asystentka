@@ -1,8 +1,9 @@
 //! Ustawienia z `%APPDATA%\Asystentka\ustawienia.json` (SPEC.md, B7).
 //!
-//! Pola z wersji 1 (`folder_planow`, `plik_stanu`, `godzina_planu`) są tylko
-//! czytane, żeby kreator mógł wypełnić się tym, co już jest w pliku. Zapis
-//! zachowuje wszystkie klucze, których widget nie zna.
+//! Pola z wersji 1 (`folder_planow`, `plik_stanu`, `godzina_planu`) widget
+//! pomija: nie czyta ich i nie usuwa z pliku. Zapis zachowuje wszystkie
+//! klucze, których nie zna. `imie` i `folder_dziennika` z wersji 1 działają
+//! dalej i wypełniają kreator.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -30,13 +31,6 @@ pub struct Ustawienia {
     pub ukryj_przed_nagrywaniem: bool,
     pub chowaj_przy_pelnym_ekranie: bool,
     pub skrot_pokaz_ukryj: String,
-    /// Pola z wersji 1: widget ich nie używa i nie zapisuje.
-    #[serde(skip_serializing)]
-    pub folder_planow: String,
-    #[serde(skip_serializing)]
-    pub plik_stanu: String,
-    #[serde(skip_serializing)]
-    pub godzina_planu: String,
 }
 
 impl Default for Ustawienia {
@@ -53,9 +47,6 @@ impl Default for Ustawienia {
             ukryj_przed_nagrywaniem: true,
             chowaj_przy_pelnym_ekranie: true,
             skrot_pokaz_ukryj: "Ctrl+Alt+Space".into(),
-            folder_planow: String::new(),
-            plik_stanu: String::new(),
-            godzina_planu: "07:40".into(),
         }
     }
 }
@@ -81,14 +72,6 @@ impl Ustawienia {
             let plik = self.plik_zadan()?;
             Some(plik.parent()?.join(NAZWA_FOLDERU_DZIENNIKA))
         })
-    }
-
-    pub fn folder_planow(&self) -> Option<PathBuf> {
-        sciezka(&self.folder_planow)
-    }
-
-    pub fn plik_stanu(&self) -> Option<PathBuf> {
-        sciezka(&self.plik_stanu)
     }
 
     pub fn koniec_dnia(&self) -> NaiveTime {

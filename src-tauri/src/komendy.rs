@@ -7,6 +7,7 @@ use tauri::{AppHandle, State, WebviewWindow};
 use tauri_plugin_dialog::DialogExt;
 
 use crate::aplikacja::Aplikacja;
+use crate::plik_zadan::Klucz;
 use crate::rdzen::Migawka;
 use crate::ustawienia::{PodpowiedzKreatora, Ustawienia};
 
@@ -31,8 +32,8 @@ pub async fn dopasuj_okno(apl: Apl<'_>, szerokosc: f64, wysokosc: f64) -> Result
 }
 
 #[tauri::command]
-pub async fn rozpocznij(apl: Apl<'_>, id: String) -> Result<(), String> {
-    apl.inner().wykonaj(|r, t| r.rozpocznij(&id, t))
+pub async fn rozpocznij(apl: Apl<'_>, projekt: String, zadanie: String) -> Result<(), String> {
+    apl.inner().wykonaj(|r, t| r.rozpocznij(&Klucz { projekt, zadanie }, t))
 }
 
 #[tauri::command]
@@ -67,9 +68,41 @@ pub async fn odpowiedz_jestes(apl: Apl<'_>, przerwa: bool) -> Result<(), String>
 }
 
 #[tauri::command]
-pub async fn pokaz_liste(apl: Apl<'_>) -> Result<(), String> {
-    apl.inner().wykonaj(|r, _| r.pokaz_liste());
+pub async fn wroc_do_listy(apl: Apl<'_>) -> Result<(), String> {
+    apl.inner().wykonaj(|r, _| r.wroc_do_listy());
     Ok(())
+}
+
+// ---- wybór zadań i plan dnia -----------------------------------------------------
+
+#[tauri::command]
+pub async fn przelacz_wybor(apl: Apl<'_>, projekt: String, zadanie: String) -> Result<(), String> {
+    apl.inner().wykonaj(|r, _| r.przelacz_wybor(&Klucz { projekt, zadanie }));
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn zatwierdz_wybor(apl: Apl<'_>) -> Result<(), String> {
+    apl.inner().wykonaj(|r, t| r.zatwierdz_wybor(t));
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn anuluj_wybor(apl: Apl<'_>) -> Result<(), String> {
+    apl.inner().wykonaj(|r, _| r.anuluj_wybor());
+    Ok(())
+}
+
+/// „Zmień plan” i „Dodaj z listy”: ten sam wybór zadań, z planem na dziś jako punktem wyjścia.
+#[tauri::command]
+pub async fn zmien_plan(apl: Apl<'_>) -> Result<(), String> {
+    apl.inner().wykonaj(|r, _| r.otworz_wybor());
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn dodaj_zadanie(apl: Apl<'_>, nazwa: String, szac_min: Option<u32>, projekt: String) -> Result<(), String> {
+    apl.inner().wykonaj(|r, _| r.dodaj_zadanie(&nazwa, szac_min, &projekt))
 }
 
 // ---- kreator, ustawienia i okno -----------------------------------------------

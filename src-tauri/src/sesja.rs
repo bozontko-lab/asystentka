@@ -6,39 +6,23 @@ use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 
 use crate::czas::{self, Chwila};
-use crate::plan::ZadaniePlanu;
+use crate::plik_zadan::Klucz;
 
+/// Zadanie, nad którym trwa sesja.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct InfoZadania {
-    pub id: String,
-    pub nazwa: String,
-    #[serde(default)]
-    pub etap: Option<String>,
-    #[serde(default)]
-    pub czesc: Option<String>,
+pub struct ZadanieSesji {
+    #[serde(flatten)]
+    pub klucz: Klucz,
     #[serde(default)]
     pub szac_min: Option<u32>,
+    /// Łączny czas zadania zapisany w pliku w chwili startu sesji (ze wszystkich dni).
+    #[serde(default)]
+    pub czas_pliku_min: u32,
 }
 
-impl InfoZadania {
-    /// Nazwa z dzisiejszym fragmentem: `Montaż: plansze 1–5`.
-    pub fn pelna_nazwa(&self) -> String {
-        match self.czesc.as_deref().map(str::trim) {
-            Some(czesc) if !czesc.is_empty() => format!("{}: {czesc}", self.nazwa),
-            _ => self.nazwa.clone(),
-        }
-    }
-}
-
-impl From<&ZadaniePlanu> for InfoZadania {
-    fn from(z: &ZadaniePlanu) -> Self {
-        InfoZadania {
-            id: z.id.clone(),
-            nazwa: z.nazwa.clone(),
-            etap: z.etap.clone(),
-            czesc: z.czesc.clone(),
-            szac_min: z.szac_min,
-        }
+impl ZadanieSesji {
+    pub fn nazwa(&self) -> &str {
+        &self.klucz.zadanie
     }
 }
 
@@ -80,7 +64,8 @@ pub struct Pauza {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Sesja {
-    pub zadanie: InfoZadania,
+    #[serde(flatten)]
+    pub zadanie: ZadanieSesji,
     /// Dzień, do którego należy sesja: ten, w którym się zaczęła (także po północy).
     pub dzien: NaiveDate,
     pub start: Chwila,
@@ -96,7 +81,7 @@ pub struct Sesja {
 }
 
 impl Sesja {
-    pub fn nowa(zadanie: InfoZadania, teraz: Chwila) -> Sesja {
+    pub fn nowa(zadanie: ZadanieSesji, teraz: Chwila) -> Sesja {
         Sesja {
             zadanie,
             dzien: czas::dzien(teraz),
@@ -198,13 +183,11 @@ mod testy {
     use super::*;
     use crate::czas::chwila;
 
-    fn zadanie() -> InfoZadania {
-        InfoZadania {
-            id: "15".into(),
-            nazwa: "Montaż".into(),
-            etap: Some("Montaż".into()),
-            czesc: Some("plansze 1–5".into()),
+    fn zadanie() -> ZadanieSesji {
+        ZadanieSesji {
+            klucz: Klucz::new("Film #1 · FIFA", "Montaż: plansze 1–5"),
             szac_min: Some(120),
+            czas_pliku_min: 45,
         }
     }
 
@@ -220,7 +203,7 @@ mod testy {
         s.zakoncz(chwila("2026-10-30T11:05:00+01:00"));
         assert_eq!(s.minuty(chwila("2026-10-30T23:00:00+01:00")), 35);
         assert_eq!(s.koniec(), chwila("2026-10-30T11:05:00+01:00"));
-        assert_eq!(s.zadanie.pelna_nazwa(), "Montaż: plansze 1–5");
+        assert_eq!(s.zadanie.nazwa(), "Montaż: plansze 1–5");
     }
 
     #[test]

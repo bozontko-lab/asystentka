@@ -8,13 +8,24 @@ import { error as logBlad } from "@tauri-apps/plugin-log";
 
 import type { Migawka, PodpowiedzKreatora, Ustawienia, Zdarzenie } from "./typy";
 
-export type Akcja = "pauza" | "wznow" | "zrobione" | "przerwij" | "pokaz_liste";
+export type Akcja =
+  | "pauza"
+  | "wznow"
+  | "zrobione"
+  | "przerwij"
+  | "wroc_do_listy"
+  | "zatwierdz_wybor"
+  | "anuluj_wybor"
+  | "zmien_plan";
 
 export interface Most {
   migawka(): Promise<Migawka>;
   gotowy(szerokosc: number, wysokosc: number): Promise<void>;
   dopasuj(szerokosc: number, wysokosc: number): Promise<void>;
-  rozpocznij(id: string): Promise<void>;
+  rozpocznij(projekt: string, zadanie: string): Promise<void>;
+  przelaczWybor(projekt: string, zadanie: string): Promise<void>;
+  /** Dopisuje zadanie do pliku i do planu (w Wyborze: do zaznaczonych). */
+  dodajZadanie(nazwa: string, szacMin: number | null, projekt: string): Promise<void>;
   akcja(akcja: Akcja): Promise<void>;
   odpowiedzJestes(przerwa: boolean): Promise<void>;
   naMigawke(obsluga: (m: Migawka) => void): Promise<unknown>;
@@ -45,7 +56,9 @@ export function mostTauri(): Most {
     migawka: () => invoke<Migawka>("migawka"),
     gotowy: (szerokosc, wysokosc) => invoke("gotowy", { szerokosc, wysokosc }),
     dopasuj: (szerokosc, wysokosc) => invoke("dopasuj_okno", { szerokosc, wysokosc }),
-    rozpocznij: (id) => invoke("rozpocznij", { id }),
+    rozpocznij: (projekt, zadanie) => invoke("rozpocznij", { projekt, zadanie }),
+    przelaczWybor: (projekt, zadanie) => invoke("przelacz_wybor", { projekt, zadanie }),
+    dodajZadanie: (nazwa, szacMin, projekt) => invoke("dodaj_zadanie", { nazwa, szacMin, projekt }),
     akcja: (akcja) => invoke(akcja),
     odpowiedzJestes: (przerwa) => invoke("odpowiedz_jestes", { przerwa }),
     naMigawke: (obsluga) => listen<Migawka>("migawka", (e) => obsluga(e.payload)),

@@ -73,11 +73,7 @@ fn zablokuj<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 }
 
 fn stan_menu(r: &Rdzen) -> StanMenu {
-    StanMenu {
-        widoczna: r.widoczna(),
-        pauza: r.lok.sesja.as_ref().map(|s| s.pauza.is_some()),
-        ukryj_przed_nagrywaniem: r.ust.ukryj_przed_nagrywaniem,
-    }
+    StanMenu { widoczna: r.widoczna(), pauza: r.sesja_pauza(), ukryj_przed_nagrywaniem: r.ust.ukryj_przed_nagrywaniem }
 }
 
 /// `%APPDATA%\Asystentka`, albo katalog z `ASYSTENTKA_KATALOG` (piaskownica do testów).
@@ -273,7 +269,7 @@ impl Aplikacja {
 
     fn umiesc_okno(&self) {
         let Some((szer, wys)) = zablokuj(&self.okno).rozmiar else { return };
-        let kotwica = zablokuj(&self.rdzen).lok.okno.clone();
+        let kotwica = zablokuj(&self.rdzen).kotwica();
         let Some(obszar) = self.obszar_roboczy() else { return };
         let (szer, wys) = okno::rozmiar_fizyczny(szer, wys, obszar.skala);
         let cel = okno::umiesc(&kotwica, szer, wys, &obszar);
@@ -555,15 +551,6 @@ impl Aplikacja {
         ustawienia::podpowiedz_kreatora(&self.ustawienia_biezace(), &vaulty)
     }
 
-    /// Pola z wersji 1 nie wracają z frontendu (nie są serializowane), a plan
-    /// z Dysku jeszcze z nich korzysta. Znikną razem z planem na Dysku.
-    fn zachowaj_pola_v1(&self, nowe: &mut Ustawienia) {
-        let obecne = self.ustawienia_biezace();
-        nowe.folder_planow = obecne.folder_planow;
-        nowe.plik_stanu = obecne.plik_stanu;
-        nowe.godzina_planu = obecne.godzina_planu;
-    }
-
     /// Sprawdza, zapisuje i stosuje ustawienia poza rdzeniem: skrót globalny
     /// i autostart. Przy `utworz_plik` tworzy plik zadań z szablonu (nigdy
     /// nie nadpisuje istniejącego). Zwraca pierwszy błąd w formie komunikatu.
@@ -601,16 +588,14 @@ impl Aplikacja {
     }
 
     /// Okienko ustawień: zmiany działają od razu, bez restartu.
-    pub fn zapisz_ustawienia(self: &Arc<Self>, mut nowe: Ustawienia) -> Result<(), String> {
-        self.zachowaj_pola_v1(&mut nowe);
+    pub fn zapisz_ustawienia(self: &Arc<Self>, nowe: Ustawienia) -> Result<(), String> {
         self.zapisz_i_zastosuj(&nowe, false)?;
         self.wykonaj(|r, t| r.zmien_ustawienia(nowe, t));
         self.uruchom_obserwatora();
         Ok(())
     }
 
-    pub fn zakoncz_kreator(self: &Arc<Self>, mut nowe: Ustawienia, utworz_plik: bool) -> Result<(), String> {
-        self.zachowaj_pola_v1(&mut nowe);
+    pub fn zakoncz_kreator(self: &Arc<Self>, nowe: Ustawienia, utworz_plik: bool) -> Result<(), String> {
         self.zapisz_i_zastosuj(&nowe, utworz_plik)?;
         let plik = nowe.plik_zadan();
         self.wykonaj(|r, t| r.zakoncz_kreator(nowe, t));

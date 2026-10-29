@@ -9,15 +9,14 @@ mod system;
 mod zasobnik;
 
 pub mod czas;
+pub mod dzien;
 pub mod dziennik;
 pub mod magazyn;
-pub mod plan;
 pub mod plik_zadan;
 pub mod pliki;
 pub mod rdzen;
 pub mod sesja;
 pub mod ustawienia;
-pub mod zadania;
 
 use std::sync::Arc;
 
@@ -82,7 +81,12 @@ pub fn run() {
             komendy::zrobione,
             komendy::przerwij,
             komendy::odpowiedz_jestes,
-            komendy::pokaz_liste,
+            komendy::wroc_do_listy,
+            komendy::przelacz_wybor,
+            komendy::zatwierdz_wybor,
+            komendy::anuluj_wybor,
+            komendy::zmien_plan,
+            komendy::dodaj_zadanie,
             komendy::kreator_dane,
             komendy::kreator_zakoncz,
             komendy::ustawienia_pobierz,

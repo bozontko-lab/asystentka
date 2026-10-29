@@ -33,3 +33,12 @@ describe("minuty jak w dzienniku", () => {
     expect(godzinaBezZera("22:00")).toBe("22:00");
   });
 });
+
+describe("termin", () => {
+  it("pokazuje dzień i miesiąc", async () => {
+    const { terminTekst } = await import("./format");
+    expect(terminTekst("2026-11-05")).toBe("5.11");
+    expect(terminTekst("2026-12-31")).toBe("31.12");
+    expect(terminTekst("jutro")).toBe("jutro");
+  });
+});

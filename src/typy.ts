@@ -1,55 +1,72 @@
 // Typy danych z backendu (src-tauri/src/rdzen.rs). Nazwy pól jak w Ruście.
 
 export type NazwaStanu =
-  | "powitanie"
-  | "lista"
   | "konfiguracja"
-  | "czeka_na_plan"
+  | "powitanie"
+  | "wybor_zadan"
+  | "lista"
   | "praca"
   | "pauza"
   | "jestes"
-  | "gratulacje"
-  | "koniec_dnia";
+  | "gratulacje";
 
 export type Strona = "prawa" | "lewa";
 
 export type PowodPauzy = "reczna" | "blokada" | "uspienie" | "zamkniecie" | "awaria";
 
-export interface ZadanieWidok {
-  id: string;
-  nazwa: string;
-  etap: string | null;
-  szac_min: number | null;
-  status: string | null;
-  minuty_dzis: number;
-  minuty_razem: number;
+/** Zadanie rozpoznaje para: projekt i tekst linii bez pól (B3). */
+export interface KluczZadania {
+  projekt: string;
+  zadanie: string;
 }
 
-export interface PlanWidok {
-  naglowek: string;
-  zagrozone: boolean;
-  dni_do_publikacji: number | null;
+export interface ZadanieWidok extends KluczZadania {
+  szac_min: number | null;
+  /** Łączny czas z pliku. */
+  czas_min: number;
+  zrobione: boolean;
+  w_toku: boolean;
+  zaznaczone: boolean;
+  termin: string | null;
+}
+
+export interface ProjektWidok {
+  nazwa: string;
   zadania: ZadanieWidok[];
-  zapasowe: ZadanieWidok[];
 }
 
-export interface SesjaWidok {
-  id: string;
-  nazwa: string;
+export interface WyborWidok {
+  projekty: ProjektWidok[];
+  suma_min: number;
+  cel_min: number;
+  przekroczony: boolean;
+  zaznaczonych: number;
+  mozna_wrocic: boolean;
+}
+
+export interface ListaWidok {
+  zadania: ZadanieWidok[];
+  zrobione: number;
+  razem: number;
+  pozostalo_min: number;
+}
+
+export interface SesjaWidok extends KluczZadania {
   szac_min: number | null;
+  /** Czas z pliku z chwili startu plus zamknięte odcinki; otwarty odcinek dolicza frontend. */
   sekundy_zamkniete: number;
   odcinek_od_ms: number | null;
   pauza_od_ms: number | null;
   powod_pauzy: PowodPauzy | null;
   bezczynna_od_ms: number | null;
-  minuty_wczesniej: number;
 }
 
 export interface Gratulacje {
-  nazwa: string;
-  minuty: number;
+  zadanie: string;
+  czas_min: number;
   szac_min: number | null;
-  ostatnie: boolean;
+  czas_dnia_min: number;
+  plan_wykonany: boolean;
 }
 
 export interface Migawka {
@@ -57,21 +74,19 @@ export interface Migawka {
   widoczna: boolean;
   strona: Strona;
   imie: string;
-  plan: PlanWidok | null;
-  w_toku: ZadanieWidok[];
+  wybor: WyborWidok | null;
+  lista: ListaWidok | null;
   sesja: SesjaWidok | null;
   gratulacje: Gratulacje | null;
-  dzien: { minuty: number; zrobione: string[] };
-  godzina_planu: string;
-  brakujace_sciezki: string[];
+  dzien: { minuty: number; cel_min: number };
+  blad_pliku: string | null;
+  /** Projekty do wyboru w „Dodaj zadanie”: nagłówki z pliku i Inbox. */
+  projekty_do_dopisania: string[];
 }
 
 export type Zdarzenie =
   | { rodzaj: "dymek"; klucz: string; wstawki: Record<string, string> }
   | { rodzaj: "efekt"; nazwa: string };
-
-export const ZROBIONE = "Zrobione";
-export const W_TOKU = "W toku";
 
 /** Ustawienia z %APPDATA%\Asystentka\ustawienia.json (SPEC.md, B7). */
 export interface Ustawienia {

@@ -61,6 +61,16 @@ pub fn dni_tekst(dni: i64) -> String {
     }
 }
 
+/// Liczba zadań z rzeczownikiem w poprawnej formie: „1 zadanie”, „2 zadania”, „5 zadań”.
+pub fn zadan_tekst(n: u32) -> String {
+    let forma = match (n, n % 10, n % 100) {
+        (1, _, _) => "zadanie",
+        (_, 2..=4, d) if !(12..=14).contains(&d) => "zadania",
+        _ => "zadań",
+    };
+    format!("{n} {forma}")
+}
+
 /// Zaokrąglenie sekund pracy do pełnych minut (od 30 s w górę).
 pub fn sekundy_na_minuty(sekundy: i64) -> u32 {
     if sekundy <= 0 {
@@ -106,6 +116,18 @@ mod testy {
         assert_eq!(dni_tekst(6), "6 dni");
         assert_eq!(dni_tekst(2), "2 dni");
         assert_eq!(dni_tekst(22), "22 dni");
+    }
+
+    #[test]
+    fn zadania_z_rzeczownikiem() {
+        assert_eq!(zadan_tekst(0), "0 zadań");
+        assert_eq!(zadan_tekst(1), "1 zadanie");
+        assert_eq!(zadan_tekst(2), "2 zadania");
+        assert_eq!(zadan_tekst(4), "4 zadania");
+        assert_eq!(zadan_tekst(5), "5 zadań");
+        assert_eq!(zadan_tekst(12), "12 zadań");
+        assert_eq!(zadan_tekst(22), "22 zadania");
+        assert_eq!(zadan_tekst(112), "112 zadań");
     }
 
     #[test]

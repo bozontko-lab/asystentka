@@ -116,7 +116,7 @@ export class Postac {
     window.clearTimeout(this.zegarWariantu);
     this.przeciaga = false;
     this.wskazuje = false;
-    if (stan === "lista" && this.grafiki.ma("point") && poprzedni !== "lista") {
+    if (stan === "wybor_zadan" && this.grafiki.ma("point") && poprzedni !== "wybor_zadan") {
       this.wskazuje = true;
       this.zegarStanu = window.setTimeout(() => {
         this.wskazuje = false;
@@ -174,10 +174,10 @@ export class Postac {
         return this.krokKreatoraNr === 0 ? dwie("wave_1", "wave_2", "0.7s") : { a: "point", tryb: "brak" };
       case "powitanie":
         return dwie("wave_1", "wave_2", "0.7s");
-      case "lista":
+      case "wybor_zadan":
         return this.wskazuje ? { a: "point", tryb: "brak" } : stoi;
-      case "czeka_na_plan":
-        return g.ma("loading") ? { a: "loading", tryb: "brak" } : stoi;
+      case "lista":
+        return stoi;
       case "praca":
         if (this.przeciaga) return { a: "pause_stretch", tryb: "brak" };
         if (this.blisko && g.ma("sit_watch_front")) return { a: "sit_watch_front", tryb: "brak" };
@@ -190,8 +190,6 @@ export class Postac {
         return { a: "idle_check", tryb: "brak" };
       case "gratulacje":
         return dwie("cheer_1", "cheer_2", "0.8s");
-      case "koniec_dnia":
-        return { a: "bye", tryb: "brak" };
       default:
         return stoi;
     }

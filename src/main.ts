@@ -4,6 +4,7 @@
 import "./formularz.css";
 import "./style.css";
 
+import { Dodawanie } from "./dodawanie";
 import { Dymek, kwestia } from "./dymki";
 import { KONFETTI_DLUGIE_MS, KONFETTI_MS, konfetti } from "./efekty";
 import { type Geometria, Grafiki } from "./grafiki";
@@ -18,9 +19,8 @@ import { aktualizuj, panel } from "./widok";
 const UKLADY: Record<NazwaStanu, "obok" | "nad" | "sama"> = {
   konfiguracja: "obok",
   powitanie: "sama",
+  wybor_zadan: "obok",
   lista: "obok",
-  czeka_na_plan: "obok",
-  koniec_dnia: "obok",
   praca: "nad",
   pauza: "nad",
   jestes: "nad",
@@ -28,6 +28,8 @@ const UKLADY: Record<NazwaStanu, "obok" | "nad" | "sama"> = {
 };
 
 const Z_LICZNIKIEM = new Set<NazwaStanu>(["praca", "pauza", "jestes"]);
+/** Stany, w których można dopisać zadanie (formularz zastępuje panel). */
+const Z_DODAWANIEM = new Set<NazwaStanu>(["wybor_zadan", "lista", "praca", "pauza", "gratulacje"]);
 const GLITCH_MS = 400;
 
 function element<T extends HTMLElement = HTMLElement>(id: string): T {
@@ -44,6 +46,8 @@ function ustawGeometrie(g: Geometria): void {
   styl.setProperty("--pod-siedziskiem", `${g.podSiedziskiem}px`);
   styl.setProperty("--pod-stopami", `${g.podStopami}px`);
   styl.setProperty("--oddech-max", String(g.oddech));
+  // Panele z przewijaniem mają do 60% wysokości ekranu (B6).
+  styl.setProperty("--panel-max-h", `${Math.round(window.screen.availHeight * 0.6)}px`);
 }
 
 const most: Most = wTauri() ? mostTauri() : mostPodglad();
@@ -66,6 +70,7 @@ async function start(): Promise<void> {
   let ostatniRozmiar = "";
   let zegarLicznika: number | undefined;
   let kreator: Kreator | null = null;
+  let dodawanie: Dodawanie | null = null;
   let fokus = false;
 
   // Okno widgetu nie przejmuje fokusu, więc pola tekstowe (kreator) włączają go na czas wpisywania.
@@ -144,6 +149,7 @@ async function start(): Promise<void> {
     scena.dataset.stan = m.stan;
     scena.dataset.uklad = UKLADY[m.stan];
     scena.dataset.strona = m.strona;
+    if (dodawanie && !Z_DODAWANIEM.has(m.stan)) dodawanie = null;
     if (m.stan === "konfiguracja") {
       // Kreator trzyma swój stan, więc nie przebudowujemy go przy każdej migawce.
       if (!kreator) {
@@ -161,10 +167,16 @@ async function start(): Promise<void> {
       }
     } else {
       kreator = null;
-      const nowy = panel(m);
-      miejscePanelu.replaceChildren(...(nowy ? [nowy] : []));
+      // Formularz „Dodaj zadanie” trzyma wpisany tekst, więc migawki go nie przebudowują.
+      if (!dodawanie) {
+        const przewiniecie = miejscePanelu.querySelector(".przewijany")?.scrollTop ?? 0;
+        const nowy = panel(m);
+        miejscePanelu.replaceChildren(...(nowy ? [nowy] : []));
+        const lista = miejscePanelu.querySelector(".przewijany");
+        if (lista) lista.scrollTop = przewiniecie;
+      }
     }
-    ustawFokus(m.stan === "konfiguracja");
+    ustawFokus(m.stan === "konfiguracja" || dodawanie !== null);
     aktualizuj(miejscePanelu, m, Date.now());
     postac.ustaw(m);
     ustawWidocznosc(m.widoczna);
@@ -200,16 +212,42 @@ async function start(): Promise<void> {
 
   const blad = (e: unknown) => most.zglosBlad(opisBledu(e));
 
+  const otworzDodawanie = () => {
+    const m = migawka;
+    if (dodawanie || !m || !Z_DODAWANIEM.has(m.stan)) return;
+    dodawanie = new Dodawanie(most, m.projekty_do_dopisania, { poZamknieciu: zamknijDodawanie });
+    miejscePanelu.replaceChildren(dodawanie.korzen);
+    ustawFokus(true);
+    zglosRozmiar();
+  };
+
+  function zamknijDodawanie(): void {
+    dodawanie = null;
+    if (migawka) rysuj(migawka);
+  }
+
   miejscePanelu.addEventListener("click", (e) => {
     const przycisk = (e.target as HTMLElement).closest<HTMLButtonElement>("button");
     if (!przycisk || przycisk.disabled) return;
-    const { id, akcja } = przycisk.dataset;
-    if (id) {
-      most.rozpocznij(id).catch(blad);
+    const { projekt, zadanie, akcja } = przycisk.dataset;
+    if (projekt !== undefined && zadanie !== undefined) {
+      most.rozpocznij(projekt, zadanie).catch(blad);
     } else if (akcja === "przerwa" || akcja === "pracowalem") {
       most.odpowiedzJestes(akcja === "przerwa").catch(blad);
+    } else if (akcja === "dodaj") {
+      otworzDodawanie();
+    } else if (akcja === "otworz_ustawienia") {
+      most.otworzUstawienia().catch(blad);
     } else if (akcja) {
       most.akcja(akcja as Akcja).catch(blad);
+    }
+  });
+
+  // Pola wyboru zadań: stan zaznaczeń trzyma backend, więc tylko zgłaszamy przełączenie.
+  miejscePanelu.addEventListener("change", (e) => {
+    const pole = e.target as HTMLInputElement;
+    if (pole.type === "checkbox" && pole.dataset.projekt !== undefined) {
+      most.przelaczWybor(pole.dataset.projekt, pole.dataset.zadanie ?? "").catch(blad);
     }
   });
 

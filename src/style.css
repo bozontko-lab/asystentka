@@ -735,3 +735,136 @@ body.tryb-podgladu #scena {
   width: 330px;
   max-height: none;
 }
+
+/* ---- wybór zadań, lista planu, dodawanie ----------------------------------------------- */
+
+[hidden] {
+  display: none !important;
+}
+
+/* Panel wyboru: do 360 px szerokości i do 60% wysokości ekranu, z przewijaniem listy (B6). */
+.panel-wybor,
+.panel-lista {
+  display: flex;
+  flex-direction: column;
+  max-height: var(--panel-max-h, 420px);
+}
+
+.panel-wybor {
+  width: 360px;
+}
+
+.przewijany {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(185, 166, 255, 0.5) transparent;
+  padding-right: 2px;
+}
+
+.panel-wybor .naglowek,
+.panel-lista .naglowek {
+  flex: none;
+}
+
+.wiersz-wyboru {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 7px 9px;
+  border: 1px solid rgba(185, 166, 255, 0.2);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+}
+
+.wiersz-wyboru:hover {
+  border-color: var(--cyjan);
+}
+
+.wiersz-wyboru:has(input:checked) {
+  border-color: rgba(46, 219, 232, 0.6);
+  background: rgba(46, 219, 232, 0.09);
+}
+
+.wiersz-wyboru input {
+  flex: none;
+  margin: 2px 0 0;
+  accent-color: var(--cyjan);
+}
+
+.wiersz-wyboru .opis-zadania {
+  flex: 1;
+}
+
+.znacznik.cichy {
+  color: var(--tekst-cichy);
+}
+
+.bez-szacunku {
+  flex: none;
+  align-self: center;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(255, 181, 154, 0.16);
+  color: var(--brzoskwinia);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.suma-wyboru {
+  flex: none;
+  margin-top: 9px;
+  padding: 6px 9px;
+  border-radius: 8px;
+  background: rgba(46, 219, 232, 0.1);
+  color: var(--cyjan);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Wybór przekracza cel o ponad 20%: pole sumy robi się koralowe. */
+.suma-wyboru.koral {
+  background: rgba(253, 143, 114, 0.18);
+  color: #fd8f72;
+}
+
+.panel-wybor .przyciski,
+.panel-lista .przyciski {
+  flex: none;
+  flex-wrap: wrap;
+}
+
+.panel-lista .opis {
+  flex: none;
+  margin-bottom: 7px;
+}
+
+.panel-dodawanie {
+  width: 300px;
+}
+
+.panel-dodawanie .przyciski {
+  justify-content: flex-end;
+}
+
+.pole select {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 7px 9px;
+  border: 1.5px solid rgba(185, 166, 255, 0.45);
+  border-radius: 8px;
+  background: #2a2e57;
+  color: var(--tekst);
+  font: inherit;
+}
+
+.link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--lawenda);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}

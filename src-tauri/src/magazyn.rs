@@ -1,8 +1,7 @@
-//! Lokalne pliki widgetu w `%APPDATA%\Asystentka`: ustawienia, stan
-//! (sesja, prawdziwy stan zadań, kotwica okna, kolejka zapisów) i rejestr
-//! sesji każdego dnia, z którego odtwarzany jest blok w dzienniku.
+//! Własne pliki widgetu w `%APPDATA%\Asystentka` (SPEC.md, B3): `dzien.json`
+//! ze stanem dnia i `okno.json` z położeniem okna. Ustawienia obsługuje
+//! moduł `ustawienia`.
 
-use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::PathBuf;
 
@@ -10,10 +9,9 @@ use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 
 use crate::czas::{self, Chwila};
-use crate::dziennik::DzienPracy;
+use crate::dzien::DzienStan;
+use crate::dziennik::WpisSesji;
 use crate::pliki;
-use crate::sesja::{InfoZadania, Sesja};
-use crate::zadania::StanZadan;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -40,28 +38,6 @@ impl Default for KotwicaOkna {
     }
 }
 
-/// Zapisy, które jeszcze nie trafiły na Dysk albo do vaultu.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-#[serde(default)]
-pub struct DoZapisu {
-    pub stan_zadan: bool,
-    pub dzienniki: BTreeSet<NaiveDate>,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-#[serde(default)]
-pub struct StanLokalny {
-    pub ostatni_zapis: Option<Chwila>,
-    pub ostatnie_powitanie: Option<NaiveDate>,
-    pub koniec_dnia_pokazany: Option<NaiveDate>,
-    pub okno: KotwicaOkna,
-    pub sesja: Option<Sesja>,
-    pub zadania: StanZadan,
-    /// Nazwy i szacunki zadań z planów, żeby pokazać zadania „W toku”, zanim przyjdzie nowy plan.
-    pub znane_zadania: BTreeMap<String, InfoZadania>,
-    pub do_zapisu: DoZapisu,
-}
-
 pub struct Magazyn {
     pub katalog: PathBuf,
 }
@@ -75,95 +51,141 @@ impl Magazyn {
         self.katalog.join("ustawienia.json")
     }
 
-    fn stan(&self) -> PathBuf {
-        self.katalog.join("stan.json")
+    fn plik_dnia(&self) -> PathBuf {
+        self.katalog.join("dzien.json")
     }
 
-    fn dzien(&self, data: NaiveDate) -> PathBuf {
-        self.katalog.join("dni").join(format!("{}.json", czas::data_iso(data)))
+    fn plik_okna(&self) -> PathBuf {
+        self.katalog.join("okno.json")
     }
 
     /// Brak pliku to pierwszy start. Uszkodzony plik zostaje odłożony obok
-    /// jako `stan.json.uszkodzony`, żeby dało się go obejrzeć.
-    pub fn wczytaj_stan(&self) -> StanLokalny {
-        let sciezka = self.stan();
+    /// jako `dzien.json.uszkodzony`, żeby dało się go obejrzeć.
+    pub fn wczytaj_dzien(&self) -> Option<DzienStan> {
+        let sciezka = self.plik_dnia();
         match pliki::czytaj_tekst(&sciezka) {
-            Ok(tekst) => serde_json::from_str(&tekst).unwrap_or_else(|e| {
-                log::error!("{}: uszkodzony stan ({e}), zaczynam od zera", sciezka.display());
-                let _ = fs::rename(&sciezka, self.katalog.join("stan.json.uszkodzony"));
-                StanLokalny::default()
-            }),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => StanLokalny::default(),
+            Ok(tekst) => match serde_json::from_str(&tekst) {
+                Ok(d) => Some(d),
+                Err(e) => {
+                    log::error!("{}: uszkodzony stan dnia ({e}), zaczynam od zera", sciezka.display());
+                    let _ = fs::rename(&sciezka, self.katalog.join("dzien.json.uszkodzony"));
+                    None
+                }
+            },
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
             Err(e) => {
-                log::error!("{}: nie mogę przeczytać stanu: {e}", sciezka.display());
-                StanLokalny::default()
+                log::error!("{}: nie mogę przeczytać stanu dnia: {e}", sciezka.display());
+                None
             }
         }
     }
 
-    pub fn zapisz_stan(&self, stan: &StanLokalny) -> Result<(), String> {
+    pub fn zapisz_dzien(&self, dzien: &DzienStan) -> Result<(), String> {
         fs::create_dir_all(&self.katalog).map_err(|e| e.to_string())?;
-        let json = serde_json::to_string_pretty(stan).map_err(|e| e.to_string())?;
-        pliki::zapisz_atomowo(&self.stan(), json.as_bytes()).map_err(|e| e.to_string())
-    }
-
-    pub fn wczytaj_dzien(&self, data: NaiveDate) -> DzienPracy {
-        let sciezka = self.dzien(data);
-        match pliki::czytaj_tekst(&sciezka) {
-            Ok(tekst) => match serde_json::from_str::<DzienPracy>(&tekst) {
-                Ok(dzien) if dzien.data == data => dzien,
-                Ok(_) | Err(_) => {
-                    log::error!("{}: uszkodzony rejestr dnia", sciezka.display());
-                    DzienPracy::nowy(data)
-                }
-            },
-            Err(_) => DzienPracy::nowy(data),
-        }
-    }
-
-    pub fn zapisz_dzien(&self, dzien: &DzienPracy) -> Result<(), String> {
-        let sciezka = self.dzien(dzien.data);
-        if let Some(folder) = sciezka.parent() {
-            fs::create_dir_all(folder).map_err(|e| e.to_string())?;
-        }
         let json = serde_json::to_string_pretty(dzien).map_err(|e| e.to_string())?;
-        pliki::zapisz_atomowo(&sciezka, json.as_bytes()).map_err(|e| e.to_string())
+        pliki::zapisz_atomowo(&self.plik_dnia(), json.as_bytes()).map_err(|e| e.to_string())
+    }
+
+    /// Położenie okna; w wersji 1 leżało w `stan.json`.
+    pub fn wczytaj_okno(&self) -> KotwicaOkna {
+        if let Ok(tekst) = pliki::czytaj_tekst(&self.plik_okna()) {
+            if let Ok(k) = serde_json::from_str(&tekst) {
+                return k;
+            }
+        }
+        pliki::czytaj_tekst(&self.katalog.join("stan.json"))
+            .ok()
+            .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+            .and_then(|v| serde_json::from_value(v.get("okno")?.clone()).ok())
+            .unwrap_or_default()
+    }
+
+    pub fn zapisz_okno(&self, kotwica: &KotwicaOkna) -> Result<(), String> {
+        fs::create_dir_all(&self.katalog).map_err(|e| e.to_string())?;
+        let json = serde_json::to_string_pretty(kotwica).map_err(|e| e.to_string())?;
+        pliki::zapisz_atomowo(&self.plik_okna(), json.as_bytes()).map_err(|e| e.to_string())
+    }
+
+    /// Sesje z rejestru wersji 1 (`dni/RRRR-MM-DD.json`), żeby przejście na
+    /// wersję 2 w środku dnia nie zgubiło linii z dziennika.
+    pub fn sesje_z_wersji_1(&self, data: NaiveDate) -> Vec<WpisSesji> {
+        let plik = self.katalog.join("dni").join(format!("{}.json", czas::data_iso(data)));
+        let Ok(tekst) = pliki::czytaj_tekst(&plik) else { return Vec::new() };
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(&tekst) else { return Vec::new() };
+        let czas_z = |p: &serde_json::Value, klucz: &str| -> Option<Chwila> {
+            chrono::DateTime::parse_from_rfc3339(p.get(klucz)?.as_str()?).ok()
+        };
+        v.get("sesje")
+            .and_then(|s| s.as_array())
+            .map(|sesje| {
+                sesje
+                    .iter()
+                    .filter_map(|s| {
+                        Some(WpisSesji {
+                            projekt: String::new(),
+                            zadanie: s.get("nazwa")?.as_str()?.to_string(),
+                            szac_min: s.get("szac_min").and_then(|m| m.as_u64()).map(|m| m as u32),
+                            start: czas_z(s, "start")?,
+                            koniec: czas_z(s, "koniec")?,
+                            sekundy: s.get("sekundy").and_then(|m| m.as_i64()).unwrap_or(0),
+                            minuty: s.get("minuty").and_then(|m| m.as_u64()).unwrap_or(0) as u32,
+                            zrobione: s.get("status").and_then(|m| m.as_str()) == Some("Zrobione"),
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 }
 
 #[cfg(test)]
 mod testy {
     use super::*;
-    use crate::czas::chwila;
 
     #[test]
-    fn stan_przezywa_zapis_i_odczyt() {
+    fn stan_dnia_i_okno_przezywaja_zapis_i_odczyt() {
         let katalog = tempfile::tempdir().unwrap();
-        let magazyn = Magazyn::new(katalog.path().join("Asystentka"));
-        assert_eq!(magazyn.wczytaj_stan(), StanLokalny::default());
-        let mut stan = StanLokalny { ostatni_zapis: Some(chwila("2026-10-30T10:00:00+01:00")), ..Default::default() };
-        stan.do_zapisu.dzienniki.insert(NaiveDate::from_ymd_opt(2026, 10, 30).unwrap());
-        magazyn.zapisz_stan(&stan).unwrap();
-        assert_eq!(magazyn.wczytaj_stan(), stan);
+        let m = Magazyn::new(katalog.path().join("Asystentka"));
+        assert!(m.wczytaj_dzien().is_none());
+        assert_eq!(m.wczytaj_okno(), KotwicaOkna::default());
+        let dzien = DzienStan::nowy(NaiveDate::from_ymd_opt(2026, 10, 30).unwrap());
+        m.zapisz_dzien(&dzien).unwrap();
+        assert_eq!(m.wczytaj_dzien(), Some(dzien));
+        let kotwica = KotwicaOkna { strona: Strona::Lewa, odstep_x: 40.0, odstep_dol: 12.5 };
+        m.zapisz_okno(&kotwica).unwrap();
+        assert_eq!(m.wczytaj_okno(), kotwica);
     }
 
     #[test]
-    fn uszkodzony_stan_jest_odkladany() {
+    fn uszkodzony_stan_dnia_jest_odkladany() {
         let katalog = tempfile::tempdir().unwrap();
-        let magazyn = Magazyn::new(katalog.path().to_path_buf());
-        fs::write(katalog.path().join("stan.json"), "{ zepsute").unwrap();
-        assert_eq!(magazyn.wczytaj_stan(), StanLokalny::default());
-        assert!(katalog.path().join("stan.json.uszkodzony").exists());
+        let m = Magazyn::new(katalog.path().to_path_buf());
+        fs::write(katalog.path().join("dzien.json"), "{ zepsute").unwrap();
+        assert!(m.wczytaj_dzien().is_none());
+        assert!(katalog.path().join("dzien.json.uszkodzony").exists());
     }
 
     #[test]
-    fn rejestr_dnia() {
+    fn okno_i_sesje_z_wersji_1_sa_przejmowane() {
         let katalog = tempfile::tempdir().unwrap();
-        let magazyn = Magazyn::new(katalog.path().to_path_buf());
-        let data = NaiveDate::from_ymd_opt(2026, 10, 30).unwrap();
-        assert_eq!(magazyn.wczytaj_dzien(data), DzienPracy::nowy(data));
-        let dzien = DzienPracy::nowy(data);
-        magazyn.zapisz_dzien(&dzien).unwrap();
-        assert_eq!(magazyn.wczytaj_dzien(data), dzien);
+        let m = Magazyn::new(katalog.path().to_path_buf());
+        fs::write(
+            katalog.path().join("stan.json"),
+            r#"{"okno": {"strona": "lewa", "odstep_x": 30.0, "odstep_dol": 20.0}, "sesja": null}"#,
+        )
+        .unwrap();
+        assert_eq!(m.wczytaj_okno().strona, Strona::Lewa);
+        fs::create_dir_all(katalog.path().join("dni")).unwrap();
+        fs::write(
+            katalog.path().join("dni").join("2026-10-30.json"),
+            r##"{"data": "2026-10-30", "sesje": [{"id": "12", "nazwa": "Scenariusz: intro", "szac_min": 60,
+              "start": "2026-10-30T09:12:00+01:00", "koniec": "2026-10-30T10:05:00+01:00",
+              "sekundy": 2820, "minuty": 47, "status": "Zrobione"}]}"##,
+        )
+        .unwrap();
+        let sesje = m.sesje_z_wersji_1(NaiveDate::from_ymd_opt(2026, 10, 30).unwrap());
+        assert_eq!(sesje.len(), 1);
+        assert_eq!((sesje[0].zadanie.as_str(), sesje[0].minuty, sesje[0].zrobione), ("Scenariusz: intro", 47, true));
+        assert!(m.sesje_z_wersji_1(NaiveDate::from_ymd_opt(2026, 10, 31).unwrap()).is_empty());
     }
 }

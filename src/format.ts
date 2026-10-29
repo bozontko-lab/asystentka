@@ -34,3 +34,9 @@ export function szacunekTekst(minuty: number, szac: number | null): string {
 export function godzinaBezZera(tekst: string): string {
   return tekst.replace(/^0(\d):/, "$1:");
 }
+
+/** `2026-11-05` → `5.11`. */
+export function terminTekst(iso: string): string {
+  const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(iso);
+  return m ? `${Number(m[2])}.${Number(m[1])}` : iso;
+}
