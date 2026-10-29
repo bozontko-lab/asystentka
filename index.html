@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Asystentka</title>
+  </head>
+  <body>
+    <div id="scena" data-stan="lista" data-uklad="obok" data-strona="prawa">
+      <div id="miejsce-panelu"></div>
+      <div class="postac-z-dymkiem">
+        <div id="dymek" class="dymek" role="status" hidden></div>
+        <div id="postac" class="postac" title="Przeciągnij, żeby przesunąć">
+          <div class="skok">
+            <div class="cialo">
+              <div class="obraz">
+                <img class="klatka klatka-a" alt="" draggable="false" />
+                <img class="klatka klatka-b" alt="" draggable="false" />
+              </div>
+            </div>
+          </div>
+          <div id="konfetti" class="konfetti" aria-hidden="true"></div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,20 @@
+{
+  "powitanie": ["Dzień dobry, {imie}! Do premiery {dni}.", "Hej! Plan na dziś gotowy, rzuć okiem."],
+  "powitanie_bez_planu": ["Dzień dobry, {imie}!", "Hej, {imie}! Dobrze Cię widzieć."],
+  "powrot": ["O, wróciłeś!"],
+  "lista": ["Od czego zaczynamy?"],
+  "plan_dotarl": ["Plan dotarł! Od czego zaczynamy?", "Jest plan na dziś. Rzuć okiem!"],
+  "start": ["{zadanie}? Dobra, pilnuję czasu.", "Siadam obok. Działaj!"],
+  "pauza": ["Przerwa? Jasne, czekam."],
+  "wznowienie": ["Wracamy!"],
+  "po_blokadzie": ["Wracamy?"],
+  "jestes": ["Halo? Przerwa czy praca?"],
+  "przypomnienie_przerwy": ["{minuty} za nami. Może chwila przerwy?"],
+  "zrobione": ["Brawo! {zadanie} odhaczone.", "Mamy to! {minuty} roboty."],
+  "ponad_szacunek": ["Trochę dłużej niż plan, spoko. Zapisuję."],
+  "przerwij": ["Zapisane: {minuty}. Wrócimy do tego."],
+  "wszystko_zrobione": ["Wszystko na dziś zrobione! Jestem z Ciebie dumna."],
+  "czeka_na_plan": ["Plan jeszcze się układa, będzie po {godzina_planu}."],
+  "koniec_dnia": ["Na dziś koniec. Śpij dobrze!"],
+  "blad_ustawien": ["Coś nie tak z plikiem ustawień, zostaję przy poprzednich."]
+}

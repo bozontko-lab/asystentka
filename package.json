@@ -1,0 +1,26 @@
+{
+  "name": "asystentka",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Asystentka na pulpit: plan dnia, licznik czasu i dziennik pracy w Obsidianie",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "tauri": "tauri",
+    "piaskownica": "node scripts/piaskownica.mjs"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.12.4",
+    "@tauri-apps/plugin-log": "^2.10.1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12.4",
+    "@types/node": "^22.20.5",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  }
+}
