@@ -868,3 +868,88 @@ body.tryb-podgladu #scena {
   text-decoration: underline;
   cursor: pointer;
 }
+
+/* ---- koniec dnia --------------------------------------------------------------------------------- */
+
+.panel-koniec {
+  display: flex;
+  flex-direction: column;
+  width: 340px;
+  max-height: var(--panel-max-h, 420px);
+}
+
+.panel-koniec .naglowek,
+.panel-koniec .suma,
+.panel-koniec .czas-dnia,
+.panel-koniec .pasek,
+.panel-koniec .przyciski {
+  flex: none;
+}
+
+.panel-koniec .czas-dnia {
+  margin: 2px 0 7px;
+  color: var(--tekst-cichy);
+  font-variant-numeric: tabular-nums;
+}
+
+.panel-koniec .pasek {
+  margin-bottom: 9px;
+}
+
+.zadania-dnia,
+.na-jutro {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.zadania-dnia li {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.zadania-dnia .znak {
+  flex: none;
+  width: 12px;
+  color: var(--cyjan);
+}
+
+.zadania-dnia .w-toku-dnia .znak {
+  color: var(--tekst-cichy);
+}
+
+.zadania-dnia .nazwa {
+  flex: 1;
+  min-width: 0;
+}
+
+.zadania-dnia .czas {
+  flex: none;
+  color: var(--tekst-cichy);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.na-jutro li {
+  position: relative;
+  padding-left: 18px;
+  color: var(--tekst-cichy);
+}
+
+.na-jutro li::before {
+  content: "→";
+  position: absolute;
+  left: 0;
+}
+
+.panel-gratulacje {
+  width: 340px;
+}
+
+.panel-gratulacje .przycisk {
+  white-space: nowrap;
+}

@@ -3,7 +3,7 @@
 // Parametry adresu: ?stan=praca&strona=lewa&dymek=start
 
 import type { Akcja, Most } from "./most";
-import type { Migawka, NazwaStanu, PodpowiedzKreatora, Ustawienia, ZadanieWidok, Zdarzenie } from "./typy";
+import type { Migawka, NazwaStanu, PodpowiedzKreatora, Reakcja, Ustawienia, ZadanieWidok, Zdarzenie } from "./typy";
 
 const MINUTA = 60_000;
 
@@ -92,6 +92,25 @@ function przyklad(stan: NazwaStanu, strona: "prawa" | "lewa"): Migawka {
             plan_wykonany: parametry.get("plan") === "wykonany",
           }
         : null,
+    koniec:
+      stan === "koniec_dnia"
+        ? {
+            etap: (parametry.get("etap") as "reakcja" | "pozegnanie" | "spi" | "wczoraj" | null) ?? "reakcja",
+            reakcja: (parametry.get("reakcja") as Reakcja | null) ?? "lekko_pochwalajaca",
+            podsumowanie: {
+              zrobione: 2,
+              zaplanowane: 4,
+              czas_dnia_min: 132,
+              cel_min: 240,
+              zadania: [
+                { zadanie: "Scenariusz: intro", projekt: "Film #1 · FIFA", czas_min: 47, szac_min: 60, zrobione: true },
+                { zadanie: "Montaż: plansze 1–5", projekt: "Film #1 · FIFA", czas_min: 45, szac_min: 120, zrobione: false },
+                { zadanie: "Miniatura", projekt: "Film #1 · FIFA", czas_min: 40, szac_min: 30, zrobione: true },
+              ],
+              na_jutro: ["Montaż: plansze 1–5", "Odpisać na maila od montażysty"],
+            },
+          }
+        : null,
     dzien: { minuty: 132, cel_min: 240 },
     blad_pliku: null,
     projekty_do_dopisania: ["Film #1 · FIFA", "Inbox"],
@@ -106,6 +125,7 @@ const DYMKI: Partial<Record<NazwaStanu, Zdarzenie>> = {
   praca: { rodzaj: "dymek", klucz: "start", wstawki: { zadanie: "Montaż: plansze 1–5" } },
   pauza: { rodzaj: "dymek", klucz: "pauza", wstawki: {} },
   jestes: { rodzaj: "dymek", klucz: "jestes", wstawki: {} },
+  koniec_dnia: { rodzaj: "dymek", klucz: "koniec_pochwala", wstawki: { czas_dnia: "2 h 12 min" } },
   gratulacje: {
     rodzaj: "dymek",
     klucz: "zrobione",
@@ -113,7 +133,17 @@ const DYMKI: Partial<Record<NazwaStanu, Zdarzenie>> = {
   },
 };
 
-const STANY: NazwaStanu[] = ["konfiguracja", "powitanie", "wybor_zadan", "lista", "praca", "pauza", "jestes", "gratulacje"];
+const STANY: NazwaStanu[] = [
+  "konfiguracja",
+  "powitanie",
+  "wybor_zadan",
+  "lista",
+  "praca",
+  "pauza",
+  "jestes",
+  "gratulacje",
+  "koniec_dnia",
+];
 
 export function mostPodglad(): Most {
   const parametry = new URLSearchParams(location.search);

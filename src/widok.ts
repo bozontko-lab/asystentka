@@ -2,8 +2,8 @@
 // i pasek czasu aktualizuje `aktualizuj` raz na sekundę, bez przebudowy DOM.
 
 import { el } from "./dom";
-import { licznik, minutyTekst, naMinuty, szacunekTekst, terminTekst } from "./format";
-import type { Gratulacje, ListaWidok, Migawka, SesjaWidok, WyborWidok, ZadanieWidok } from "./typy";
+import { licznik, minutyTekst, naMinuty, szacunekTekst, terminTekst, zadanTekst } from "./format";
+import type { Gratulacje, KoniecWidok, ListaWidok, Migawka, SesjaWidok, WyborWidok, ZadanieWidok } from "./typy";
 
 const BEZ_PROJEKTU = "Bez projektu";
 
@@ -190,10 +190,58 @@ function panelGratulacji(g: Gratulacje): HTMLElement {
       el(
         "div",
         { class: "przyciski" },
+        el("button", { class: "przycisk glowny", type: "button", "data-akcja": "koniec_pracy" }, "Koniec pracy"),
         el("button", { class: "przycisk", type: "button", "data-akcja": "zmien_plan" }, "Dodaj z listy"),
         el("button", { class: "przycisk cichy", type: "button", "data-akcja": "wroc_do_listy" }, "Wróć do listy"),
       ),
     ],
+  );
+}
+
+// ---- koniec dnia -------------------------------------------------------------------------------
+
+function wierszDnia(z: KoniecWidok["podsumowanie"]["zadania"][number]): HTMLElement {
+  const szac = z.szac_min != null ? ` (szac. ${minutyTekst(z.szac_min)})` : "";
+  return el(
+    "li",
+    { class: z.zrobione ? "zrobione-dnia" : "w-toku-dnia" },
+    el("span", { class: "znak" }, z.zrobione ? "✓" : "•"),
+    el("span", { class: "nazwa" }, z.zadanie),
+    el("span", { class: "czas" }, `${minutyTekst(z.czas_min)}${szac}`),
+  );
+}
+
+/** Podsumowanie dnia: zrobione z zaplanowanych, czas dnia względem celu, czas zadań i lista na jutro (B4). */
+function panelKonca(k: KoniecWidok): HTMLElement {
+  const p = k.podsumowanie;
+  const wczoraj = k.etap === "wczoraj";
+  const udzial = p.cel_min > 0 ? Math.min(1, p.czas_dnia_min / p.cel_min) : 0;
+  return el(
+    "section",
+    { class: "panel panel-koniec" },
+    el("header", { class: "naglowek" }, wczoraj ? "Podsumowanie wczorajszego dnia" : "Podsumowanie dnia"),
+    el("div", { class: "suma" }, `Zrobione ${p.zrobione} z ${zadanTekst(p.zaplanowane)}`),
+    el("div", { class: "czas-dnia" }, `${minutyTekst(p.czas_dnia_min)} z celu ${minutyTekst(p.cel_min)}`),
+    el("div", { class: "pasek" }, el("div", { class: "pasek-wypelnienie", style: `transform: scaleX(${udzial.toFixed(3)})` })),
+    el(
+      "div",
+      { class: "przewijany" },
+      p.zadania.length > 0 && el("ul", { class: "zadania-dnia" }, p.zadania.map(wierszDnia)),
+      p.na_jutro.length > 0 && [
+        el("div", { class: "sekcja" }, "Na jutro"),
+        el("ul", { class: "na-jutro" }, p.na_jutro.map((n) => el("li", {}, n))),
+      ],
+    ),
+    el(
+      "div",
+      { class: "przyciski" },
+      wczoraj
+        ? el("button", { class: "przycisk glowny", type: "button", "data-akcja": "dalej_po_wczoraju" }, "Dalej")
+        : [
+            el("button", { class: "przycisk glowny", type: "button", "data-akcja": "do_jutra" }, "Do jutra"),
+            el("button", { class: "przycisk", type: "button", "data-akcja": "wroc_do_pracy" }, "Wróć do pracy"),
+          ],
+    ),
   );
 }
 
@@ -214,6 +262,8 @@ export function panel(m: Migawka): HTMLElement | null {
       return m.sesja ? panelJestes(m.sesja) : null;
     case "gratulacje":
       return m.gratulacje ? panelGratulacji(m.gratulacje) : null;
+    case "koniec_dnia":
+      return m.koniec ? panelKonca(m.koniec) : null;
   }
 }
 

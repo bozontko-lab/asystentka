@@ -49,6 +49,8 @@ export interface Manifest {
   /** [szerokość, wysokość] postaci na ekranie w pikselach CSS. */
   wyswietlanie_css_px?: number[];
   pozy?: Record<string, { siedzisko_y_px?: number; stopy_y_px?: number }>;
+  /** Pozy reakcji na koniec dnia: nazwa reakcji → jedna poza albo dwie na zmianę. */
+  reakcje_konca_dnia?: Record<string, string[]>;
 }
 
 /** Wymiary postaci na ekranie w pikselach CSS. */
@@ -120,14 +122,26 @@ function plikiZPakietu(): Map<string, string> {
   return mapa;
 }
 
+/** Gdy `postac.json` nie opisuje reakcji, każda używa pozy z tabeli w B4. */
+const REAKCJE_DOMYSLNE: Record<string, string[]> = {
+  zachwycona: ["cheer_1", "cheer_2"],
+  zadowolona: ["cheer_2"],
+  dumna: ["cheer_1"],
+  lekko_pochwalajaca: ["stand_idle"],
+  czula: ["cheer_2"],
+  zmartwiona: ["concerned"],
+};
+
 export class Grafiki {
   readonly geometria: Geometria;
+  readonly reakcje: Record<string, string[]>;
 
   constructor(
     private readonly pliki: Map<string, string> = plikiZPakietu(),
     manifest: Manifest | undefined = Object.values(MANIFEST)[0],
   ) {
     this.geometria = this.zastepcza ? { ...GEOMETRIA_ZASTEPCZA } : geometriaZManifestu(manifest);
+    this.reakcje = { ...REAKCJE_DOMYSLNE, ...manifest?.reakcje_konca_dnia };
   }
 
   /** Bez żadnego PNG działa wyłącznie postać zastępcza. */

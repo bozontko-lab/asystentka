@@ -40,3 +40,9 @@ export function terminTekst(iso: string): string {
   const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(iso);
   return m ? `${Number(m[2])}.${Number(m[1])}` : iso;
 }
+
+/** „1 zadanie”, „2 zadania”, „5 zadań” — jak w backendzie. */
+export function zadanTekst(n: number): string {
+  const forma = n === 1 ? "zadanie" : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? "zadania" : "zadań";
+  return `${n} ${forma}`;
+}

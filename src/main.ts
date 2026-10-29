@@ -25,6 +25,7 @@ const UKLADY: Record<NazwaStanu, "obok" | "nad" | "sama"> = {
   pauza: "nad",
   jestes: "nad",
   gratulacje: "nad",
+  koniec_dnia: "obok",
 };
 
 const Z_LICZNIKIEM = new Set<NazwaStanu>(["praca", "pauza", "jestes"]);

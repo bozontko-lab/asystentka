@@ -91,8 +91,6 @@ pub struct DzienStan {
     /// Po „Wróć do pracy” dzień nie zamyka się już sam o godzinie zamknięcia.
     pub nie_zamykaj_automatycznie: bool,
     pub reakcja: Option<Reakcja>,
-    /// Podsumowanie wczorajszego dnia zamkniętego za Ciebie, do pokazania przy starcie.
-    pub wczoraj: Option<DzienPracy>,
 }
 
 impl Default for DzienStan {
@@ -111,7 +109,6 @@ impl Default for DzienStan {
             zalegle: Vec::new(),
             nie_zamykaj_automatycznie: false,
             reakcja: None,
-            wczoraj: None,
         }
     }
 }

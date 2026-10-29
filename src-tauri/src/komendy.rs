@@ -183,3 +183,30 @@ pub async fn wybierz_folder(
     }
     Ok(dialog.blocking_pick_folder().and_then(|p| p.into_path().ok()).map(|p| p.to_string_lossy().into_owned()))
 }
+
+// ---- koniec dnia -------------------------------------------------------------------
+
+/// „Koniec pracy na dziś”: podsumowanie dnia z reakcją.
+#[tauri::command]
+pub async fn koniec_pracy(apl: Apl<'_>) -> Result<(), String> {
+    apl.inner().wykonaj(|r, t| r.koniec_pracy(t));
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn do_jutra(apl: Apl<'_>) -> Result<(), String> {
+    apl.inner().wykonaj(|r, t| r.do_jutra(t));
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn wroc_do_pracy(apl: Apl<'_>) -> Result<(), String> {
+    apl.inner().wykonaj(|r, t| r.wroc_do_pracy(t));
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn dalej_po_wczoraju(apl: Apl<'_>) -> Result<(), String> {
+    apl.inner().wykonaj(|r, _| r.dalej_po_wczoraju());
+    Ok(())
+}

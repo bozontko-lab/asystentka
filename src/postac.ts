@@ -3,7 +3,7 @@
 // w rzadkich chwilach: mrugnięcie co 3–7 s, zmiana pozy co 3–6 min.
 
 import type { Grafiki, Poza } from "./grafiki";
-import type { Migawka, NazwaStanu } from "./typy";
+import type { KoniecWidok, Migawka, NazwaStanu } from "./typy";
 
 type Tryb = "brak" | "mrug" | "klatki";
 
@@ -39,6 +39,7 @@ export class Postac {
   private pauzaOd: number | null = null;
   private krokKreatoraNr = 0;
   private numerZmiany = 0;
+  private koniec: KoniecWidok | null = null;
   private zegarMrugania: number | undefined;
   private zegarWariantu: number | undefined;
   private zegarStanu: number | undefined;
@@ -58,6 +59,7 @@ export class Postac {
   }
 
   ustaw(m: Migawka): void {
+    this.koniec = m.koniec;
     const pauzaOd = m.stan === "pauza" ? (m.sesja?.pauza_od_ms ?? null) : null;
     if (m.stan !== this.stan) {
       this.wejdzWStan(m.stan);
@@ -165,10 +167,26 @@ export class Postac {
     }, zostalo);
   }
 
+  private dwie(a: Poza, b: Poza, cykl: string): Klatki {
+    return this.grafiki.ma(b) && this.grafiki.adres(a) !== this.grafiki.adres(b)
+      ? { a, b, tryb: "klatki", cykl }
+      : { a, tryb: "brak" };
+  }
+
+  /** Koniec dnia: reakcja z tabeli w B4 (pozy z postac.json), potem „bye”, a po schowaniu „pause_nap”. */
+  private klatkiKonca(): Klatki {
+    const k = this.koniec;
+    if (!k) return { a: "stand_idle", b: "stand_idle_blink", tryb: "mrug" };
+    if (k.etap === "pozegnanie") return { a: "bye", tryb: "brak" };
+    if (k.etap === "spi") return { a: "pause_nap", tryb: "brak" };
+    const [a, b] = (this.grafiki.reakcje[k.reakcja] ?? ["stand_idle"]) as Poza[];
+    if (a && b) return this.dwie(a, b, "0.8s");
+    return a === "stand_idle" ? { a, b: "stand_idle_blink", tryb: "mrug" } : { a: a ?? "stand_idle", tryb: "brak" };
+  }
+
   private klatki(): Klatki {
     const g = this.grafiki;
-    const dwie = (a: Poza, b: Poza, cykl: string): Klatki =>
-      g.ma(b) && g.adres(a) !== g.adres(b) ? { a, b, tryb: "klatki", cykl } : { a, tryb: "brak" };
+    const dwie = (a: Poza, b: Poza, cykl: string): Klatki => this.dwie(a, b, cykl);
     const stoi: Klatki = { a: "stand_idle", b: "stand_idle_blink", tryb: "mrug" };
     switch (this.stan) {
       case "konfiguracja":
@@ -191,6 +209,8 @@ export class Postac {
         return { a: "idle_check", tryb: "brak" };
       case "gratulacje":
         return dwie("cheer_1", "cheer_2", "0.8s");
+      case "koniec_dnia":
+        return this.klatkiKonca();
       default:
         return stoi;
     }

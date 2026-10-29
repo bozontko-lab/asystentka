@@ -8,7 +8,8 @@ export type NazwaStanu =
   | "praca"
   | "pauza"
   | "jestes"
-  | "gratulacje";
+  | "gratulacje"
+  | "koniec_dnia";
 
 export type Strona = "prawa" | "lewa";
 
@@ -69,6 +70,31 @@ export interface Gratulacje {
   plan_wykonany: boolean;
 }
 
+export type Reakcja = "zachwycona" | "zadowolona" | "dumna" | "lekko_pochwalajaca" | "czula" | "zmartwiona";
+
+export interface ZadanieDniaWidok {
+  zadanie: string;
+  projekt: string;
+  czas_min: number;
+  szac_min: number | null;
+  zrobione: boolean;
+}
+
+export interface PodsumowanieWidok {
+  zrobione: number;
+  zaplanowane: number;
+  czas_dnia_min: number;
+  cel_min: number;
+  zadania: ZadanieDniaWidok[];
+  na_jutro: string[];
+}
+
+export interface KoniecWidok {
+  etap: "reakcja" | "pozegnanie" | "spi" | "wczoraj";
+  reakcja: Reakcja;
+  podsumowanie: PodsumowanieWidok;
+}
+
 export interface Migawka {
   stan: NazwaStanu;
   widoczna: boolean;
@@ -78,6 +104,7 @@ export interface Migawka {
   lista: ListaWidok | null;
   sesja: SesjaWidok | null;
   gratulacje: Gratulacje | null;
+  koniec: KoniecWidok | null;
   dzien: { minuty: number; cel_min: number };
   blad_pliku: string | null;
   /** Projekty do wyboru w „Dodaj zadanie”: nagłówki z pliku i Inbox. */

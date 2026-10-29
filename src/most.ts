@@ -16,7 +16,11 @@ export type Akcja =
   | "wroc_do_listy"
   | "zatwierdz_wybor"
   | "anuluj_wybor"
-  | "zmien_plan";
+  | "zmien_plan"
+  | "koniec_pracy"
+  | "do_jutra"
+  | "wroc_do_pracy"
+  | "dalej_po_wczoraju";
 
 export interface Most {
   migawka(): Promise<Migawka>;

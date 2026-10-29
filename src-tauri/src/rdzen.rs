@@ -10,8 +10,8 @@ use chrono::{Duration, NaiveTime};
 use serde::Serialize;
 
 use crate::czas::{self, Chwila};
-use crate::dzien::{DzienStan, Edycja};
-use crate::dziennik::{self, DzienPracy, WpisSesji};
+use crate::dzien::{DzienStan, Edycja, Reakcja};
+use crate::dziennik::{self, DzienPracy, Podsumowanie, WpisSesji};
 use crate::magazyn::{KotwicaOkna, Magazyn, Strona};
 use crate::plik_zadan::{self, BladZmiany, Klucz, PlikZadan, Zadanie};
 use crate::sesja::{PowodPauzy, Sesja, ZadanieSesji};
@@ -27,6 +27,10 @@ const MIN_SESJA_S: i64 = 60;
 const MIN_NA_ZADANIE_MIN: u32 = 10;
 /// Wybór przekracza cel, gdy suma jest większa o ponad 20% (B4).
 const PROG_ZA_DUZO: f64 = 1.2;
+/// Jak długo trwa reakcja na koniec dnia, zanim postać pomacha na pożegnanie.
+const REAKCJA_S: i64 = 8;
+/// Pożegnanie („Do jutra!”) trwa tyle, zanim okno schowa się do zasobnika.
+const POZEGNANIE_S: i64 = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stan {
@@ -38,6 +42,7 @@ pub enum Stan {
     Pauza,
     Jestes,
     Gratulacje,
+    KoniecDnia,
 }
 
 impl Stan {
@@ -51,6 +56,7 @@ impl Stan {
             Stan::Pauza => "pauza",
             Stan::Jestes => "jestes",
             Stan::Gratulacje => "gratulacje",
+            Stan::KoniecDnia => "koniec_dnia",
         }
     }
 }
@@ -73,6 +79,36 @@ enum Faza {
     Wybor,
     Lista,
     Gratulacje { do_: Option<Chwila>, info: GratulacjeInfo },
+    KoniecDnia { etap: EtapKonca, reakcja: Reakcja },
+}
+
+/// Przebieg końca dnia: reakcja, pożegnanie i schowanie do zasobnika; po
+/// schowaniu postać „śpi”, a przy starcie po wyłączonym komputerze pokazuje
+/// podsumowanie wczorajszego dnia.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EtapKonca {
+    Reakcja { do_: Chwila },
+    Pozegnanie { do_: Chwila },
+    Spi,
+    Wczoraj,
+}
+
+impl EtapKonca {
+    fn nazwa(self) -> &'static str {
+        match self {
+            EtapKonca::Reakcja { .. } => "reakcja",
+            EtapKonca::Pozegnanie { .. } => "pozegnanie",
+            EtapKonca::Spi => "spi",
+            EtapKonca::Wczoraj => "wczoraj",
+        }
+    }
+}
+
+/// Podsumowanie wczorajszego dnia zamkniętego za Ciebie, do pokazania po powitaniu.
+#[derive(Debug, Clone, PartialEq)]
+struct Wczoraj {
+    widok: PodsumowanieWidok,
+    reakcja: Reakcja,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -150,6 +186,34 @@ pub struct SesjaWidok {
     pub bezczynna_od_ms: Option<i64>,
 }
 
+/// Czas jednego zadania w danym dniu względem szacunku.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ZadanieDniaWidok {
+    pub zadanie: String,
+    pub projekt: String,
+    pub czas_min: u32,
+    pub szac_min: Option<u32>,
+    pub zrobione: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct PodsumowanieWidok {
+    pub zrobione: u32,
+    pub zaplanowane: u32,
+    pub czas_dnia_min: u32,
+    pub cel_min: u32,
+    pub zadania: Vec<ZadanieDniaWidok>,
+    pub na_jutro: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct KoniecWidok {
+    /// `reakcja`, `pozegnanie`, `spi` albo `wczoraj`.
+    pub etap: &'static str,
+    pub reakcja: Reakcja,
+    pub podsumowanie: PodsumowanieWidok,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct DzienWidok {
     pub minuty: u32,
@@ -167,6 +231,7 @@ pub struct Migawka {
     pub lista: Option<ListaWidok>,
     pub sesja: Option<SesjaWidok>,
     pub gratulacje: Option<GratulacjeInfo>,
+    pub koniec: Option<KoniecWidok>,
     pub dzien: DzienWidok,
     /// Problem z plikiem zadań (brak ścieżki, nieczytelny plik).
     pub blad_pliku: Option<String>,
@@ -190,6 +255,7 @@ pub struct Rdzen {
     kreator: bool,
     obserwacja_pliku: bool,
     ostatni_dymek_powrotu: Option<Chwila>,
+    wczoraj: Option<Wczoraj>,
 }
 
 impl Rdzen {
@@ -211,6 +277,7 @@ impl Rdzen {
             kreator: false,
             obserwacja_pliku: false,
             ostatni_dymek_powrotu: None,
+            wczoraj: None,
         }
     }
 
@@ -232,6 +299,7 @@ impl Rdzen {
             Faza::Wybor => Stan::WyborZadan,
             Faza::Lista => Stan::Lista,
             Faza::Gratulacje { .. } => Stan::Gratulacje,
+            Faza::KoniecDnia { .. } => Stan::KoniecDnia,
         }
     }
 
@@ -278,7 +346,11 @@ impl Rdzen {
         match &self.faza {
             Faza::Powitanie { do_ } => wez(*do_),
             Faza::Gratulacje { do_: Some(do_), .. } => wez(*do_),
+            Faza::KoniecDnia { etap: EtapKonca::Reakcja { do_ } | EtapKonca::Pozegnanie { do_ }, .. } => wez(*do_),
             _ => {}
+        }
+        if let Some(t) = self.czas_automatycznego_zamkniecia(teraz) {
+            wez(t);
         }
         let co = self.ust.przypomnienie_przerwy_min;
         if let (Some(s), Stan::Praca, true) = (&self.dz.sesja, self.stan(), co > 0) {
@@ -398,8 +470,9 @@ impl Rdzen {
             Some(d) if d.data == dzis => self.dz = d,
             Some(stary) => {
                 self.dz = stary;
-                let przeniesione = self.zamknij_stary_dzien(teraz);
+                let (przeniesione, wczoraj) = self.zamknij_stary_dzien(teraz);
                 self.dz = DzienStan { przeniesione, ..DzienStan::nowy(dzis) };
+                self.wczoraj = wczoraj;
             }
             None => {
                 self.dz = DzienStan::nowy(dzis);
@@ -421,6 +494,10 @@ impl Rdzen {
         } else if self.dz.sesja.is_some() {
             self.faza = Faza::Lista;
             self.dymek("po_blokadzie", &[]);
+        } else if self.dz.zamkniety {
+            // Dzień zamknięty wcześniej: postać „śpi” z podsumowaniem i przyciskiem „Wróć do pracy”.
+            let reakcja = self.dz.reakcja.unwrap_or_else(|| self.reakcja_dnia());
+            self.faza = Faza::KoniecDnia { etap: EtapKonca::Spi, reakcja };
         } else if !self.dz.powitano {
             self.powitaj(teraz);
         } else if self.plan_zadania().is_empty() {
@@ -440,7 +517,17 @@ impl Rdzen {
         match &self.faza {
             Faza::Powitanie { do_ } if teraz >= *do_ => self.po_powitaniu(),
             Faza::Gratulacje { do_: Some(do_), .. } if teraz >= *do_ => self.po_gratulacjach(),
+            Faza::KoniecDnia { etap: EtapKonca::Reakcja { do_ }, .. } if teraz >= *do_ => {
+                self.rozpocznij_pozegnanie(teraz)
+            }
+            Faza::KoniecDnia { etap: EtapKonca::Pozegnanie { do_ }, .. } if teraz >= *do_ => {
+                self.schowaj_do_zasobnika()
+            }
             _ => {}
+        }
+        // O godzinie zamknięcia dzień kończy się sam (B4); po wyłączonym komputerze zaraz po starcie.
+        if self.czas_automatycznego_zamkniecia(teraz).is_some_and(|t| teraz >= t) {
+            self.koniec_pracy(teraz);
         }
         self.przypomnienie_o_przerwie(teraz);
     }
@@ -472,18 +559,26 @@ impl Rdzen {
             return;
         }
         log::info!("nowy dzień: {dzis}");
-        let przeniesione = self.zamknij_stary_dzien(teraz);
+        let (przeniesione, wczoraj) = self.zamknij_stary_dzien(teraz);
         self.dz = DzienStan { przeniesione, powitano: true, ..DzienStan::nowy(dzis) };
         self.wczytaj_zadania();
+        self.wczoraj = wczoraj;
+        self.faza = Faza::Lista;
         if !self.kreator {
-            self.otworz_wybor();
+            if self.wczoraj.is_some() {
+                self.pokaz_wczoraj();
+            } else {
+                self.otworz_wybor();
+            }
         }
         self.brudny = true;
     }
 
     /// Kończy dzień, który minął: trwająca sesja zapisuje się jak „Przerwij”,
-    /// a dziennik dostaje ostatni stan. Zwraca niedokończone zadania z planu.
-    fn zamknij_stary_dzien(&mut self, teraz: Chwila) -> Vec<Klucz> {
+    /// a dziennik dostaje ostatni stan. Dzień, którego nie zamknąłeś, zamyka
+    /// się za Ciebie z podsumowaniem. Zwraca niedokończone zadania z planu i
+    /// podsumowanie do pokazania.
+    fn zamknij_stary_dzien(&mut self, _teraz: Chwila) -> (Vec<Klucz>, Option<Wczoraj>) {
         if let Some(mut s) = self.dz.sesja.take() {
             let koniec = s.pauza.as_ref().map_or(s.koniec(), |p| p.od);
             s.zakoncz(koniec);
@@ -491,15 +586,176 @@ impl Rdzen {
             self.zakoncz_sesje(false, koniec);
         }
         self.zastosuj_edycje();
-        if !self.dz.sesje.is_empty() {
-            self.zapisz_dziennik();
-        }
+        let przeniesione: Vec<Klucz> =
+            self.dz.plan.iter().filter(|k| self.zadanie(k).is_some_and(|z| !z.zrobione)).cloned().collect();
+        let wczoraj = if !self.dz.zamkniety && self.dzien_mial_aktywnosc() {
+            let reakcja = self.domknij_dzien();
+            Some(Wczoraj { widok: self.podsumowanie_widok(), reakcja })
+        } else {
+            if !self.dz.sesje.is_empty() {
+                self.zapisz_dziennik();
+            }
+            None
+        };
         if self.dz.dziennik_do_zapisu {
             let dzien = self.dzien_pracy();
             self.dz.zalegle.push(dzien);
         }
-        let _ = teraz;
-        self.dz.plan.iter().filter(|k| self.zadanie(k).is_some_and(|z| !z.zrobione)).cloned().collect()
+        (przeniesione, wczoraj)
+    }
+
+    // ---- koniec dnia -------------------------------------------------------------------------------
+
+    /// Dzień bez planu i bez sesji nie ma czego podsumowywać.
+    fn dzien_mial_aktywnosc(&self) -> bool {
+        !self.dz.plan.is_empty() || !self.dz.sesje.is_empty()
+    }
+
+    /// Godzina zamknięcia dnia dzisiaj, o ile dzień ma się zamknąć sam: jest
+    /// otwarty, miał aktywność i nie wróciłeś do pracy po zamknięciu.
+    fn czas_automatycznego_zamkniecia(&self, teraz: Chwila) -> Option<Chwila> {
+        if self.dz.zamkniety
+            || self.dz.nie_zamykaj_automatycznie
+            || self.kreator
+            || matches!(self.faza, Faza::Konfiguracja)
+            || !self.dzien_mial_aktywnosc()
+        {
+            return None;
+        }
+        lokalna(self.dz.data.and_time(self.ust.koniec_dnia()), teraz)
+    }
+
+    fn na_jutro(&self) -> Vec<String> {
+        self.plan_zadania().into_iter().filter(|z| !z.zrobione).map(|z| z.klucz.zadanie.clone()).collect()
+    }
+
+    fn reakcja_dnia(&self) -> Reakcja {
+        Reakcja::dla(self.dz.minuty_sesji(), self.ust.cel_dzienny_min, self.plan_wykonany())
+    }
+
+    /// Czas każdego zadania z dzisiejszych sesji względem szacunku, plan i lista na jutro.
+    fn podsumowanie_widok(&self) -> PodsumowanieWidok {
+        let (zrobione, zaplanowane) = self.licz_plan();
+        let mut zadania: Vec<ZadanieDniaWidok> = Vec::new();
+        for s in &self.dz.sesje {
+            match zadania.iter_mut().find(|z| z.projekt == s.projekt && z.zadanie == s.zadanie) {
+                Some(z) => {
+                    z.czas_min += s.minuty;
+                    z.zrobione |= s.zrobione;
+                }
+                None => zadania.push(ZadanieDniaWidok {
+                    zadanie: s.zadanie.clone(),
+                    projekt: s.projekt.clone(),
+                    czas_min: s.minuty,
+                    szac_min: s.szac_min,
+                    zrobione: s.zrobione,
+                }),
+            }
+        }
+        for z in &mut zadania {
+            z.zrobione |= self.zadanie(&Klucz::new(&z.projekt, &z.zadanie)).is_some_and(|f| f.zrobione);
+        }
+        PodsumowanieWidok {
+            zrobione,
+            zaplanowane,
+            czas_dnia_min: self.dz.minuty_sesji(),
+            cel_min: self.ust.cel_dzienny_min,
+            zadania,
+            na_jutro: self.na_jutro(),
+        }
+    }
+
+    /// Zamyka dzień: trwająca sesja zapisuje się jak „Przerwij”, a dziennik
+    /// dostaje podsumowanie z reakcją.
+    fn domknij_dzien(&mut self) -> Reakcja {
+        self.zastosuj_edycje();
+        let reakcja = self.reakcja_dnia();
+        self.dz.zamkniety = true;
+        self.dz.reakcja = Some(reakcja);
+        self.zapisz_dziennik();
+        self.brudny = true;
+        reakcja
+    }
+
+    /// „Koniec pracy na dziś” z przycisku, menu i o godzinie zamknięcia dnia.
+    pub fn koniec_pracy(&mut self, teraz: Chwila) {
+        if self.dz.zamkniety || self.kreator || matches!(self.faza, Faza::Konfiguracja) {
+            return;
+        }
+        if self.dz.sesja.is_some() {
+            self.zakoncz_sesje(false, teraz);
+        }
+        let reakcja = self.domknij_dzien();
+        self.faza =
+            Faza::KoniecDnia { etap: EtapKonca::Reakcja { do_: teraz + Duration::seconds(REAKCJA_S) }, reakcja };
+        self.dymek(reakcja.klucz_dymku(), &[("czas_dnia", czas::minuty_tekst(self.dz.minuty_sesji()))]);
+        // Zachwycona: konfetti 3 s, dumna: 1,5 s (B4).
+        match reakcja {
+            Reakcja::Zachwycona => self.efekt("konfetti_dlugie"),
+            Reakcja::Dumna => self.efekt("konfetti"),
+            _ => {}
+        }
+        self.zapisz_stan(teraz);
+    }
+
+    /// „Do jutra”: postać macha na pożegnanie i chowa się do zasobnika.
+    pub fn do_jutra(&mut self, teraz: Chwila) {
+        match self.faza {
+            Faza::KoniecDnia { etap: EtapKonca::Reakcja { .. }, .. } => self.rozpocznij_pozegnanie(teraz),
+            Faza::KoniecDnia { etap: EtapKonca::Spi, .. } => self.ukrycie.recznie = true,
+            _ => {}
+        }
+    }
+
+    fn rozpocznij_pozegnanie(&mut self, teraz: Chwila) {
+        let Faza::KoniecDnia { reakcja, .. } = self.faza else { return };
+        self.faza =
+            Faza::KoniecDnia { etap: EtapKonca::Pozegnanie { do_: teraz + Duration::seconds(POZEGNANIE_S) }, reakcja };
+        self.dymek("do_jutra", &[]);
+    }
+
+    fn schowaj_do_zasobnika(&mut self) {
+        let Faza::KoniecDnia { reakcja, .. } = self.faza else { return };
+        self.faza = Faza::KoniecDnia { etap: EtapKonca::Spi, reakcja };
+        self.ukrycie.recznie = true;
+    }
+
+    /// „Wróć do pracy”: otwiera ten sam dzień od nowa i usuwa podsumowanie z dziennika.
+    pub fn wroc_do_pracy(&mut self, teraz: Chwila) {
+        if !matches!(
+            self.faza,
+            Faza::KoniecDnia { etap: EtapKonca::Reakcja { .. } | EtapKonca::Pozegnanie { .. } | EtapKonca::Spi, .. }
+        ) {
+            return;
+        }
+        self.dz.zamkniety = false;
+        self.dz.reakcja = None;
+        self.dz.nie_zamykaj_automatycznie = true;
+        self.zapisz_dziennik();
+        self.ukrycie.recznie = false;
+        if self.plan_zadania().is_empty() {
+            self.otworz_wybor();
+        } else {
+            self.faza = Faza::Lista;
+            self.dymek("wznowienie", &[]);
+        }
+        self.zapisz_stan(teraz);
+    }
+
+    /// Po powitaniu: podsumowanie wczorajszego dnia, który zamknąłem za Ciebie.
+    fn pokaz_wczoraj(&mut self) {
+        let Some(w) = &self.wczoraj else { return };
+        self.faza = Faza::KoniecDnia { etap: EtapKonca::Wczoraj, reakcja: w.reakcja };
+        self.dymek("zamkniety_wczoraj", &[]);
+    }
+
+    /// „Dalej” po podsumowaniu wczoraj: wybór zadań na dziś.
+    pub fn dalej_po_wczoraju(&mut self) {
+        if matches!(self.faza, Faza::KoniecDnia { etap: EtapKonca::Wczoraj, .. }) {
+            self.wczoraj = None;
+            self.faza = Faza::Lista;
+            self.otworz_wybor();
+        }
     }
 
     /// Po 4 s gratulacje wracają do listy z dymkiem o tym, co jeszcze zostało.
@@ -563,7 +819,9 @@ impl Rdzen {
     }
 
     fn po_powitaniu(&mut self) {
-        if self.plan_zadania().is_empty() {
+        if self.wczoraj.is_some() {
+            self.pokaz_wczoraj();
+        } else if self.plan_zadania().is_empty() {
             self.otworz_wybor();
         } else {
             self.faza = Faza::Lista;
@@ -595,7 +853,7 @@ impl Rdzen {
 
     /// Stan „Wybór zadań”: pierwszy start dnia albo „Zmień plan”.
     pub fn otworz_wybor(&mut self) {
-        if self.dz.sesja.is_some() || matches!(self.faza, Faza::Konfiguracja) {
+        if self.dz.sesja.is_some() || matches!(self.faza, Faza::Konfiguracja | Faza::KoniecDnia { .. }) {
             return;
         }
         self.faza = Faza::Wybor;
@@ -627,7 +885,7 @@ impl Rdzen {
     }
 
     /// „Zaczynamy”: plan to wybrane zadania i te z planu, które już mają ptaszka.
-    pub fn zatwierdz_wybor(&mut self, _teraz: Chwila) {
+    pub fn zatwierdz_wybor(&mut self, teraz: Chwila) {
         if !matches!(self.faza, Faza::Wybor) {
             return;
         }
@@ -645,6 +903,7 @@ impl Rdzen {
         }
         self.dz.plan = plan.into_iter().map(|(_, k)| k).collect();
         self.dz.przeniesione.clear();
+        self.pozna_praca(teraz);
         self.faza = Faza::Lista;
         self.dymek("lista", &[]);
         self.brudny = true;
@@ -661,6 +920,9 @@ impl Rdzen {
     /// „Dodaj zadanie”: dopisuje linię pod nagłówkiem projektu i od razu dodaje
     /// zadanie do dzisiejszego planu (w Wyborze: do zaznaczonych).
     pub fn dodaj_zadanie(&mut self, nazwa: &str, szac_min: Option<u32>, projekt: &str) -> Result<(), String> {
+        if self.dz.zamkniety {
+            return Err("Dzień jest zamknięty. Wróć do pracy, żeby dopisać zadanie.".into());
+        }
         let sciezka = self.ust.plik_zadan().ok_or("Nie wskazano pliku zadań.")?;
         let projekt = if projekt.trim().is_empty() { plik_zadan::INBOX } else { projekt.trim() };
         let klucz =
@@ -684,6 +946,9 @@ impl Rdzen {
     // ---- działania użytkownika ----------------------------------------------------------------
 
     pub fn rozpocznij(&mut self, klucz: &Klucz, teraz: Chwila) -> Result<(), String> {
+        if self.dz.zamkniety {
+            return Err("dzień jest zamknięty; wróć do pracy".into());
+        }
         if self.dz.sesja.is_some() {
             return Err("trwa już sesja; najpierw Przerwij albo Zrobione".into());
         }
@@ -695,11 +960,19 @@ impl Rdzen {
         if !self.dz.plan.contains(klucz) {
             self.dz.plan.push(klucz.clone());
         }
+        self.pozna_praca(teraz);
         self.dymek("start", &[("zadanie", klucz.zadanie.clone())]);
         self.dz.sesja = Some(Sesja::nowa(zadanie, teraz));
         self.faza = Faza::Lista;
         self.brudny = true;
         Ok(())
+    }
+
+    /// Plan albo sesja po godzinie zamknięcia to Twój wybór: dzień nie zamyka się już sam.
+    fn pozna_praca(&mut self, teraz: Chwila) {
+        if teraz.time() >= self.ust.koniec_dnia() {
+            self.dz.nie_zamykaj_automatycznie = true;
+        }
     }
 
     pub fn pauza(&mut self, teraz: Chwila) {
@@ -909,7 +1182,11 @@ impl Rdzen {
             cel_min: self.ust.cel_dzienny_min,
             zaplanowane,
             zrobione,
-            podsumowanie: None,
+            podsumowanie: self
+                .dz
+                .reakcja
+                .filter(|_| self.dz.zamkniety)
+                .map(|r| Podsumowanie { reakcja: r.nazwa().to_string(), na_jutro: self.na_jutro() }),
         }
     }
 
@@ -1071,6 +1348,17 @@ impl Rdzen {
             Faza::Gratulacje { info, .. } if self.dz.sesja.is_none() => Some(info.clone()),
             _ => None,
         };
+        let koniec = match &self.faza {
+            Faza::KoniecDnia { etap, reakcja } if self.dz.sesja.is_none() => Some(KoniecWidok {
+                etap: etap.nazwa(),
+                reakcja: *reakcja,
+                podsumowanie: match (etap, &self.wczoraj) {
+                    (EtapKonca::Wczoraj, Some(w)) => w.widok.clone(),
+                    _ => self.podsumowanie_widok(),
+                },
+            }),
+            _ => None,
+        };
         let w_toku_minuty = self.dz.sesja.as_ref().map_or(0, |s| s.minuty(czas::teraz()));
         Migawka {
             stan: stan.nazwa(),
@@ -1081,6 +1369,7 @@ impl Rdzen {
             lista: matches!(stan, Stan::Lista | Stan::Gratulacje).then(|| self.widok_listy()),
             sesja,
             gratulacje,
+            koniec,
             dzien: DzienWidok { minuty: self.dz.minuty_sesji() + w_toku_minuty, cel_min: self.ust.cel_dzienny_min },
             blad_pliku: self.blad_pliku.clone(),
             projekty_do_dopisania: self.zadania.projekty_do_dopisania(),
@@ -1345,6 +1634,8 @@ mod testy {
         let mut r2 = sr.rdzen(jutro);
         assert_eq!(r2.stan(), Stan::Powitanie, "nowy dzień ma pełne powitanie");
         r2.tick(jutro + Duration::seconds(10));
+        assert_eq!(r2.stan(), Stan::KoniecDnia, "najpierw podsumowanie wczoraj");
+        r2.dalej_po_wczoraju();
         assert_eq!(r2.stan(), Stan::WyborZadan);
         let w = r2.migawka().wybor.unwrap();
         let zaznaczone: Vec<&str> =
@@ -1615,7 +1906,9 @@ mod testy {
         assert!(sr.zadania().contains("✅ 2026-10-30"), "ptaszek ma datę dnia, w którym zaczęła się sesja");
         // Po sesji dzień się zmienia i otwiera się wybór nowego dnia.
         r.tick(chwila("2026-10-31T00:30:10+01:00"));
-        r.tick(chwila("2026-10-31T00:30:20+01:00"));
+        assert_eq!(r.stan(), Stan::KoniecDnia, "dzień, którego nie zamknąłeś, zamyka się za Ciebie z podsumowaniem");
+        assert!(sr.dziennik("2026-10-30").contains("Podsumowanie dnia"));
+        r.dalej_po_wczoraju();
         assert_eq!(r.stan(), Stan::WyborZadan);
     }
 
@@ -1732,6 +2025,290 @@ mod testy {
         r.dodaj_zadanie("Pilne", Some(10), "Inbox").unwrap();
         r.zrobione(t("10:30:00"));
         assert!(!r.migawka().gratulacje.unwrap().plan_wykonany, "dopisane w trakcie pracy zadanie liczy się do planu");
+    }
+
+    // ---- krok 5: koniec dnia -------------------------------------------------------------------
+
+    /// Sesja `od`–`do_` na zadaniu: Zrobione albo Przerwij.
+    fn sesja(r: &mut Rdzen, klucz: &Klucz, od: &str, do_: &str, zrobione: bool) {
+        r.rozpocznij(klucz, t(od)).unwrap();
+        if zrobione {
+            r.zrobione(t(do_));
+        } else {
+            r.przerwij(t(do_));
+        }
+    }
+
+    /// Plan z jednym zadaniem i dzień z sesją o podanej długości.
+    fn dzien_z(sr: &Srodowisko, minuty: u32, zrobione: bool) -> Rdzen {
+        let mut r = sr.rdzen(t("08:00:00"));
+        r.tick(t("08:00:06"));
+        r.przelacz_wybor(&montaz()); // tylko Miniatura
+        r.przelacz_wybor(&miniatura());
+        r.zatwierdz_wybor(t("08:00:30"));
+        if minuty > 0 {
+            let koniec = chwila("2026-10-30T08:10:00+01:00") + Duration::minutes(i64::from(minuty));
+            let koniec = koniec.format("%H:%M:%S").to_string();
+            sesja(&mut r, &miniatura(), "08:10:00", &koniec, zrobione);
+        }
+        r
+    }
+
+    #[test]
+    fn szesc_reakcji_na_koniec_dnia_z_tabeli_b4() {
+        // (minuty, zrobione, reakcja, dymek, nazwa w dzienniku)
+        let przypadki = [
+            (250, true, Reakcja::Zachwycona, "koniec_zachwycona", "zachwycona"),
+            (250, false, Reakcja::Zadowolona, "koniec_zadowolona", "zadowolona"),
+            (120, true, Reakcja::Dumna, "koniec_dumna", "dumna"),
+            (120, false, Reakcja::LekkoPochwalajaca, "koniec_pochwala", "lekko pochwalająca"),
+            (30, true, Reakcja::Czula, "koniec_czula", "czuła"),
+            (0, false, Reakcja::Zmartwiona, "koniec_zmartwiona", "zmartwiona"),
+        ];
+        for (minuty, zrobione, reakcja, dymek, nazwa) in przypadki {
+            let sr = Srodowisko::nowe();
+            let mut r = dzien_z(&sr, minuty, zrobione);
+            r.wez_zdarzenia();
+            r.koniec_pracy(chwila("2026-10-30T14:00:00+01:00"));
+            let zd = r.wez_zdarzenia();
+            assert_eq!(wstawki(&zd, dymek)["imie"], "Dżiordżio", "{nazwa}");
+            let k = r.migawka().koniec.unwrap();
+            assert_eq!((k.etap, k.reakcja), ("reakcja", reakcja), "{nazwa}");
+            let dz = sr.dziennik("2026-10-30");
+            assert!(dz.contains(&format!("### Podsumowanie dnia\nReakcja: {nazwa}\n")), "{nazwa}: {dz}");
+            // Zachwycona ma konfetti 3 s, dumna 1,5 s.
+            let konfetti_dlugie = zd.contains(&Zdarzenie::Efekt { nazwa: "konfetti_dlugie".into() });
+            let konfetti = zd.contains(&Zdarzenie::Efekt { nazwa: "konfetti".into() });
+            assert_eq!(
+                (konfetti_dlugie, konfetti),
+                (reakcja == Reakcja::Zachwycona, reakcja == Reakcja::Dumna),
+                "{nazwa}"
+            );
+        }
+    }
+
+    #[test]
+    fn podsumowanie_dnia_ma_zrobione_czas_zadan_i_liste_na_jutro() {
+        let sr = Srodowisko::nowe();
+        let mut r = sr.rdzen(t("08:00:00"));
+        r.tick(t("08:00:06"));
+        r.przelacz_wybor(&miniatura());
+        r.przelacz_wybor(&mail());
+        r.zatwierdz_wybor(t("08:00:30"));
+        sesja(&mut r, &miniatura(), "08:10:00", "08:50:00", true);
+        sesja(&mut r, &montaz(), "09:00:00", "09:30:00", false);
+        sesja(&mut r, &montaz(), "10:00:00", "10:15:00", false);
+        r.koniec_pracy(t("12:00:00"));
+        let p = r.migawka().koniec.unwrap().podsumowanie;
+        assert_eq!((p.zrobione, p.zaplanowane, p.czas_dnia_min, p.cel_min), (1, 3, 85, 240));
+        let zadania: Vec<(&str, u32, Option<u32>, bool)> =
+            p.zadania.iter().map(|z| (z.zadanie.as_str(), z.czas_min, z.szac_min, z.zrobione)).collect();
+        assert_eq!(
+            zadania,
+            [("Miniatura", 40, Some(30), true), ("Montaż: plansze 1–5", 45, Some(120), false)],
+            "kolejne sesje tego samego zadania sumują się"
+        );
+        assert_eq!(p.na_jutro, ["Montaż: plansze 1–5", "Odpisać na maila od montażysty"]);
+        let dz = sr.dziennik("2026-10-30");
+        assert!(dz.contains("**Razem:** 1 h 25 min z celu 4 h · **Plan:** 1 z 3 zadań\n"));
+        assert!(dz.contains("Na jutro: Montaż: plansze 1–5, Odpisać na maila od montażysty\n"));
+    }
+
+    #[test]
+    fn koniec_pracy_przy_dzialajacym_liczniku_zapisuje_sesje_jak_przerwij() {
+        let sr = Srodowisko::nowe();
+        let mut r = sr.rdzen(t("08:00:00"));
+        r.tick(t("08:00:06"));
+        r.zatwierdz_wybor(t("08:00:10"));
+        r.rozpocznij(&montaz(), t("08:10:00")).unwrap();
+        r.koniec_pracy(t("09:10:00"));
+        assert!(r.dz.sesja.is_none());
+        assert_eq!(r.stan(), Stan::KoniecDnia);
+        assert!(sr.zadania().contains("[czas:: 105]"), "60 min dopisane do 45");
+        assert!(!sr.zadania().contains("[x] Montaż"), "bez ptaszka");
+        assert!(sr.dziennik("2026-10-30").contains("- [ ] 08:10–09:10 · Montaż: plansze 1–5 · 60 min · w toku"));
+    }
+
+    #[test]
+    fn po_reakcji_postac_macha_i_chowa_sie_do_zasobnika() {
+        let sr = Srodowisko::nowe();
+        let mut r = dzien_z(&sr, 30, true);
+        r.koniec_pracy(t("14:00:00"));
+        r.wez_zdarzenia();
+        r.tick(t("14:00:07"));
+        assert_eq!(r.migawka().koniec.unwrap().etap, "reakcja");
+        assert!(r.widoczna());
+        r.tick(t("14:00:08"));
+        assert_eq!(r.migawka().koniec.unwrap().etap, "pozegnanie");
+        assert_eq!(dymki(&mut r), vec!["do_jutra"]);
+        r.tick(t("14:00:11"));
+        assert_eq!(r.migawka().koniec.unwrap().etap, "spi");
+        assert!(!r.widoczna(), "okno chowa się do zasobnika");
+        // Pokazane z zasobnika: „śpi” z podsumowaniem i przyciskiem „Wróć do pracy”.
+        r.pokaz();
+        assert!(r.widoczna());
+        assert_eq!(r.migawka().koniec.unwrap().etap, "spi");
+        r.do_jutra(t("14:30:00"));
+        assert!(!r.widoczna());
+    }
+
+    #[test]
+    fn do_jutra_skraca_reakcje() {
+        let sr = Srodowisko::nowe();
+        let mut r = dzien_z(&sr, 30, true);
+        r.koniec_pracy(t("14:00:00"));
+        r.wez_zdarzenia();
+        r.do_jutra(t("14:00:02"));
+        assert_eq!(r.migawka().koniec.unwrap().etap, "pozegnanie");
+        assert_eq!(dymki(&mut r), vec!["do_jutra"]);
+    }
+
+    #[test]
+    fn wroc_do_pracy_otwiera_dzien_i_usuwa_podsumowanie_z_dziennika() {
+        let sr = Srodowisko::nowe();
+        let mut r = dzien_z(&sr, 30, true);
+        r.koniec_pracy(t("14:00:00"));
+        assert!(sr.dziennik("2026-10-30").contains("Podsumowanie dnia"));
+        r.wez_zdarzenia();
+        r.wroc_do_pracy(t("14:01:00"));
+        assert_eq!(r.stan(), Stan::Lista);
+        assert!(!sr.dziennik("2026-10-30").contains("Podsumowanie dnia"));
+        assert!(sr.dziennik("2026-10-30").contains("- [x] 08:10–08:40 · Miniatura"), "sesje zostają");
+        assert!(!r.dz.zamkniety);
+        // Dzień można zamknąć ponownie, a podsumowanie powstaje od nowa.
+        r.koniec_pracy(t("15:00:00"));
+        assert!(sr.dziennik("2026-10-30").contains("Reakcja: czuła"));
+        assert!(r.rozpocznij(&montaz(), t("15:01:00")).is_err(), "w zamkniętym dniu nie ma pracy");
+        assert!(r.dodaj_zadanie("X", None, "Inbox").is_err());
+    }
+
+    #[test]
+    fn o_22_dzien_zamyka_sie_sam_nawet_przy_dzialajacym_liczniku() {
+        let sr = Srodowisko::nowe();
+        let mut r = sr.rdzen(t("20:00:00"));
+        r.tick(t("20:00:06"));
+        r.zatwierdz_wybor(t("20:00:10"));
+        r.rozpocznij(&montaz(), t("21:30:00")).unwrap();
+        assert_eq!(
+            r.najblizszy_termin(t("21:31:00")),
+            t("22:00:00"),
+            "zamknięcie dnia przed przypomnieniem o przerwie"
+        );
+        r.tick(t("21:59:59"));
+        assert_eq!(r.stan(), Stan::Praca);
+        r.tick(t("22:00:00"));
+        assert_eq!(r.stan(), Stan::KoniecDnia);
+        assert!(sr.dziennik("2026-10-30").contains("- [ ] 21:30–22:00 · Montaż: plansze 1–5 · 30 min · w toku"));
+        assert!(sr.dziennik("2026-10-30").contains("Podsumowanie dnia"));
+        // Po zamknięciu nie ma już terminu na 22:00.
+        r.tick(t("22:00:20"));
+        assert!(r.najblizszy_termin(t("22:00:20")) > t("22:00:20"));
+    }
+
+    #[test]
+    fn dzien_bez_aktywnosci_nie_zamyka_sie_sam() {
+        let sr = Srodowisko::nowe();
+        let mut r = sr.rdzen(t("20:00:00"));
+        r.tick(t("20:00:06"));
+        assert_eq!(r.stan(), Stan::WyborZadan);
+        r.tick(t("22:05:00"));
+        assert_eq!(r.stan(), Stan::WyborZadan);
+        // Plan wybrany po godzinie zamknięcia to Twoja decyzja: dzień nie zamyka się sam.
+        r.zatwierdz_wybor(t("22:10:00"));
+        r.tick(t("22:11:00"));
+        assert_eq!(r.stan(), Stan::Lista);
+        r.rozpocznij(&montaz(), t("22:12:00")).unwrap();
+        r.tick(t("23:00:00"));
+        assert_eq!(r.stan(), Stan::Praca);
+    }
+
+    #[test]
+    fn po_wroc_do_pracy_dzien_nie_zamyka_sie_ponownie_o_22() {
+        let sr = Srodowisko::nowe();
+        let mut r = dzien_z(&sr, 30, true);
+        r.koniec_pracy(t("21:00:00"));
+        r.wroc_do_pracy(t("21:30:00"));
+        r.tick(t("22:00:00"));
+        assert_eq!(r.stan(), Stan::Lista);
+    }
+
+    #[test]
+    fn komputer_wlaczony_po_22_zamyka_dzien_przy_starcie() {
+        let sr = Srodowisko::nowe();
+        let mut r = dzien_z(&sr, 120, false);
+        r.zapisz_stan(t("11:00:00"));
+        drop(r);
+        let mut r2 = sr.rdzen(t("23:10:00"));
+        assert_eq!(r2.stan(), Stan::Lista, "start pokazuje to, co było");
+        r2.tick(t("23:10:01"));
+        assert_eq!(r2.stan(), Stan::KoniecDnia);
+        assert_eq!(r2.migawka().koniec.unwrap().reakcja, Reakcja::LekkoPochwalajaca);
+    }
+
+    #[test]
+    fn restart_w_zamknietym_dniu_pokazuje_podsumowanie_i_wroc_do_pracy() {
+        let sr = Srodowisko::nowe();
+        let mut r = dzien_z(&sr, 30, true);
+        r.koniec_pracy(t("14:00:00"));
+        drop(r);
+        let r2 = sr.rdzen(t("15:00:00"));
+        assert_eq!(r2.stan(), Stan::KoniecDnia);
+        let k = r2.migawka().koniec.unwrap();
+        assert_eq!((k.etap, k.reakcja, k.podsumowanie.czas_dnia_min), ("spi", Reakcja::Czula, 30));
+    }
+
+    #[test]
+    fn niezamkniety_wczorajszy_dzien_zamyka_sie_za_ciebie_i_pokazuje_podsumowanie() {
+        let sr = Srodowisko::nowe();
+        let mut r = dzien_z(&sr, 120, false);
+        r.zapisz_stan(t("11:00:00"));
+        drop(r);
+        let jutro = chwila("2026-10-31T08:00:00+01:00");
+        let mut r2 = sr.rdzen(jutro);
+        assert_eq!(r2.stan(), Stan::Powitanie);
+        assert!(sr.dziennik("2026-10-30").contains("Reakcja: lekko pochwalająca"), "wczorajszy dziennik zamknięty");
+        r2.wez_zdarzenia();
+        r2.tick(jutro + Duration::seconds(10));
+        let k = r2.migawka().koniec.unwrap();
+        assert_eq!((k.etap, k.reakcja, k.podsumowanie.czas_dnia_min), ("wczoraj", Reakcja::LekkoPochwalajaca, 120));
+        assert_eq!(dymki(&mut r2), vec!["zamkniety_wczoraj"]);
+        // „Dalej”: wybór zadań na dziś, z niedokończonymi zadaniami z wczoraj.
+        r2.dalej_po_wczoraju();
+        assert_eq!(r2.stan(), Stan::WyborZadan);
+        assert!(r2.migawka().wybor.unwrap().zaznaczonych >= 1);
+    }
+
+    #[test]
+    fn dzien_zamkniety_przez_ciebie_nie_pokazuje_wczoraj_ponownie() {
+        let sr = Srodowisko::nowe();
+        let mut r = dzien_z(&sr, 30, true);
+        r.koniec_pracy(t("14:00:00"));
+        drop(r);
+        let jutro = chwila("2026-10-31T08:00:00+01:00");
+        let mut r2 = sr.rdzen(jutro);
+        r2.tick(jutro + Duration::seconds(10));
+        assert_eq!(r2.stan(), Stan::WyborZadan);
+    }
+
+    #[test]
+    fn polnoc_w_zamknietym_dniu_otwiera_wybor_nowego_dnia() {
+        let sr = Srodowisko::nowe();
+        let mut r = dzien_z(&sr, 30, true);
+        r.koniec_pracy(t("23:00:00"));
+        r.tick(t("23:00:20"));
+        r.tick(chwila("2026-10-31T00:00:05+01:00"));
+        assert_eq!(r.stan(), Stan::WyborZadan);
+    }
+
+    #[test]
+    fn nie_zamyka_dnia_w_kreatorze() {
+        let sr = Srodowisko::nowe();
+        let mut r = Rdzen::nowy(Magazyn::new(sr.lokalny.clone()), Ustawienia::default(), t("23:00:00"));
+        r.wymus_kreator();
+        r.start(t("23:00:00"));
+        r.koniec_pracy(t("23:00:10"));
+        r.tick(t("23:30:00"));
+        assert_eq!(r.stan(), Stan::Konfiguracja);
     }
 
     // ---- bezczynność, pauza automatyczna, pełny ekran (z wersji 1) -------------------------------

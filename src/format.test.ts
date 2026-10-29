@@ -42,3 +42,19 @@ describe("termin", () => {
     expect(terminTekst("jutro")).toBe("jutro");
   });
 });
+
+describe("zadania z rzeczownikiem", () => {
+  it("odmienia jak backend", async () => {
+    const { zadanTekst } = await import("./format");
+    expect([0, 1, 2, 4, 5, 12, 22, 112].map(zadanTekst)).toEqual([
+      "0 zadań",
+      "1 zadanie",
+      "2 zadania",
+      "4 zadania",
+      "5 zadań",
+      "12 zadań",
+      "22 zadania",
+      "112 zadań",
+    ]);
+  });
+});
