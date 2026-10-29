@@ -12,6 +12,7 @@ pub mod czas;
 pub mod dziennik;
 pub mod magazyn;
 pub mod plan;
+pub mod plik_zadan;
 pub mod pliki;
 pub mod rdzen;
 pub mod sesja;

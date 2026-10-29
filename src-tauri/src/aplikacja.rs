@@ -35,6 +35,7 @@ const CO_ILE_CYKL: Duration = Duration::from_secs(30);
 const CO_ILE_PELNY_EKRAN: Duration = Duration::from_secs(2);
 const CO_ILE_KURSOR: Duration = Duration::from_millis(500);
 const PO_PRZECIAGNIECIU: Duration = Duration::from_millis(400);
+const ODSTEP_PO_ZAPISIE: Duration = Duration::from_millis(300);
 /// Glitch wyjścia trwa 400 ms; okno chowamy, gdy się skończy.
 const GLITCH_WYJSCIA: Duration = Duration::from_millis(420);
 /// Odległość kursora, przy której postać patrzy na Ciebie (piksele logiczne).
@@ -63,6 +64,8 @@ pub struct Aplikacja {
     pelny_ekran: AtomicBool,
     kursor_blisko: AtomicBool,
     ochrona: Mutex<Option<bool>>,
+    obserwator: Mutex<Option<(PathBuf, notify::RecommendedWatcher)>>,
+    plik_zmieniony: Mutex<Option<Instant>>,
 }
 
 fn zablokuj<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -130,6 +133,8 @@ pub fn uruchom(app: &mut tauri::App) -> Result<(), Box<dyn Error>> {
         pelny_ekran: AtomicBool::new(false),
         kursor_blisko: AtomicBool::new(false),
         ochrona: Mutex::new(None),
+        obserwator: Mutex::new(None),
+        plik_zmieniony: Mutex::new(None),
     });
     app.manage(Arc::clone(&apl));
 
@@ -155,6 +160,7 @@ pub fn uruchom(app: &mut tauri::App) -> Result<(), Box<dyn Error>> {
     let _ = apl.zasobnik.set(zasobnik);
 
     apl.zarejestruj_skrot(&ust.skrot_pokaz_ukryj);
+    apl.uruchom_obserwatora();
     wlacz_autostart(&handle, ust.autostart);
 
     let dla_systemu = Arc::clone(&apl);
@@ -422,12 +428,65 @@ impl Aplikacja {
                 log::info!("wczytano zmienione ustawienia");
                 self.zarejestruj_skrot(&nowe.skrot_pokaz_ukryj);
                 self.wykonaj(|r, t| r.zmien_ustawienia(nowe, t));
+                self.uruchom_obserwatora();
             }
             Err(e) => {
                 log::warn!("{e}; zostają poprzednie ustawienia");
                 self.wykonaj(|r, _| r.blad_ustawien());
             }
         }
+    }
+
+    /// Obserwuje plik zadań przez powiadomienia systemu plików (bez
+    /// odpytywania): zapis z Obsidiana odświeża listę po ułamku sekundy.
+    /// Obserwuje folder pliku, bo edytory zapisują przez zamianę nazwy.
+    fn uruchom_obserwatora(self: &Arc<Self>) {
+        use notify::{EventKind, RecursiveMode, Watcher};
+        let plik = zablokuj(&self.rdzen).ust.plik_zadan();
+        let mut obserwator = zablokuj(&self.obserwator);
+        if obserwator.as_ref().map(|(p, _)| p) == plik.as_ref() {
+            return;
+        }
+        *obserwator = None;
+        let Some(plik) = plik else {
+            drop(obserwator);
+            zablokuj(&self.rdzen).ustaw_obserwacje_pliku(false);
+            return;
+        };
+        let nazwa = plik.file_name().map(std::ffi::OsStr::to_os_string);
+        let slaby = Arc::downgrade(self);
+        let obserwowany = plik.clone();
+        let utworzony = notify::recommended_watcher(move |wynik: notify::Result<notify::Event>| {
+            let Ok(zdarzenie) = wynik else { return };
+            if matches!(zdarzenie.kind, EventKind::Access(_)) {
+                return;
+            }
+            if !zdarzenie.paths.iter().any(|p| p.file_name() == nazwa.as_deref()) {
+                return;
+            }
+            if let Some(apl) = slaby.upgrade() {
+                *zablokuj(&apl.plik_zmieniony) = Some(Instant::now());
+                apl.obudz();
+            }
+        })
+        .and_then(|mut w| {
+            let folder = obserwowany.parent().filter(|f| !f.as_os_str().is_empty()).unwrap_or(Path::new("."));
+            w.watch(folder, RecursiveMode::NonRecursive)?;
+            Ok(w)
+        });
+        let dziala = match utworzony {
+            Ok(w) => {
+                log::info!("obserwuję plik zadań: {}", plik.display());
+                *obserwator = Some((plik, w));
+                true
+            }
+            Err(e) => {
+                log::warn!("nie mogę obserwować {}: {e}; odpytuję co 30 s", plik.display());
+                false
+            }
+        };
+        drop(obserwator);
+        zablokuj(&self.rdzen).ustaw_obserwacje_pliku(dziala);
     }
 
     fn zarejestruj_skrot(&self, skrot: &str) {
@@ -546,6 +605,7 @@ impl Aplikacja {
         self.zachowaj_pola_v1(&mut nowe);
         self.zapisz_i_zastosuj(&nowe, false)?;
         self.wykonaj(|r, t| r.zmien_ustawienia(nowe, t));
+        self.uruchom_obserwatora();
         Ok(())
     }
 
@@ -554,6 +614,7 @@ impl Aplikacja {
         self.zapisz_i_zastosuj(&nowe, utworz_plik)?;
         let plik = nowe.plik_zadan();
         self.wykonaj(|r, t| r.zakoncz_kreator(nowe, t));
+        self.uruchom_obserwatora();
         if let (true, Some(plik)) = (utworz_plik, plik) {
             self.otworz_plik(&plik);
         }
@@ -694,6 +755,18 @@ impl Aplikacja {
             }
 
             let mut nastepny = pelny_ekran.min(cykl);
+            // Zapisy pliku zadań często przychodzą seriami, więc odświeżamy po 300 ms spokoju.
+            let zmiana_pliku = *zablokuj(&self.plik_zmieniony);
+            if let Some(od) = zmiana_pliku {
+                if od.elapsed() >= ODSTEP_PO_ZAPISIE {
+                    *zablokuj(&self.plik_zmieniony) = None;
+                    self.wykonaj(|r, _| {
+                        r.odswiez_zadania();
+                    });
+                } else {
+                    nastepny = nastepny.min(od + ODSTEP_PO_ZAPISIE);
+                }
+            }
             if sledz {
                 nastepny = nastepny.min(kursor);
             }

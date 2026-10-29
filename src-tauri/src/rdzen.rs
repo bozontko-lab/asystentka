@@ -14,7 +14,8 @@ use serde::Serialize;
 use crate::czas::{self, Chwila};
 use crate::dziennik::{self, DzienPracy, WpisSesji};
 use crate::magazyn::{Magazyn, StanLokalny, Strona};
-use crate::plan::{self, Plan};
+use crate::plan::{self, Plan, ZadaniePlanu};
+use crate::plik_zadan::{self, BladZmiany, Klucz, PlikZadan};
 use crate::pliki;
 use crate::sesja::{InfoZadania, PowodPauzy, Sesja};
 use crate::ustawienia::Ustawienia;
@@ -174,6 +175,9 @@ pub struct Rdzen {
     brudny: bool,
     ostatni_dymek_powrotu: Option<Chwila>,
     kreator: bool,
+    /// Ostatnio wczytany plik zadań (krok 2: źródło listy zadań).
+    plik: Option<PlikZadan>,
+    obserwacja_pliku: bool,
 }
 
 impl Rdzen {
@@ -194,6 +198,8 @@ impl Rdzen {
             brudny: false,
             ostatni_dymek_powrotu: None,
             kreator: false,
+            plik: None,
+            obserwacja_pliku: false,
         }
     }
 
@@ -358,7 +364,9 @@ impl Rdzen {
     pub fn cykl(&mut self, teraz: Chwila) {
         self.tick(teraz);
         let czekal = self.stan() == Stan::CzekaNaPlan;
-        if self.wczytaj_plan() && czekal && self.stan() == Stan::Lista {
+        // Przy działającej obserwacji pliku zadań nie odpytujemy go co 30 s.
+        let odpytaj = !(self.obserwacja_pliku && self.ust.plik_zadan().is_some());
+        if odpytaj && self.wczytaj_plan() && czekal && self.stan() == Stan::Lista {
             self.dymek("plan_dotarl", &[]);
         }
         self.zapisz_pliki(teraz);
@@ -618,7 +626,73 @@ impl Rdzen {
     // ---- pliki ----------------------------------------------------------
 
     /// Zwraca `true`, gdy plan się zmienił.
+    /// Zadania z `Zadania.md` jako plan dnia. Identyfikator zadania to para
+    /// projekt i tekst, złączona znakiem rozdzielającym.
+    fn wczytaj_zadania_z_pliku(&mut self, sciezka: &std::path::Path) -> bool {
+        let plik = match plik_zadan::wczytaj_i_parsuj(sciezka) {
+            Ok(p) => p,
+            Err(e) => {
+                log::warn!("{}: nie mogę wczytać zadań: {e}", sciezka.display());
+                return false;
+            }
+        };
+        let plan = Plan {
+            data: czas::data_iso(self.dzien),
+            naglowek: "Zadania z pliku".into(),
+            tempo: "ok".into(),
+            zadania: plik
+                .zadania
+                .iter()
+                .map(|z| ZadaniePlanu {
+                    id: id_z_klucza(&z.klucz),
+                    nazwa: z.klucz.zadanie.clone(),
+                    etap: Some(z.klucz.projekt.clone()),
+                    szac_min: z.szac_min,
+                    czesc: None,
+                })
+                .collect(),
+            ..Plan::default()
+        };
+        let zmiana = self.plik.as_ref() != Some(&plik) || self.plan.as_ref().is_none_or(|p| p.plan != plan);
+        if zmiana {
+            log::info!("zadania z pliku: {} ({} zadań)", sciezka.display(), plik.zadania.len());
+            for z in plan.wszystkie_zadania() {
+                self.lok.znane_zadania.insert(z.id.clone(), InfoZadania::from(z));
+            }
+            self.plan = Some(ZaladowanyPlan { plan, sciezka: sciezka.to_path_buf(), zmieniony: SystemTime::now() });
+            self.brudny = true;
+        }
+        self.plik = Some(plik);
+        zmiana
+    }
+
+    /// Obserwacja pliku zadań działa, więc nie trzeba go odpytywać.
+    pub fn ustaw_obserwacje_pliku(&mut self, dziala: bool) {
+        self.obserwacja_pliku = dziala;
+    }
+
+    /// Plik zadań zmienił się (zapis z Obsidiana albo naszej sesji).
+    pub fn odswiez_zadania(&mut self) -> bool {
+        self.wczytaj_plan()
+    }
+
+    fn zapisz_w_pliku_zadan(&mut self, id: &str, minuty: u32, status: &str, dzien: NaiveDate) {
+        let (Some(sciezka), Some(klucz)) = (self.ust.plik_zadan(), klucz_z_id(id)) else { return };
+        let data = (status == ZROBIONE).then_some(dzien);
+        let wynik = plik_zadan::zmien(&sciezka, |t| Ok((plik_zadan::dopisz_czas(t, &klucz, minuty, data)?, ())));
+        match wynik {
+            Ok(()) => {
+                self.wczytaj_plan();
+            }
+            Err(BladZmiany::Edycja(_)) => self.dymek("nie_znaleziono", &[("zadanie", klucz.zadanie.clone())]),
+            Err(e) => log::warn!("nie mogę zapisać pliku zadań {}: {e}", sciezka.display()),
+        }
+    }
+
     fn wczytaj_plan(&mut self) -> bool {
+        if let Some(sciezka) = self.ust.plik_zadan() {
+            return self.wczytaj_zadania_z_pliku(&sciezka);
+        }
         let Some(folder) = self.ust.folder_planow() else { return false };
         match plan::znajdz(&folder, self.dzien) {
             Ok(Some(znaleziony)) => {
@@ -746,6 +820,7 @@ impl Rdzen {
         self.lok.do_zapisu.stan_zadan = true;
         self.lok.do_zapisu.dzienniki.insert(s.dzien);
         log::info!("sesja zapisana: {} · {} min · {status}", wpis.nazwa, wpis.minuty);
+        self.zapisz_w_pliku_zadan(&wpis.id, wpis.minuty, status, s.dzien);
         self.zapisz_pliki(teraz);
         self.zapisz_stan(teraz);
         Some(wpis)
@@ -786,6 +861,18 @@ impl Rdzen {
     // ---- migawka ------------------------------------------------------------
 
     fn widok_zadania(&self, info: &InfoZadania) -> ZadanieWidok {
+        if let Some(z) = klucz_z_id(&info.id).and_then(|k| self.plik.as_ref()?.zadanie(&k)) {
+            let status = if z.zrobione { Some(ZROBIONE.to_string()) } else { z.w_toku().then(|| W_TOKU.to_string()) };
+            return ZadanieWidok {
+                id: info.id.clone(),
+                nazwa: info.pelna_nazwa(),
+                etap: info.etap.clone(),
+                szac_min: info.szac_min,
+                status,
+                minuty_dzis: self.dzis.minuty_zadania(&info.id),
+                minuty_razem: z.czas_min,
+            };
+        }
         let wpis = self.lok.zadania.wpis(&info.id);
         ZadanieWidok {
             id: info.id.clone(),
@@ -857,6 +944,17 @@ impl Rdzen {
             brakujace_sciezki,
         }
     }
+}
+
+const ROZDZIELNIK: char = '\u{1f}';
+
+fn id_z_klucza(klucz: &Klucz) -> String {
+    format!("{}{ROZDZIELNIK}{}", klucz.projekt, klucz.zadanie)
+}
+
+fn klucz_z_id(id: &str) -> Option<Klucz> {
+    let (projekt, zadanie) = id.split_once(ROZDZIELNIK)?;
+    Some(Klucz::new(projekt, zadanie))
 }
 
 /// Lokalna chwila dla daty i godziny bez strefy, w strefie `wzor`.

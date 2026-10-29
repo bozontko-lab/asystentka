@@ -66,5 +66,8 @@
   ],
   "blad_ustawien": [
     "Coś nie tak z plikiem ustawień, zostaję przy poprzednich."
+  ],
+  "nie_znaleziono": [
+    "Nie znalazłam „{zadanie}” w pliku. Czas zapisałam w dzienniku."
   ]
 }
