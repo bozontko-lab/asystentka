@@ -67,6 +67,7 @@ const OPISY: Record<Poza, Opis> = {
   cheer_2: { rece: "v", oczy: "oczko", usta: "szeroki" },
   bye: { rece: "macha", oczy: "senne", usta: "usmiech" },
   loading: { rece: "ekran", oczy: "w_bok", usta: "spokojne" },
+  concerned: { rece: "luzno", oczy: "w_dol", usta: "spokojne", pochylenie: 3 },
 };
 
 type Punkt = [number, number];

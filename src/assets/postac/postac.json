@@ -207,6 +207,17 @@
         542
       ],
       "siedzisko_y_px": 346
+    },
+    "concerned": {
+      "plik": "concerned.png",
+      "typ": "stoi",
+      "obrys_px": [
+        5,
+        5,
+        451,
+        552
+      ],
+      "stopy_y_px": 552
     }
   },
   "ikona": {
@@ -230,5 +241,26 @@
   "uwagi": [
     "siedzisko_y_px to orientacyjna linia, na której postać siedzi: górna krawędź panelu z zadaniem.",
     "sit_watch_front na razie różni się od sit_watch tylko otwartym uśmiechem; oczy patrzą w górę."
-  ]
+  ],
+  "reakcje_konca_dnia": {
+    "zachwycona": [
+      "cheer_1",
+      "cheer_2"
+    ],
+    "zadowolona": [
+      "cheer_2"
+    ],
+    "dumna": [
+      "cheer_1"
+    ],
+    "lekko_pochwalajaca": [
+      "stand_idle"
+    ],
+    "czula": [
+      "cheer_2"
+    ],
+    "zmartwiona": [
+      "concerned"
+    ]
+  }
 }

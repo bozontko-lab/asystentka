@@ -24,6 +24,7 @@ export const POZY = [
   "cheer_2",
   "bye",
   "loading",
+  "concerned",
 ] as const;
 
 export type Poza = (typeof POZY)[number];
@@ -38,6 +39,7 @@ export const ZAMIENNIKI: Partial<Record<Poza, Poza>> = {
   pause_nap: "pause_stretch",
   cheer_2: "cheer_1",
   loading: "stand_idle",
+  concerned: "stand_idle",
 };
 
 /** Opis grafik z postac.json: płótno, rozmiar na ekranie i linie póz. */

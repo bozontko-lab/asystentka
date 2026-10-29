@@ -19,11 +19,13 @@ tauri-plugin-autostart = "2.7"
 tauri-plugin-single-instance = "2.5"
 tauri-plugin-global-shortcut = "2.4"
 tauri-plugin-opener = "2.7"
+tauri-plugin-dialog = "2.8"
 tauri-plugin-log = "2.7"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 chrono = { version = "0.4", features = ["serde"] }
 regex = "1"
+notify = "8"
 log = "0.4"
 
 [dev-dependencies]
