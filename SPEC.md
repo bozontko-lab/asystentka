@@ -1,12 +1,12 @@
-# Asystentka na pulpit — grafiki i specyfikacja v2
+# Asystentka na pulpit — grafiki i specyfikacja v2.1
 
 Oct 29, 2026 · @Paweł
 
-Widget to postać w prawym dolnym rogu ekranu. Wita Cię po starcie Windows, pomaga wybrać zadania na dziś z pliku w Obsidianie i liczy czas wybranego zadania z możliwością pauzy. Czas zapisuje w pliku zadań i w dzienniku, a na koniec dnia podsumowuje pracę i reaguje na wynik. Widget nie korzysta z LLM ani z internetu: czyta i zapisuje wyłącznie pliki na dysku.
+Widget to Sai, postać w prawym dolnym rogu ekranu. Wita Cię po starcie Windows, pomaga wybrać zadania na dziś z pliku w Obsidianie i liczy czas wybranego zadania z możliwością pauzy. Czas zapisuje w pliku zadań i w dzienniku, a na koniec dnia podsumowuje pracę i reaguje na wynik. Widget nie korzysta z LLM ani z internetu: czyta i zapisuje wyłącznie pliki na dysku.
 
 Część A jest dla Ciebie: 12 grafik obowiązkowych i 8 opcjonalnych do wygenerowania w Gemini, z gotowymi promptami. Część B jest dla Claude Code: wyeksportuj dokument do Markdown i zapisz go w folderze projektu jako `SPEC.md`.
 
-Wersja 1 już działa. Co trzeba w niej zmienić, zbiera sekcja „Co zmienia wersja 2” na początku części B.
+Wersja 1 już działa. Zmiany zbierają sekcje „Co zmienia wersja 2.1” i „Co zmienia wersja 2” na początku części B, a głos to osobny, ostatni etap (B10).
 
 ## Część A — grafiki do wygenerowania w Gemini
 
@@ -41,9 +41,9 @@ Proponuję oryginalną bohaterkę w klimacie cyberpunkowej AI-towarzyszki. Przy 
 | Znak rozpoznawczy | duże okrągłe słuchawki z małą anteną zakończoną kulką |
 | Charakter | pogodna, trochę zadziorna; kibicuje, zamiast zrzędzić |
 
-Ta sama paleta będzie motywem interfejsu, więc postać i panel wyglądają jak jedna całość. Zieleni w niej nie ma celowo (A1).
+Ta paleta dotyczyła odrzuconego wariantu chibi i nie trafia do interfejsu. Kolory interfejsu opisuje B7, a kolory zatwierdzonej postaci A2b.
 
-| Kolor | Hex | Na postaci | W interfejsie |
+| Kolor | Hex | Na postaci | W interfejsie (nieaktualne) |
 | --- | --- | --- | --- |
 | Lawenda | `#B9A6FF` | włosy | ramka panelu |
 | Brzoskwinia | `#FFB59A` | końcówki włosów | pasek czasu po przekroczeniu szacunku |
@@ -59,6 +59,7 @@ Gotowe prompty do każdej pozy, w kolejności generowania, są w zakładce Promp
 
 | Cecha | Opis |
 | --- | --- |
+| Imię | Sai, po japońsku 才ちゃん (czytanie: さいちゃん); znak 才 znaczy „talent” |
 | Kreska | ostre, kanciaste kontury, płaskie kolory, cienki biały obrys naklejki |
 | Twarz | matowa czarna; rdzawa maska typu domino z rogami w górnych narożnikach, obejmująca oczy |
 | Oczy | duże, fioletowe tęczówki z białymi błyskami, fioletowe rzęsy |
@@ -69,15 +70,16 @@ Gotowe prompty do każdej pozy, w kolejności generowania, są w zakładce Promp
 
 Wyjątek od A1: zieleń na tej postaci działa, bo jest ciemna i odgradza ją biały obrys. Tło zeszło czysto we wszystkich czterech wersjach, więc obrys jest obowiązkowy w każdej pozie.
 
-**Paleta interfejsu dla wariantu B**
+**Kolory postaci i ich odpowiedniki w interfejsie**
 
-| Kolor | Hex | Na postaci | W interfejsie |
+| Kolor | Hex | Na postaci | W interfejsie (B7) |
 | --- | --- | --- | --- |
-| Rdza | `#883F24` | maska, wstawki stroju | przycisk „Zrobione” |
-| Ciemna zieleń | `#24483E` | włosy | ramka panelu |
-| Fiolet | `#6C428C` | tęczówki | licznik i pasek czasu; do tekstu jaśniejszy odcień, np. `#B79BE0` |
-| Koral | `#FD8F72` | wnętrze ust | pasek czasu po przekroczeniu szacunku |
-| Granatowa czerń | `#0F0E1C` | twarz | tło panelu |
+| Rdza | `#893E25` | maska, wstawki stroju | `--miedz-ciemna`: obwódka dymka; jaśniejsza `--miedz` `#C7773F`: przyciski główne |
+| Ciemna zieleń | `#234A39`, refleksy `#41725F` | włosy | `--tlo` `#101B17`, `--tlo-2` `#1A2B24`, `--ramka` `#41725F` |
+| Fiolet | `#A778C8` | tęczówki | `--fiolet`: pasek postępu i poświata; `--fiolet-jasny` `#CDB4EE`: cyfry licznika |
+| Koral | `#FD8F72` | wnętrze ust | `--koral`: czas ponad szacunek |
+| Krem | `#FCF0DF` | kontur postaci | `--tekst` i `--dymek` |
+| Granatowa czerń | `#0F0E1C` | twarz | nie trafia do interfejsu |
 
 **Szablon póz dla wariantu B.** Zastępuje szablon z kroku 2 w A4, bo tamten zakazuje zieleni na postaci, a Gemini przemalowałby wtedy włosy.
 
@@ -231,7 +233,20 @@ Wrzuć mi gotowe PNG w czacie, a przygotuję z nich paczkę `postac/` do projekt
 4. Z `icon.png` Tauri zrobi wszystkie rozmiary ikon dla Windows jedną komendą `tauri icon`.
 5. Odeślę gotowy folder do wrzucenia w `src/assets/postac/`.
 
-## Część B — specyfikacja v2 (dla Claude Code)
+## Część B — specyfikacja v2.1 (dla Claude Code)
+
+### Co zmienia wersja 2.1
+
+Wersja 2.1 to poprawki i dodatki po pierwszych testach. Wdrażaj je po zmianach z wersji 2; wszystko, czego lista nie wymienia, zostaje bez zmian.
+
+1. **Wiele monitorów** (B6): widget można przenieść na dowolny monitor i tam zostaje, także po zmianie stanu, rozmiaru panelu i po restarcie. Pozycja, kierunek rozwijania panelu, odbicie lustrzane i chowanie przy pełnym ekranie liczą się względem monitora, na którym stoi widget.
+2. **Sekwencja przerwy i konsolka** (B4, B7): po wciśnięciu Pauzy postać przez 5 s się przeciąga, potem gra na konsolce, a po 15 min przerwy zasypia. Na konsolce `sit_console_1` jest pozą stałą, a `sit_console_2` pojawia się tylko na 3 s co 2 min, także w Pracy. Nowa kwestia `pauza_gra` w `kwestie.json`.
+3. **Skrót klawiszowy** (B6): Ctrl+Alt+Spacja zajmuje szybkie okno aplikacji Claude, więc nowy domyślny skrót to Ctrl+Alt+Shift+Spacja. Widget sprawdza, czy skrót się zarejestrował, i mówi o konflikcie, a w ustawieniach skrót ustawia się przez naciśnięcie klawiszy.
+4. **Zrobione od razu w pliku** (B3, B5): ptaszek, data i czas trafiają do `Zadania.md` w chwili kliknięcia Zrobione, zanim pokaże się dymek. Teraz ptaszek nie pojawia się od razu, więc najpierw znaleźć przyczynę. Dymek gratulacji ma przez 10 s przycisk Cofnij.
+5. **Imię postaci** (A2b, B6, B7): postać nazywa się Sai. Imię siedzi w ustawieniach (`nazwa_postaci`) i zastępuje słowo „asystentka” wszędzie, gdzie widać je w interfejsie: w kreatorze, w dymkach (`{postac}`), w menu („Zamknij Sai”), w podpowiedzi ikony w zasobniku i w tytule okienka ustawień. Nazwa programu w Windows, `identifier` i folder `%APPDATA%\Asystentka\` zostają bez zmian, żeby nie zgubić ustawień ani wpisu autostartu.
+6. **Kolory interfejsu** (B7): zieleń, miedź i fiolet z palety postaci zamiast granatów i błękitów. Stara paleta z A2 pochodziła z odrzuconego wariantu chibi i znika z kodu.
+7. **Dźwięk skupienia** (B7): w czasie pracy gra zapętlone dudnienie 40 Hz z pliku `src/assets/dzwiek/skupienie_40hz.wav`, z przełącznikiem w menu i znacznikiem w dzienniku.
+8. **Głos** (B10): opis na później. Nie wdrażaj, dopóki w projekcie nie pojawią się pliki w `src/assets/glos/`.
 
 ### Co zmienia wersja 2
 
@@ -259,10 +274,13 @@ v2 to lokalny widget na Windows 10 (wersja 2004 lub nowsza) i 11. Pomaga wybrać
 - podsumowanie po każdym zadaniu oraz zapis do pliku zadań i dziennika;
 - koniec pracy na dziś z podsumowaniem i reakcją, ręcznie albo automatycznie o ustalonej godzinie;
 - menu pod prawym przyciskiem i w zasobniku, z zamknięciem asystentki;
-- chowanie się przy pełnym ekranie i ukrywanie przed nagrywaniem ekranu;
+- praca na dowolnym monitorze, z zapamiętaną pozycją;
+- imię postaci w interfejsie i kolory z jej palety;
+- dźwięk skupienia 40 Hz w czasie pracy;
+- chowanie się przy pełnym ekranie na tym samym monitorze i ukrywanie przed nagrywaniem ekranu;
 - grafiki z części A i animacje w kodzie.
 
-**Poza zakresem v2:** LLM i czat, WOOP, dźwięki, statystyki tygodniowe, zależności między zadaniami, kilka plików zadań naraz, wiele monitorów (widget działa na monitorze głównym). Rzeczy na później zbiera B9.
+**Poza zakresem v2:** LLM i czat, WOOP, efekty dźwiękowe poza dźwiękiem skupienia (B7), statystyki tygodniowe, zależności między zadaniami, kilka plików zadań naraz. Głos to osobny, ostatni etap (B10). Rzeczy na później zbiera B9.
 
 ### B2. Przepływ danych i przygotowanie
 
@@ -274,7 +292,7 @@ flowchart LR
   Z -->|wybór na dziś| W["Widget"]
   W -->|czas, ✓, data| Z
   W -->|sesje i podsumowanie dnia| D["Dziennik pracy/RRRR-MM-DD.md"]
-  W <-->|stan dnia i ustawienia| A["%APPDATA%\\Asystentka"]
+  W <-->|stan dnia, ustawienia, pozycja okna| A["%APPDATA%\\Asystentka"]
 ```
 
 Widget nie potrzebuje internetu, Dysku Google ani porannego zadania: wszystkie pliki leżą na Twoim komputerze.
@@ -297,6 +315,7 @@ Widget pracuje na dwóch plikach w vaulcie i dwóch własnych w `%APPDATA%\Asyst
 | `RRRR-MM-DD.md` | `Dziennik pracy/` w vaulcie | widget | Ty |
 | `dzien.json` | `%APPDATA%\Asystentka\` | widget | widget |
 | `ustawienia.json` | `%APPDATA%\Asystentka\` | widget (okienko ustawień) | widget |
+| `okno.json` | `%APPDATA%\Asystentka\` | widget (pozycja okna, B6) | widget |
 
 **Plik zadań**
 
@@ -315,7 +334,7 @@ Widget pracuje na dwóch plikach w vaulcie i dwóch własnych w `%APPDATA%\Asyst
 - Nagłówek `##` to projekt. Zadania przed pierwszym nagłówkiem należą do projektu „Bez projektu”.
 - Zadanie to linia `- [ ]` (otwarte) albo `- [x]` (zrobione). Wcięte podzadania są zwykłymi zadaniami tego samego projektu.
 - `[szac:: minuty]` wpisujesz Ty. `[czas:: minuty]` to łączny czas ze wszystkich dni i dopisuje go widget. `[termin:: RRRR-MM-DD]` jest opcjonalny i służy tylko do kolejności podpowiedzi.
-- Przy ukończeniu widget zmienia `[ ]` na `[x]` i dopisuje `✅ RRRR-MM-DD`, w formacie zgodnym z wtyczką Tasks.
+- Przy ukończeniu widget zmienia `[ ]` na `[x]` i dopisuje `✅ RRRR-MM-DD`, w formacie zgodnym z wtyczką Tasks. Robi to w chwili kliknięcia Zrobione (B5), a nie na koniec dnia.
 - „W toku” to otwarte zadanie z `czas` większym od zera, bez osobnego statusu.
 - Zadanie bez `szac` liczy się w sumie jako 0 i ma na liście znaczek „bez szacunku”.
 - Zadanie rozpoznaje para: projekt i tekst linii bez pól. Jeśli widget go nie znajdzie, bo zmieniłeś tekst, zapisuje sesję tylko w dzienniku i mówi o tym w dymku.
@@ -327,11 +346,11 @@ Widget pracuje na dwóch plikach w vaulcie i dwóch własnych w `%APPDATA%\Asyst
 ```markdown
 # Zadania
 
-<!-- Jak pisać zadania dla asystentki:
+<!-- Jak pisać zadania dla {postac}:
 - jedna linia to jedno zadanie: - [ ] Nazwa [szac:: minuty]
 - nagłówek ## grupuje zadania w projekt
 - opcjonalnie termin: [termin:: RRRR-MM-DD]
-- [czas:: …] i ✅ dopisuje asystentka -->
+- [czas:: …] i ✅ dopisuje {postac} -->
 
 ## Przykładowy projekt
 - [ ] Pierwsze zadanie [szac:: 30]
@@ -353,7 +372,7 @@ zrobione: 2
 <!-- widget:start -->
 ## Praca · 30.10.2026
 
-- [x] 09:12–10:05 · Scenariusz: intro · 47 min (szac. 60) · Film #1 · FIFA
+- [x] 09:12–10:05 · Scenariusz: intro · 47 min (szac. 60) · Film #1 · FIFA · 40 Hz
 - [ ] 10:20–11:05 · Montaż: plansze 1–5 · 45 min · w toku · Film #1 · FIFA
 - [x] 11:30–12:10 · Miniatura · 40 min (szac. 30) · Film #1 · FIFA
 
@@ -365,7 +384,7 @@ Na jutro: Montaż: plansze 1–5, Odpisać na maila od montażysty
 <!-- widget:end -->
 ```
 
-- Jedna notatka na dzień i jedna linia na sesję. Godziny to start i koniec sesji, minuty to czas bez pauz.
+- Jedna notatka na dzień i jedna linia na sesję. Godziny to start i koniec sesji, minuty to czas bez pauz. Znacznik „· 40 Hz” na końcu linii znaczy, że przez większość sesji grał dźwięk skupienia (B7).
 - Sekcję „Podsumowanie dnia” widget dopisuje przy końcu pracy. Gdy wrócisz do pracy tego samego dnia, usuwa ją i wpisuje od nowa przy kolejnym zamknięciu.
 - Widget zmienia tylko swoje pola we frontmatterze i blok między znacznikami `widget:start` i `widget:end`. Twoje notatki poza blokiem zostają nietknięte.
 
@@ -414,7 +433,8 @@ stateDiagram-v2
   Praca --> Jestes: 15 min bez ruchu
   Jestes --> Praca: odpowiedź
   Praca --> Gratulacje: Zrobione
-  Gratulacje --> Lista: po 4 s
+  Gratulacje --> Praca: Cofnij
+  Gratulacje --> Lista: po 10 s albo kliknięciu w dymek
   Gratulacje --> KoniecDnia: Koniec pracy
   Lista --> KoniecDnia: Koniec pracy albo 22:00
   KoniecDnia --> Lista: Wróć do pracy
@@ -424,14 +444,14 @@ Ukryta nakłada się na każdy inny stan przy pełnym ekranie, dlatego nie ma je
 
 | Stan | Grafiki | Panel | Przykładowy dymek |
 | --- | --- | --- | --- |
-| Konfiguracja | `wave_1`, `point` | kreator w pięciu krokach: forma zwracania się, plik zadań, folder dziennika, cel dzienny, autostart | „Cześć! Jak mam się do Ciebie zwracać?” |
+| Konfiguracja | `wave_1`, `point` | kreator w pięciu krokach: forma zwracania się, plik zadań, folder dziennika, cel dzienny, autostart | „Cześć! Jestem {postac}, Twoja asystentka. Jak mam się do Ciebie zwracać?” |
 | Powitanie | `wave_1`, `wave_2` | wejście z efektem glitch, sam dymek | „Dzień dobry, {imie}!” |
 | Wybór zadań | `point`, `stand_idle` z mrugnięciem | otwarte zadania pogrupowane w projekty, pola wyboru, suma szacunków względem celu, przycisk „Zaczynamy” | „Co bierzemy na dziś?” |
 | Lista | `stand_idle` z mrugnięciem | wybrane zadania z szacunkiem, zrobione wyszarzone, przyciski „Zmień plan” i „Dodaj zadanie” | „Od czego zaczynamy?” |
-| Praca | `sit_watch` z mrugnięciem, `sit_watch_front`, `sit_console_1`, `sit_console_2`, `sit_drink` | mini-panel: nazwa, licznik, szacunek, przyciski Pauza, Zrobione, Przerwij | „Pilnuję czasu. Działaj!” |
-| Pauza | `pause_stretch`, po 15 min `pause_nap` | licznik stoi, czas pauzy, przycisk Wznów | „Przerwa? Jasne, czekam.” |
+| Praca | `sit_watch` z mrugnięciem, `sit_watch_front`, `sit_console_1`, `sit_console_2`, `sit_drink` | mini-panel: nazwa, licznik, szacunek, etykieta „♪ 40 Hz”, przyciski Pauza, Zrobione, Przerwij | „Pilnuję czasu. Działaj!” |
+| Pauza | `pause_stretch` przez 5 s, potem `sit_console_1` i `sit_console_2`, od 15 min przerwy `pause_nap` (B7) | licznik stoi, czas pauzy, przycisk Wznów | „Przerwa? Jasne, czekam.”, po 5 s „To ja w tym czasie pogram!” |
 | Jesteś? | `idle_check` | przyciski Przerwa (odejmij X min) i Pracowałem | „Halo? Przerwa czy praca?” |
-| Gratulacje | `cheer_1`, `cheer_2`, konfetti w kodzie | podsumowanie zadania w dymku; po ostatnim zadaniu planu przyciski „Koniec pracy” i „Dodaj z listy” | „Brawo! Miniatura: 40 min (szac. 30). Dziś razem 2 h 12 min.” |
+| Gratulacje | `cheer_1`, `cheer_2`, konfetti w kodzie | podsumowanie zadania w dymku z przyciskiem Cofnij przez 10 s; po ostatnim zadaniu planu przyciski „Koniec pracy” i „Dodaj z listy” | „Brawo! Miniatura: 40 min (szac. 30). Dziś razem 2 h 12 min.” |
 | Koniec dnia | wg tabeli reakcji, potem `bye`; po schowaniu `pause_nap` | podsumowanie dnia, przyciski „Do jutra” i „Wróć do pracy”; potem okno chowa się do zasobnika | wg tabeli reakcji |
 | Ukryta | brak | okno schowane, licznik działa dalej | brak |
 
@@ -467,10 +487,10 @@ Licznik liczy tylko czas aktywnej pracy, czyli odcinki od startu albo wznowienia
 - **Wyświetlanie:** `mm:ss`, od godziny `h:mm:ss`, a obok szacunek, np. „47 / 60 min”. Przy zadaniu w toku licznik pokazuje łączny czas: zapisany w pliku plus bieżącą sesję. Po przekroczeniu szacunku pasek czasu robi się koralowy, bez komunikatów o winie.
 - **Pauza ręczna:** przycisk w panelu, menu pod prawym przyciskiem i menu zasobnika.
 - **Pauza automatyczna:** blokada ekranu i uśpienie komputera. Po powrocie pauza zostaje, a postać pyta „Wracamy?” z przyciskiem Wznów.
-- **Bezczynność:** 15 min bez myszy i klawiatury w stanie Praca (wartość z ustawień) włącza stan Jesteś?. „Przerwa” odejmuje czas od ostatniej aktywności, „Pracowałem” go zostawia. Gdy widget jest schowany przez pełny ekran, nie pyta, bo wtedy możesz oglądać materiał albo grać.
+- **Bezczynność:** 15 min bez myszy i klawiatury w stanie Praca (wartość z ustawień) włącza stan Jesteś?. „Przerwa” odejmuje czas od ostatniej aktywności, „Pracowałem” go zostawia. Gdy na którymkolwiek monitorze trwa pełny ekran, nie pyta, bo wtedy możesz oglądać materiał albo grać.
 - **Przypomnienie o przerwie:** po 50 min ciągłej pracy postać się przeciąga i pokazuje mały dymek, bez dźwięku. Wartość 0 w ustawieniach je wyłącza.
-- **Koniec sesji:** Zrobione dopisuje sesję do dziennika, zapisuje w pliku zadań łączny czas, ptaszka i datę, a potem włącza Gratulacje z podsumowaniem. Przerwij zapisuje sesję w dzienniku i łączny czas w pliku, bez ptaszka, i wraca do Listy.
-- **Koniec pracy i zamknięcie:** „Koniec pracy na dziś” i „Zamknij asystentkę” przy działającym liczniku najpierw kończą sesję jak Przerwij.
+- **Koniec sesji:** Zrobione od razu, zanim pokaże się dymek, zapisuje w pliku zadań łączny czas, ptaszka i datę, a w dzienniku linię sesji. Zapis nie czeka na koniec dnia ani na zamknięcie dymku. Potem włącza Gratulacje z podsumowaniem i przyciskiem Cofnij, widocznym przez 10 s; po tym czasie albo po kliknięciu w dymek widget przechodzi do Listy. Cofnij zdejmuje ptaszka i datę w pliku zadań, w linii sesji w dzienniku zmienia `[x]` na `[ ]` i zaczyna nową sesję tego samego zadania z dymkiem `cofniete`; zapisany czas zostaje. Przerwij zapisuje sesję w dzienniku i łączny czas w pliku, bez ptaszka, i wraca do Listy.
+- **Koniec pracy i zamknięcie:** „Koniec pracy na dziś” i „Zamknij {postac}” przy działającym liczniku najpierw kończą sesję jak Przerwij.
 - **Trwałość:** stan dnia i sesji w `dzien.json` (B3), zapisywany co 30 s i przy każdej zmianie. Po awarii albo wyłączeniu komputera sesja wraca zapauzowana, z czasem policzonym do ostatniego zapisu.
 - **Północ:** sesja, która przechodzi przez północ, należy do dnia, w którym się zaczęła.
 
@@ -481,26 +501,30 @@ Licznik liczy tylko czas aktywnej pracy, czyli odcinki od startu albo wznowienia
 | Blokada i odblokowanie ekranu | `WTSRegisterSessionNotification` → `WM_WTSSESSION_CHANGE` z `WTS_SESSION_LOCK` / `WTS_SESSION_UNLOCK` | zdarzenie |
 | Uśpienie i wybudzenie | `WM_POWERBROADCAST` z `PBT_APMSUSPEND` / `PBT_APMRESUMEAUTOMATIC` | zdarzenie |
 | Bezczynność | `GetLastInputInfo` | co 30 s |
-| Pełny ekran | `SHQueryUserNotificationState` (`QUNS_BUSY`, `QUNS_RUNNING_D3D_FULL_SCREEN`, `QUNS_PRESENTATION_MODE`); w zapasie: okno na pierwszym planie zajmuje cały monitor, z pominięciem pulpitu | co 2 s |
+| Pełny ekran | okno na pierwszym planie (`GetForegroundWindow`) zajmuje cały swój monitor (`MonitorFromWindow`, `GetMonitorInfoW`), z pominięciem pulpitu; chowa się tylko wtedy, gdy to monitor widgetu. Dodatkowy sygnał: `SHQueryUserNotificationState` (`QUNS_BUSY`, `QUNS_RUNNING_D3D_FULL_SCREEN`, `QUNS_PRESENTATION_MODE`) | co 2 s |
 
 ### B6. Okno i integracja z Windows
 
 Widget to jedno małe okno bez ramki w prawym dolnym rogu, które nie przeszkadza w grach, nagraniach i pracy.
 
 - **Okno:** bez ramki, przezroczyste tło, zawsze na wierzchu, bez przycisku na pasku zadań; ikona w zasobniku.
-- **Pozycja:** prawy dolny róg monitora głównego, nad paskiem zadań (obszar roboczy), 16 px od krawędzi. Okno można przeciągnąć, a pozycja jest zapamiętywana. Na lewej połowie ekranu postać odbija się lustrzanie, żeby dalej patrzyła w stronę ekranu.
-- **Rozmiar:** dopasowany do stanu, bez dużych przezroczystych obszarów, które blokowałyby kliknięcia. Postać ma 280 px wysokości, panel 280 px szerokości, a panel wyboru zadań do 360 px szerokości i do 60% wysokości ekranu, z przewijaniem. Panele rozwijają się w górę, a dolna krawędź okna zostaje na miejscu.
-- **Menu pod prawym przyciskiem** na postaci i panelu: Koniec pracy na dziś · Zmień plan · Dodaj zadanie · Pauza / Wznów · Ukryj · Ustawienia · Zamknij asystentkę. Na Windows 11 ikona zasobnika domyślnie trafia pod strzałkę „^”, dlatego wszystkie polecenia są też tutaj.
-- **Menu zasobnika:** Pokaż / Ukryj · Pauza / Wznów · Koniec pracy na dziś · Ukryj przed nagrywaniem (domyślnie zaznaczone) · Ustawienia · Zamknij asystentkę. Lewy klik w ikonę pokazuje i chowa widget.
-- **Zamknij asystentkę:** kończy trwającą sesję jak Przerwij, zapisuje `dzien.json` i kończy proces. Dzień zostaje otwarty, więc kolejne uruchomienie tego samego dnia wraca do Listy.
-- **Okienko ustawień:** zwykłe okno z polami z kreatora i pozostałymi ustawieniami z B7, z przyciskami Zapisz i Anuluj. Zmiany działają od razu, bez restartu.
+- **Wiele monitorów:** widget może stać na dowolnym monitorze. Jego monitor to ten, na którym leży środek okna. Pozycję, rozmiar i przycinanie okna liczy się zawsze względem obszaru roboczego tego monitora, nigdy monitora głównego. W Tauri służą do tego `currentMonitor()`, `monitorFromPoint()` i `availableMonitors()` oraz obszar roboczy monitora (`Monitor::work_area` w Rust).
+- **Pozycja i kotwica:** domyślnie prawy dolny róg obszaru roboczego monitora głównego, 16 px od krawędzi. Po przeciągnięciu widget zapamiętuje swój monitor, najbliższy róg jego obszaru roboczego (kotwicę) i odstępy od tego rogu. Przy każdej zmianie stanu i rozmiaru panelu kotwica zostaje na miejscu, a okno nie wychodzi poza obszar roboczy swojego monitora.
+- **Kierunek rozwijania:** panel rośnie od kotwicy w stronę środka monitora: przy dolnej krawędzi w górę, przy górnej w dół. Postać odbija się lustrzanie, gdy widget stoi na lewej połowie swojego monitora, żeby dalej patrzyła w stronę środka ekranu.
+- **Rozmiar:** postać ma 280 px wysokości, panel 280 px szerokości, a panel wyboru zadań do 360 px szerokości i do 60% wysokości monitora, z przewijaniem. Okno nie ma dużych przezroczystych obszarów, które blokowałyby kliknięcia.
+- **Różne skalowanie monitorów:** rozmiary są w pikselach logicznych, więc na monitorze ze skalowaniem 150% postać wygląda tak samo jak na 100%. Po przejściu na monitor z innym skalowaniem okno od razu przelicza rozmiar, bez skoku pozycji.
+- **Zapis pozycji:** `okno.json` przechowuje nazwę, położenie i rozmiar monitora, kotwicę (`prawy-dolny`, `lewy-dolny`, `prawy-gorny`, `lewy-gorny`) i odstępy w pikselach logicznych. Przy starcie widget szuka monitora o tej nazwie, potem o tym samym położeniu i rozmiarze. Gdy go nie ma, na przykład po odłączeniu, staje w domyślnym miejscu na monitorze głównym. To samo dzieje się, gdy monitor widgetu zniknie w trakcie pracy.
+- **Menu pod prawym przyciskiem** na postaci i panelu: Koniec pracy na dziś · Zmień plan · Dodaj zadanie · Pauza / Wznów · Ukryj · Przywróć pozycję · Dźwięk 40 Hz · Ustawienia · Zamknij {postac}. Na Windows 11 ikona zasobnika domyślnie trafia pod strzałkę „^”, dlatego wszystkie polecenia są też tutaj.
+- **Menu zasobnika:** Pokaż / Ukryj · Pauza / Wznów · Koniec pracy na dziś · Przywróć pozycję · Ukryj przed nagrywaniem (domyślnie zaznaczone) · Dźwięk 40 Hz · Ustawienia · Zamknij {postac}. Podpowiedź ikony to imię postaci. Lewy klik w ikonę pokazuje i chowa widget. „Przywróć pozycję” stawia widget w domyślnym miejscu na monitorze głównym, gdyby się zgubił.
+- **Zamknij {postac}:** kończy trwającą sesję jak Przerwij, zapisuje `dzien.json` i kończy proces. Dzień zostaje otwarty, więc kolejne uruchomienie tego samego dnia wraca do Listy.
+- **Okienko ustawień:** zwykłe okno „{postac} · ustawienia” z polami z kreatora i pozostałymi ustawieniami z B7, z przyciskami Zapisz i Anuluj. Zmiany działają od razu, bez restartu.
 - **Autostart i jedna instancja:** start po zalogowaniu do Windows, do wyłączenia w ustawieniach; drugie uruchomienie tylko pokazuje istniejące okno.
-- **Skrót globalny:** Ctrl+Alt+Spacja pokazuje i chowa widget; skrót zmienia się w ustawieniach.
-- **Pełny ekran:** okno chowa się, licznik liczy dalej, a po wyjściu z pełnego ekranu okno wraca.
-- **Ukrycie przed nagrywaniem:** `SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE)` wyklucza okno z przechwytywania ekranu w Windows 10 2004 i nowszych. Widzisz widget na monitorze, ale nie ma go w OBS ani na udostępnianym ekranie; sprawdzić w testach z OBS (Display Capture). Wyłączenie opcji pozwala nagrać postać, np. do filmu o widgecie.
+- **Skrót globalny:** Ctrl+Alt+Shift+Spacja pokazuje i chowa widget. Ctrl+Alt+Spacja odpada, bo u Ciebie otwiera szybkie okno aplikacji Claude. Gdy rejestracja skrótu się nie uda, widget raz pokazuje dymek `skrot_zajety` i działa dalej bez skrótu. W okienku ustawień pole skrótu nagrywa naciśniętą kombinację, od razu sprawdza, czy da się ją zarejestrować, i odrzuca Ctrl+Alt z literą: na polskiej klawiaturze to AltGr, więc taki skrót blokowałby pisanie ą, ć, ę, ł, ń, ó, ś, ź i ż. Stary domyślny `Ctrl+Alt+Space` w `ustawienia.json` widget przy pierwszym starcie wersji 2.1 zamienia na nowy.
+- **Pełny ekran:** widget chowa się tylko wtedy, gdy aplikacja pełnoekranowa działa na jego monitorze. Gra na pełnym ekranie na jednym monitorze nie chowa widgetu stojącego na drugim. Licznik liczy dalej, a po wyjściu z pełnego ekranu okno wraca. Sposób wykrywania opisuje tabela w B5.
+- **Ukrycie przed nagrywaniem:** `SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE)` wyklucza okno z przechwytywania ekranu w Windows 10 2004 i nowszych. Widzisz widget na monitorze, ale nie ma go w OBS ani na udostępnianym ekranie; sprawdzić w testach z OBS (Display Capture), także na drugim monitorze. Wyłączenie opcji pozwala nagrać postać, np. do filmu o widgecie.
 - **Wydajność:** animacje tylko w CSS (`transform`, `opacity`), bez stałej pętli JavaScript. Stan systemu sprawdzany co 2–30 s, a plik zadań przez powiadomienia systemu plików, bez ciągłego odpytywania. W czasie gry widget nie obciąża zauważalnie procesora.
 
-### B7. Animacje w kodzie, dymki i ustawienia
+### B7. Animacje w kodzie, kolory, dymki, ustawienia i dźwięk
 
 Grafiki są statyczne, a życia dodają im proste animacje CSS, losowane dymki i ustawienia w jednym pliku JSON.
 
@@ -511,17 +535,53 @@ Grafiki są statyczne, a życia dodają im proste animacje CSS, losowane dymki i
 | Oddech | skala w pionie 1,000–1,008, cykl 3,5 s, punkt zaczepienia u dołu postaci |
 | Mrugnięcie | podmiana na `*_blink` na 130 ms, losowo co 3–7 s |
 | Wejście i wyjście | glitch: przesunięte kanały RGB i poszarpane paski, 400 ms |
-| Zmiana pozy w Pracy | losowo co 3–6 min spośród dostępnych póz siedzących, przejście przez zanikanie 150 ms |
+| Zmiana pozy w Pracy | losowo co 3–6 min spośród dostępnych póz siedzących, przejście przez zanikanie 150 ms; obie pozy z konsolką liczą się jako jedna |
+| Konsolka | `sit_console_1` to poza stała. `sit_console_2` pojawia się na 3 s co 2 min, w Pracy i w przerwie, z przejściem przez zanikanie 150 ms. Poza tym rusza się tylko oddech |
+| Sekwencja przerwy | 0–5 s: `pause_stretch` z jednym mocniejszym przeciągnięciem (skala w pionie do 1,03 i z powrotem w 1,2 s); od 5 s: konsolka jak wyżej; od 15 min przerwy: `pause_nap`. Przejścia przez zanikanie 150 ms. Pozę liczy się z czasu od początku przerwy, więc po powrocie z blokady ekranu albo uśpienia od razu widać właściwą. |
 | Spojrzenie | `sit_watch_front`, gdy kursor jest bliżej niż 300 px od widgetu, w przeciwnym razie `sit_watch`; sprawdzane co 500 ms |
 | Gratulacje | dwa podskoki po 12 px i konfetti w kolorach palety przez 1,5 s; na koniec dnia według tabeli reakcji (B4) |
 | Czytelność | jasny obrys i delikatna fioletowa poświata przez `filter: drop-shadow` |
 | Brak grafiki opcjonalnej | podstawowa poza z tej samej grupy |
 
-**Dymki** w pliku `src/kwestie.json`: widget losuje jeden wariant dla zdarzenia i podstawia wstawki. `{czas}`, `{szac}`, `{czas_dnia}`, `{pozostalo}` i `{minuty}` zawierają już jednostki („47 min”, „2 h 12 min”), a `{zadan}` liczbę z rzeczownikiem w poprawnej formie („1 zadanie”, „2 zadania”, „5 zadań”). Dymek znika po 6 s albo po kliknięciu i naraz jest tylko jeden. Dymki reakcji na koniec dnia mają po jednym wariancie, dokładnie jak w tabeli w B4.
+**Kolory interfejsu** pochodzą z palety postaci: zieleni włosów, miedzi maski, fioletu oczu i kremowego konturu. Zastępują granaty, cyjan, lawendę i żółć z palety odrzuconego wariantu chibi (A2), których interfejs nie używa nigdzie. Wszystkie kolory są zmiennymi CSS w jednym miejscu, a komponenty nie mają kolorów wpisanych na sztywno.
+
+```css
+:root {
+  --tlo: #101B17;
+  --tlo-2: #1A2B24;
+  --ramka: #41725F;
+  --tekst: #FCF0DF;
+  --tekst-2: #B3C2B8;
+  --miedz: #C7773F;
+  --miedz-ciemna: #893E25;
+  --fiolet: #A778C8;
+  --fiolet-jasny: #CDB4EE;
+  --zielen: #7CC49E;
+  --koral: #FD8F72;
+  --dymek: #FCF0DF;
+  --dymek-tekst: #101B17;
+}
+```
+
+| Element | Kolory |
+| --- | --- |
+| Panele, okienko ustawień, kreator | tło `--tlo`, ramka 1,5 px `--ramka`, tekst `--tekst`, opisy i godziny `--tekst-2` |
+| Lista zadań | bieżące zadanie na `--tlo-2`; zrobione: ptaszek `--zielen`, nazwa przekreślona w `--tekst-2` |
+| Licznik i paski | cyfry `--fiolet-jasny`, pasek `--fiolet` na torze `--tlo-2`, po przekroczeniu szacunku `--koral`; za duży plan też `--koral` |
+| Przyciski | główny (Zaczynamy, Zrobione, Zapisz): tło `--miedz`, tekst `--tlo`, po wciśnięciu tło `--miedz-ciemna` z kremowym tekstem; pozostałe: obrys `--ramka`, tekst `--tekst` |
+| Dymek | tło `--dymek`, tekst `--dymek-tekst`, obwódka 2 px `--miedz-ciemna` |
+| Postać | poświata `drop-shadow` w `--fiolet` przy kryciu ok. 55% |
+| Etykieta „♪ 40 Hz” | `--zielen`, gdy dźwięk gra; `--tekst-2`, gdy milczy |
+| Fokus klawiatury | obwódka 2 px `--fiolet-jasny` |
+| Konfetti | `--miedz`, `--fiolet`, `--zielen`, `--tekst` |
+
+Kremowy tekst na miedzi ma kontrast tylko 3:1, dlatego przycisk główny ma ciemny tekst (ponad 5:1). Pozostały tekst ma kontrast co najmniej 6,6:1, a ramka i pasek co najmniej 3:1, czyli spełniają WCAG AA. Makieta `docs/makieta_kolorow.png` pokazuje te kolory na panelu Pracy i Liście; pokazuje kolory, nie układ, więc układ zostaje jak dotąd.
+
+**Dymki** w pliku `src/kwestie.json`: widget losuje jeden wariant dla zdarzenia i podstawia wstawki. `{czas}`, `{szac}`, `{czas_dnia}`, `{pozostalo}` i `{minuty}` zawierają już jednostki („47 min”, „2 h 12 min”), a `{zadan}` liczbę z rzeczownikiem w poprawnej formie („1 zadanie”, „2 zadania”, „5 zadań”). `{postac}` to imię postaci z ustawień (także w komentarzu szablonu pliku zadań), a `{skrot}` skrót pokazywania i chowania. Dymek znika po 6 s albo po kliknięciu, a dymek gratulacji z przyciskiem Cofnij po 10 s; naraz jest tylko jeden. Dymki reakcji na koniec dnia mają po jednym wariancie, dokładnie jak w tabeli w B4.
 
 ```json
 {
-  "konfiguracja_imie": ["Cześć! Jestem Twoją asystentką. Jak mam się do Ciebie zwracać?"],
+  "konfiguracja_imie": ["Cześć! Jestem {postac}, Twoja asystentka. Jak mam się do Ciebie zwracać?"],
   "konfiguracja_plik": ["Gdzie trzymasz zadania? Mogę założyć nowy plik albo użyć Twojego."],
   "konfiguracja_gotowe": ["Gotowe, {imie}! Dopisz zadania w pliku, a ja zaraz je wczytam."],
   "powitanie": ["Dzień dobry, {imie}!", "Hej, {imie}! Co dziś robimy?"],
@@ -531,14 +591,17 @@ Grafiki są statyczne, a życia dodają im proste animacje CSS, losowane dymki i
   "wybor_pusty": ["Nie widzę otwartych zadań. Dopisz coś w pliku, a ja poczekam."],
   "start": ["{zadanie}? Dobra, pilnuję czasu.", "Siadam obok. Działaj!"],
   "pauza": ["Przerwa? Jasne, czekam."],
+  "pauza_gra": ["To ja w tym czasie pogram!", "Runda albo dwie, zanim wrócisz!"],
   "wznowienie": ["Wracamy!"],
   "po_blokadzie": ["Wracamy?"],
   "jestes": ["Halo? Przerwa czy praca?"],
   "przypomnienie_przerwy": ["{minuty} za nami. Może chwila przerwy?"],
   "zrobione": ["Brawo! {zadanie}: {czas} (szac. {szac}). Dziś razem {czas_dnia}.", "Mamy to! {zadanie} w {czas}. Dziś już {czas_dnia}."],
+  "cofniete": ["Cofnięte. Wracamy do „{zadanie}”."],
   "zostalo": ["Zostało {zadan}, ok. {pozostalo}."],
   "plan_wykonany": ["Plan na dziś wykonany! Kończymy czy dokładasz coś jeszcze?"],
   "nie_znaleziono": ["Nie znalazłam „{zadanie}” w pliku. Czas zapisałam w dzienniku."],
+  "skrot_zajety": ["Skrót {skrot} jest zajęty przez inny program. Wybierz inny w ustawieniach."],
   "koniec_zachwycona": ["Wszystko zrobione i {czas_dnia} pracy! Jestem zachwycona!"],
   "koniec_zadowolona": ["{czas_dnia} pracy, szacun! Plan był chyba trochę za duży, resztę dokończymy jutro."],
   "koniec_dumna": ["Plan wykonany! Jestem z Ciebie dumna."],
@@ -555,6 +618,7 @@ Grafiki są statyczne, a życia dodają im proste animacje CSS, losowane dymki i
 ```json
 {
   "imie": "Dżiordżio",
+  "nazwa_postaci": "Sai",
   "plik_zadan": "C:\\Users\\…\\Second Brain\\Zadania.md",
   "folder_dziennika": "C:\\Users\\…\\Second Brain\\Dziennik pracy",
   "cel_dzienny_min": 240,
@@ -564,12 +628,27 @@ Grafiki są statyczne, a życia dodają im proste animacje CSS, losowane dymki i
   "przypomnienie_przerwy_min": 50,
   "ukryj_przed_nagrywaniem": true,
   "chowaj_przy_pelnym_ekranie": true,
-  "skrot_pokaz_ukryj": "Ctrl+Alt+Space"
+  "dzwiek_skupienia": true,
+  "dzwiek_skupienia_glosnosc": 25,
+  "cisza_przy_nagrywaniu": true,
+  "skrot_pokaz_ukryj": "Ctrl+Alt+Shift+Space"
 }
 ```
 
 - `imie` to forma, którą wpisujesz w kreatorze, np. w wołaczu; widget wstawia ją do dymków bez zmian.
+- `nazwa_postaci` to imię postaci w interfejsie, domyślnie „Sai”. Zmienia się je w okienku ustawień i działa od razu. Pole przyjmuje też japońskie znaki, np. 才ちゃん (さいちゃん), więc stos czcionek interfejsu kończy się na „Yu Gothic UI” i „Meiryo”.
 - Domyślny folder dziennika to `Dziennik pracy` obok pliku zadań.
+- `skrot_pokaz_ukryj` opisuje B6, a pola dźwięku akapit „Dźwięk skupienia” poniżej.
+
+**Dźwięk skupienia:** w czasie pracy widget gra w pętli dudnienie 40 Hz z pliku `src/assets/dzwiek/skupienie_40hz.wav`. To dudnienie binauralne: lewy kanał 200 Hz, prawy 240 Hz. Plik ma 10 s, 48 kHz, 16 bit, stereo i szczyt −12 dBFS, a oba tony mieszczą w nim pełną liczbę okresów, więc łączenie pętli jest niesłyszalne. Badania nad takimi dźwiękami dają mieszane wyniki ([przegląd w PLOS ONE](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0286023)), dlatego dziennik oznacza sesje z dźwiękiem.
+
+- **Kiedy gra:** tylko gdy licznik liczy czas zadania. Przy starcie i wznowieniu głośność narasta przez 3 s. Przy Pauzie, Przerwij, Zrobione, końcu dnia, blokadzie ekranu, uśpieniu i w stanie Jesteś? dźwięk cichnie przez 1,5 s.
+- **Odtwarzanie:** w Rust przez `rodio` z `repeat_infinite()`, nie w WebView2, którego blokada autoodtwarzania potrafi zatrzymać dźwięk bez kliknięcia. Plik jest wbudowany w program (`include_bytes!`). Jeśli w `%APPDATA%\Asystentka\` leży `skupienie.wav` albo `skupienie.mp3`, widget gra ten plik zamiast wbudowanego, więc inny dźwięk sprawdzisz bez przebudowy.
+- **Nagrywanie:** gdy działa OBS (proces `obs64.exe`) i włączone jest `cisza_przy_nagrywaniu`, dźwięk milknie, żeby nie trafił do nagrania, i wraca po zamknięciu OBS.
+- **Sterowanie:** przełącznik „Dźwięk 40 Hz” z ptaszkiem w menu pod prawym przyciskiem i w menu zasobnika. W panelu Pracy etykieta „♪ 40 Hz” ma kolor `--zielen`, gdy dźwięk gra, i `--tekst-2`, gdy jest wyłączony albo wyciszony przez OBS; kliknięcie w nią przełącza dźwięk.
+- **Ustawienia:** `dzwiek_skupienia` (domyślnie `true`), `dzwiek_skupienia_glosnosc` od 0 do 100 (domyślnie 25) i `cisza_przy_nagrywaniu` (domyślnie `true`; obejmie też głos z B10). W okienku ustawień: pole wyboru „Dźwięk 40 Hz w czasie pracy”, suwak głośności, przycisk „Odsłuchaj” na 5 s, podpowiedź „Najlepiej w słuchawkach” i pole wyboru „Cisza przy nagrywaniu (OBS)”.
+- **Dziennik:** linia sesji, w której dźwięk grał przez większość czasu, kończy się znacznikiem „· 40 Hz” (B3), żeby dało się porównać sesje z dźwiękiem i bez.
+- **Słuchawki:** efekt binauralny powstaje tylko w słuchawkach, bo każde ucho dostaje inny ton. Z głośników oba tony mieszają się w powietrzu w zwykłe dudnienie 40 Hz.
 
 ### B8. Poranne zadanie „Plan dnia – produkcja YT”
 
@@ -588,8 +667,12 @@ Widget powstaje w Tauri 2 z interfejsem w TypeScript, HTML i CSS. Zmiany wersji 
 ```text
 asystentka/
   SPEC.md                 ← ten dokument
+  docs/
+    makieta_kolorow.png   ← makieta kolorów z B7
   src/
     assets/postac/        ← paczka postac/ z grafikami i postac.json
+    assets/dzwiek/
+      skupienie_40hz.wav  ← dźwięk skupienia z B7
     kwestie.json
   src-tauri/
   przyklady/
@@ -604,7 +687,18 @@ asystentka/
 3. Wybór zadań, `dzien.json`, Zmień plan i Dodaj zadanie. Usunięcie odczytu planu z Dysku i stanu „Czeka na plan”.
 4. Podsumowanie po zadaniu i zapis sesji do pliku zadań i dziennika.
 5. Koniec dnia: przycisk, automatyczne zamknięcie, tabela reakcji, sekcja podsumowania w dzienniku i „Wróć do pracy”.
-6. Menu pod prawym przyciskiem, nowe menu zasobnika i „Zamknij asystentkę”.
+6. Menu pod prawym przyciskiem, nowe menu zasobnika i „Zamknij {postac}”.
+
+**Kolejność wdrażania wersji 2.1**
+
+1. Wiele monitorów: najpierw znaleźć, dlaczego okno wraca na monitor główny, potem kotwica i `okno.json`, kierunek rozwijania panelu, skalowanie, „Przywróć pozycję” i chowanie przy pełnym ekranie tylko na monitorze widgetu.
+2. Zrobione od razu w pliku: najpierw znaleźć, dlaczego ptaszek nie pojawia się w Obsidianie od razu. Sprawdzić, czy zapis nie czeka na koniec dnia, czy widget znajduje linię zadania (dymek `nie_znaleziono`) i czy Obsidian odświeża plik po zapisie przez plik tymczasowy. Potem przycisk Cofnij i kwestia `cofniete`.
+3. Skrót: nowy domyślny, zamiana starego w `ustawienia.json`, dymek `skrot_zajety` i nagrywanie skrótu w ustawieniach.
+4. Sekwencja przerwy, konsolka i kwestia `pauza_gra`.
+5. Imię postaci: `nazwa_postaci`, `{postac}` w dymkach, menu, zasobniku, tytule okienka ustawień i szablonie pliku zadań.
+6. Kolory: zmienne z B7 w jednym miejscu, potem podmiana kolorów we wszystkich komponentach i usunięcie starej palety.
+7. Dźwięk skupienia: odtwarzanie w Rust z narastaniem i wyciszaniem, przełączniki, cisza przy OBS i znacznik w dzienniku.
+8. Głos (B10), dopiero gdy w projekcie pojawią się pliki w `src/assets/glos/`.
 
 **Kryteria akceptacji v2**
 
@@ -620,13 +714,127 @@ asystentka/
 - [ ] „Koniec pracy na dziś” pokazuje podsumowanie i reakcję z tabeli w B4 we wszystkich sześciu przypadkach, a podsumowanie trafia do dziennika.
 - [ ] O 22:00 dzień zamyka się sam; jeśli komputer był wyłączony, podsumowanie wczorajszego dnia pojawia się przy następnym uruchomieniu.
 - [ ] „Wróć do pracy” otwiera dzień ponownie i usuwa podsumowanie z dziennika.
-- [ ] „Zamknij asystentkę” przy działającym liczniku zapisuje sesję i kończy proces.
+- [ ] „Zamknij {postac}” przy działającym liczniku zapisuje sesję i kończy proces.
 - [ ] Blokada ekranu i uśpienie pauzują licznik, a po 15 min bez aktywności pada pytanie „Przerwa czy praca?”.
 - [ ] Po zabiciu procesu w trakcie pracy sesja wraca zapauzowana, bez naliczenia przestoju.
 - [ ] Pełny ekran chowa widget, a licznik liczy dalej; z włączonym „Ukryj przed nagrywaniem” widgetu nie widać w OBS.
 - [ ] Notatki w dzienniku poza blokiem widgetu zostają nietknięte, a w trakcie gry widget nie obciąża zauważalnie procesora.
 
-**Na później:** LLM i czat, dźwięki, statystyki tygodniowe w Obsidianie, płynniejsze animacje (np. Live2D), wykrywanie nagrywania przez obs-websocket, kilka plików zadań, wiele monitorów, wybór rodzaju gramatycznego w kreatorze.
+**Kryteria akceptacji v2.1**
+
+- [ ] Widget przeciągnięty na drugi monitor zostaje tam po rozwinięciu listy, starcie pracy, pauzie i końcu dnia.
+- [ ] Po restarcie aplikacji widget wraca na ten sam monitor i w to samo miejsce względem rogu.
+- [ ] Po odłączeniu monitora widget staje w domyślnym miejscu na monitorze głównym; „Przywróć pozycję” robi to samo na żądanie.
+- [ ] Przy górnej krawędzi monitora panel rozwija się w dół i nie wychodzi poza ekran.
+- [ ] Na monitorze ze skalowaniem 150% postać ma tę samą wielkość co na monitorze ze skalowaniem 100%.
+- [ ] Odbicie lustrzane zależy od połowy monitora, na którym stoi widget.
+- [ ] Gra na pełnym ekranie na jednym monitorze nie chowa widgetu na drugim, a na monitorze widgetu go chowa.
+- [ ] Po wciśnięciu Pauzy postać przez 5 s się przeciąga, potem gra na konsolce, a po 15 min przerwy śpi.
+- [ ] Po powrocie z blokady ekranu albo uśpienia od razu widać pozę właściwą dla czasu trwania przerwy.
+- [ ] Na konsolce `sit_console_2` pojawia się tylko na 3 s co 2 min; poza tym widać `sit_console_1` z samym oddechem.
+- [ ] Gdy `Zadania.md` jest otwarty w Obsidianie, ptaszek i data pojawiają się w nim w ciągu 2 s od kliknięcia Zrobione.
+- [ ] Cofnij w dymku gratulacji zdejmuje ptaszka i datę i wraca do Pracy nad tym samym zadaniem bez utraty czasu.
+- [ ] Ctrl+Alt+Spacja dalej otwiera okno Claude, a Ctrl+Alt+Shift+Spacja pokazuje i chowa widget.
+- [ ] Gdy skrót jest zajęty, widget mówi o tym w dymku, a w ustawieniach da się nagrać inny.
+- [ ] Po zmianie `nazwa_postaci` nowe imię od razu widać w dymkach, obu menu, podpowiedzi zasobnika i tytule okienka ustawień.
+- [ ] Granat, cyjan, lawenda i żółć zniknęły z paneli, przycisków i dymków; kolory pochodzą ze zmiennych z B7.
+- [ ] Przycisk główny ma ciemny tekst na miedzi, a dymek kremowe tło z miedzianą obwódką.
+- [ ] Dźwięk 40 Hz gra tylko przy liczącym liczniku: narasta przy starcie i wznowieniu, cichnie przy Pauzie, Przerwij, Zrobione, końcu dnia, blokadzie ekranu, uśpieniu i w stanie Jesteś?.
+- [ ] W słuchawkach godzina pętli nie ma trzasków na łączeniu.
+- [ ] Przy działającym OBS i włączonej ciszy przy nagrywaniu dźwięk milczy, a etykieta „♪ 40 Hz” jest przygaszona.
+- [ ] Sesja, w której dźwięk grał przez większość czasu, ma w dzienniku znacznik „· 40 Hz”.
+
+**Na później:** LLM i czat, inne efekty dźwiękowe, statystyki tygodniowe w Obsidianie, płynniejsze animacje (np. Live2D), wykrywanie nagrywania przez obs-websocket, kilka plików zadań, wybór rodzaju gramatycznego w kreatorze. Głos opisuje B10.
+
+### B10. Głos (ostatni etap)
+
+Głos dochodzi na samym końcu, gdy kwestie są ostateczne: postać mówi krótkie okrzyki po japońsku, a szczegóły pokazuje polski dymek. Claude Code wdraża tę sekcję dopiero wtedy, gdy w projekcie pojawią się pliki w `src/assets/glos/`.
+
+**Zasada**
+
+- Głos to krótkie okrzyki przypisane do zdarzeń, a nie czytanie dymków. Polskie dymki można więc dalej zmieniać bez nagrywania głosu od nowa, a liczby i nazwy zadań zostają w dymku.
+- Pliki powstają raz w ElevenLabs i są dołączone do aplikacji, więc widget dalej działa bez internetu i bez klucza API.
+
+**Pliki:** `src/assets/glos/<klucz>_<n>.mp3`, gdzie `<klucz>` to klucz zdarzenia z `kwestie.json`, a `<n>` to numer wariantu. Przy zdarzeniu widget losuje jeden plik dla tego klucza; brak pliku oznacza ciszę.
+
+**Kiedy mówi**
+
+- tylko przy zdarzeniach ze szkicu poniżej; pozostałe dymki, np. `zostalo` i `nie_znaleziono`, są ciche;
+- razem z pojawieniem się dymka;
+- najwyżej jedna kwestia naraz i nie częściej niż co 10 s; nowa kwestia nie przerywa trwającej.
+
+**Kiedy milczy**
+
+- gdy widget jest schowany: pełny ekran na jego monitorze albo Ukryj;
+- gdy działa OBS (proces `obs64.exe`) i włączone jest „Cisza przy nagrywaniu” (B7), żeby głos nie trafił do nagrania;
+- po wybraniu „Wycisz głos” w menu pod prawym przyciskiem albo w zasobniku.
+
+**Ustawienia:** nowe pola w `ustawienia.json` i w okienku ustawień: `glos` (domyślnie `true`) i `glosnosc` od 0 do 100 (domyślnie 60). Pole `cisza_przy_nagrywaniu` jest już od wersji 2.1 (dźwięk skupienia, B7) i wycisza też głos.
+
+**Odtwarzanie:** po stronie Rust, np. crate `rodio`, a nie w WebView. Polityka autoodtwarzania w WebView2 może zablokować dźwięk bez kliknięcia, np. powitanie po starcie Windows ([Stack Overflow](https://kiwix.lema.org/stackoverflow.com_en_all_2023-11/questions/68709227/how-to-enable-media-autoplay-in-microsoft-webview2)).
+
+**Przebieg pracy**
+
+1. Dopracuj kwestie ze szkicu poniżej, aż będziesz z nich w pełni zadowolony. Polskie dymki możesz zmieniać także później.
+2. W ElevenLabs stwórz głos przez Voice Design, czyli z opisu słownego, np. „młoda, energiczna dziewczyna, styl anime, język japoński”, albo wybierz gotowy głos z Voice Library ([Voice Design](https://elevenlabs.io/docs/help-center/product/voices/voice-design/what-is-voice-design)).
+3. Generuj modelem Eleven v4 albo Eleven v3; oba mówią po japońsku ([modele](https://elevenlabs.io/docs/help-center/technical/what-models-do-you-offer-and-what-is-the-difference-between-them.md)). W v3 działają tagi w nawiasach, np. `[sighs]` albo `[laughs]`, które pomogą zagrać przeciąganie się i śmiech ([Eleven v3](https://elevenlabs.io/ja/blog/eleven-v3)). Rób 2–3 wersje każdej kwestii i wybieraj na ucho.
+4. Pobierz pliki i wrzuć je w czacie: przytnę ciszę, wyrównam głośność i nazwę je według kluczy.
+5. Claude Code wdraża tę sekcję.
+
+**Licencja:** darmowy plan nie daje licencji komercyjnej, a publikowane treści z niego trzeba podpisać „elevenlabs.io”. Licencję komercyjną mają wszystkie płatne plany, z wyjątkiem usług w wersji beta ([ElevenLabs](https://elevenlabs.io/docs/help-center/legal/can-i-publish-the-content-i-generate-on-the-platform)). Jeśli głos ma się pojawić w filmie na kanale, generuj go na płatnym planie. Voice Design jest oznaczony jako eksperymentalny, więc w dniu generowania sprawdź, czy licencja obejmuje taki głos.
+
+**Szkic kwestii po japońsku** (do dopracowania). Pod każdą kwestią jest czytanie hiraganą i znaczenie.
+
+1. `konfiguracja_imie`: はじめまして、サイだよ！これからよろしくね！
+   - はじめまして、さいだよ！これからよろしくね！ · „Miło mi, jestem Sai! Liczę na dobrą współpracę!”
+2. `powitanie`: やっほー！今日もがんばろうね！
+   - やっほー！きょうもがんばろうね！ · „Hejka! Dziś też dajemy radę!”
+3. `powitanie`: やっほー、ジョルジョ！
+   - やっほー、じょるじょ！ · „Hejka, Dżiordżio!” (z imieniem, plik tylko dla Ciebie)
+4. `powrot`: おかえり！
+   - おかえり！ · „Witaj z powrotem!”
+5. `wybor`: 今日は何からやる？
+   - きょうはなにからやる？ · „Od czego dziś zaczynamy?”
+6. `wybor_za_duzo`: ちょっと多すぎない？
+   - ちょっとおおすぎない？ · „Czy to nie za dużo?”
+7. `start`: よーし、スタート！
+   - よーし、すたーと！ · „Dobra, start!”
+8. `start`: ちゃんと見てるからね！
+   - ちゃんとみてるからね！ · „Pilnuję, działaj!”
+9. `pauza`: んーっ…休憩、休憩！
+   - んーっ…きゅうけい、きゅうけい！ · „Mmm… przerwa, przerwa!” (z przeciągnięciem)
+10. `pauza_gra`: じゃあ、ちょっとゲームしよっと！
+    - じゃあ、ちょっとげーむしよっと！ · „To ja sobie trochę pogram!”
+11. `wznowienie`: よし、再開！
+    - よし、さいかい！ · „Dobra, wracamy!”
+12. `po_blokadzie`: おかえり！続ける？
+    - おかえり！つづける？ · „Jesteś! Kontynuujemy?”
+13. `jestes`: もしもーし？いるー？
+    - もしもーし？いるー？ · „Halo? Jesteś?”
+14. `przypomnienie_przerwy`: そろそろ休憩しない？
+    - そろそろきゅうけいしない？ · „Może już czas na przerwę?”
+15. `zrobione`: やったね！
+    - やったね！ · „Udało się!”
+16. `zrobione`: お見事！
+    - おみごと！ · „Brawo!”
+17. `plan_wykonany`: 全部終わったよ！すごい！
+    - ぜんぶおわったよ！すごい！ · „Wszystko zrobione! Super!”
+18. `koniec_zachwycona`: 最高の一日だったね！
+    - さいこうのいちにちだったね！ · „To był świetny dzień!”
+19. `koniec_zadowolona`: いっぱいがんばったね！
+    - いっぱいがんばったね！ · „Ale się napracowałeś!”
+20. `koniec_dumna`: さすが！えらいね！
+    - さすが！えらいね！ · „Tak trzymać, brawo!”
+21. `koniec_pochwala`: おつかれさま！いい感じだったよ！
+    - おつかれさま！いいかんじだったよ！ · „Dobra robota! Było nieźle!”
+22. `koniec_czula`: またね！明日も待ってるよ！
+    - またね！あしたもまってるよ！ · „Pa! Czekam na Ciebie jutro!”
+23. `koniec_zmartwiona`: がんばってる限り、キミの勝ちだよ！
+    - がんばってるかぎり、きみのかちだよ！ · „Dopóki walczysz, wygrywasz!”
+24. `do_jutra`: また明日ね！
+    - またあしたね！ · „Do jutra!”
+
+**Imię w skryptach:** w ElevenLabs pisz je katakaną, サイ (czytanie: さい), żeby model nie zgadywał czytania znaku 才.
 
 ## Źródła
 
@@ -637,3 +845,12 @@ asystentka/
 - [Obsidian: gdzie aplikacja trzyma dane](https://obsidian.md/help/data-storage)
 - [Microsoft Learn: SetWindowDisplayAffinity i WDA\_EXCLUDEFROMCAPTURE](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowdisplayaffinity)
 - [Tauri: oficjalne wtyczki v2](https://v2.tauri.app/zh-cn/plugin/)
+- [Tauri: funkcje okna i monitorów w API JavaScript](https://v2.tauri.app/reference/javascript/api/namespacewindow/)
+- [Tauri: struktura Monitor z obszarem roboczym (docs.rs)](https://docs.rs/tauri-runtime/latest/src/tauri_runtime/monitor.rs.html)
+- [Stack Overflow: autoodtwarzanie dźwięku w WebView2](https://kiwix.lema.org/stackoverflow.com_en_all_2023-11/questions/68709227/how-to-enable-media-autoplay-in-microsoft-webview2)
+- [ElevenLabs: modele i ich języki](https://elevenlabs.io/docs/help-center/technical/what-models-do-you-offer-and-what-is-the-difference-between-them.md)
+- [ElevenLabs: Eleven v3 i tagi dźwiękowe](https://elevenlabs.io/ja/blog/eleven-v3)
+- [ElevenLabs: Voice Design](https://elevenlabs.io/docs/help-center/product/voices/voice-design/what-is-voice-design)
+- [ElevenLabs: publikowanie treści i licencja komercyjna](https://elevenlabs.io/docs/help-center/legal/can-i-publish-the-content-i-generate-on-the-platform)
+- [PLOS ONE: przegląd badań nad dudnieniami binauralnymi (2023)](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0286023)
+- [Andrew Huberman: „Protocols” (książka, 2026)](https://www.porchlightbooks.com/products/protocols-andrew-d-huberman-9781668032145)

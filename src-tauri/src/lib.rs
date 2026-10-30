@@ -75,6 +75,7 @@ pub fn run() {
             komendy::migawka,
             komendy::gotowy,
             komendy::dopasuj_okno,
+            komendy::przeciagnij,
             komendy::rozpocznij,
             komendy::pauza,
             komendy::wznow,

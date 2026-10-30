@@ -74,8 +74,9 @@ export function mostTauri(): Most {
     naKursor: (obsluga) => listen<boolean>("kursor", (e) => obsluga(e.payload)),
     naAkcja: (obsluga) => listen<string>("akcja", (e) => obsluga(e.payload)),
     menuKontekstowe: () => invoke("menu_kontekstowe"),
+    // Przeciąganie zaczyna backend: dopiero od tej chwili przesunięcie okna zmienia zapisaną pozycję.
     przeciagnij: () => {
-      void getCurrentWindow().startDragging();
+      void invoke("przeciagnij");
     },
     kreatorDane: () => invoke<PodpowiedzKreatora>("kreator_dane"),
     kreatorZakoncz: (ustawienia, utworzPlik) => invoke("kreator_zakoncz", { ustawienia, utworzPlik }),

@@ -2,7 +2,7 @@
 
 use tauri::{PhysicalPosition, PhysicalSize, WebviewWindow};
 
-use super::Obsluga;
+use super::{Obsluga, StanPelnegoEkranu};
 
 pub fn nasluchuj(_obsluga: Obsluga) {
     log::info!("zdarzenia blokady i uśpienia są obsługiwane tylko na Windows");
@@ -12,8 +12,8 @@ pub fn sekundy_bezczynnosci() -> Option<u64> {
     None
 }
 
-pub fn pelny_ekran(_wlasne_okno: Option<isize>) -> bool {
-    false
+pub fn pelny_ekran(_wlasne_okno: Option<isize>) -> StanPelnegoEkranu {
+    StanPelnegoEkranu::default()
 }
 
 pub fn kursor() -> Option<(i32, i32)> {

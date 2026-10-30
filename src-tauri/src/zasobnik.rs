@@ -3,8 +3,8 @@
 //! Na Windows 11 ikona zasobnika domyślnie trafia pod strzałkę „^”, dlatego
 //! wszystkie polecenia są też w menu pod prawym przyciskiem na postaci i panelu.
 //!
-//! Zasobnik: Pokaż / Ukryj · Pauza / Wznów · Koniec pracy na dziś · Ukryj przed
-//! nagrywaniem · Ustawienia · Zamknij asystentkę. Lewy klik w ikonę pokazuje i
+//! Zasobnik: Pokaż / Ukryj · Pauza / Wznów · Koniec pracy na dziś · Przywróć
+//! pozycję · Ukryj przed nagrywaniem · Ustawienia · Zamknij asystentkę. Lewy klik w ikonę pokazuje i
 //! chowa widget.
 
 use std::sync::Mutex;
@@ -18,6 +18,7 @@ use crate::rdzen::Mozliwosci;
 pub const POKAZ: &str = "pokaz";
 pub const PAUZA: &str = "pauza";
 pub const KONIEC: &str = "koniec";
+pub const PRZYWROC: &str = "przywroc";
 pub const NAGRYWANIE: &str = "nagrywanie";
 pub const USTAWIENIA: &str = "ustawienia";
 pub const ZAMKNIJ: &str = "zamknij";
@@ -30,6 +31,7 @@ pub const CTX_PLAN: &str = "ctx_plan";
 pub const CTX_DODAJ: &str = "ctx_dodaj";
 pub const CTX_PAUZA: &str = "ctx_pauza";
 pub const CTX_UKRYJ: &str = "ctx_ukryj";
+pub const CTX_PRZYWROC: &str = "ctx_przywroc";
 pub const CTX_USTAWIENIA: &str = "ctx_ustawienia";
 pub const CTX_ZAMKNIJ: &str = "ctx_zamknij";
 
@@ -68,6 +70,7 @@ impl Zasobnik {
         let pokaz = MenuItem::with_id(app, POKAZ, "Ukryj", true, None::<&str>)?;
         let pauza = MenuItem::with_id(app, PAUZA, "Pauza", false, None::<&str>)?;
         let koniec = MenuItem::with_id(app, KONIEC, "Koniec pracy na dziś", stan.koniec_pracy, None::<&str>)?;
+        let przywroc = MenuItem::with_id(app, PRZYWROC, "Przywróć pozycję", true, None::<&str>)?;
         let nagrywanie = CheckMenuItem::with_id(
             app,
             NAGRYWANIE,
@@ -84,6 +87,7 @@ impl Zasobnik {
                 &pokaz,
                 &pauza,
                 &koniec,
+                &przywroc,
                 &PredefinedMenuItem::separator(app)?,
                 &nagrywanie,
                 &ustawienia,
@@ -143,8 +147,8 @@ impl Zasobnik {
 }
 
 /// Menu pod prawym przyciskiem na postaci i panelu: Koniec pracy na dziś ·
-/// Zmień plan · Dodaj zadanie · Pauza / Wznów · Ukryj · Ustawienia · Zamknij
-/// asystentkę. Pozycje, których w danym stanie nie ma sensu używać, są wyszarzone.
+/// Zmień plan · Dodaj zadanie · Pauza / Wznów · Ukryj · Przywróć pozycję ·
+/// Ustawienia · Zamknij asystentkę. Pozycje, których w danym stanie nie ma sensu używać, są wyszarzone.
 pub fn menu_kontekstowe(app: &AppHandle, m: &Mozliwosci) -> tauri::Result<Menu<Wry>> {
     let koniec = MenuItem::with_id(app, CTX_KONIEC, "Koniec pracy na dziś", m.koniec_pracy, None::<&str>)?;
     let plan = MenuItem::with_id(app, CTX_PLAN, "Zmień plan", m.zmien_plan, None::<&str>)?;
@@ -157,6 +161,7 @@ pub fn menu_kontekstowe(app: &AppHandle, m: &Mozliwosci) -> tauri::Result<Menu<W
         None::<&str>,
     )?;
     let ukryj = MenuItem::with_id(app, CTX_UKRYJ, "Ukryj", true, None::<&str>)?;
+    let przywroc = MenuItem::with_id(app, CTX_PRZYWROC, "Przywróć pozycję", true, None::<&str>)?;
     let ustawienia = MenuItem::with_id(app, CTX_USTAWIENIA, "Ustawienia", true, None::<&str>)?;
     let zamknij = MenuItem::with_id(app, CTX_ZAMKNIJ, "Zamknij asystentkę", true, None::<&str>)?;
     Menu::with_items(
@@ -168,6 +173,7 @@ pub fn menu_kontekstowe(app: &AppHandle, m: &Mozliwosci) -> tauri::Result<Menu<W
             &PredefinedMenuItem::separator(app)?,
             &pauza,
             &ukryj,
+            &przywroc,
             &PredefinedMenuItem::separator(app)?,
             &ustawienia,
             &zamknij,

@@ -47,8 +47,12 @@ function ustawGeometrie(g: Geometria): void {
   styl.setProperty("--pod-siedziskiem", `${g.podSiedziskiem}px`);
   styl.setProperty("--pod-stopami", `${g.podStopami}px`);
   styl.setProperty("--oddech-max", String(g.oddech));
-  // Panele z przewijaniem mają do 60% wysokości ekranu (B6).
-  styl.setProperty("--panel-max-h", `${Math.round(window.screen.availHeight * 0.6)}px`);
+  ustawMaksWysokosc();
+}
+
+/** Panele z przewijaniem mają do 60% wysokości monitora, na którym stoi widget (B6). */
+function ustawMaksWysokosc(): void {
+  document.documentElement.style.setProperty("--panel-max-h", `${Math.round(window.screen.availHeight * 0.6)}px`);
 }
 
 const most: Most = wTauri() ? mostTauri() : mostPodglad();
@@ -150,6 +154,8 @@ async function start(): Promise<void> {
     scena.dataset.stan = m.stan;
     scena.dataset.uklad = UKLADY[m.stan];
     scena.dataset.strona = m.strona;
+    scena.dataset.pion = m.pion;
+    ustawMaksWysokosc();
     if (dodawanie && !Z_DODAWANIEM.has(m.stan)) dodawanie = null;
     if (m.stan === "konfiguracja") {
       // Kreator trzyma swój stan, więc nie przebudowujemy go przy każdej migawce.

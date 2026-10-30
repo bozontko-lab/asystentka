@@ -12,6 +12,8 @@ export type NazwaStanu =
   | "koniec_dnia";
 
 export type Strona = "prawa" | "lewa";
+/** Przy której krawędzi monitora stoi widget; od niej panel rośnie w stronę środka. */
+export type Pion = "dol" | "gora";
 
 export type PowodPauzy = "reczna" | "blokada" | "uspienie" | "zamkniecie" | "awaria";
 
@@ -98,7 +100,9 @@ export interface KoniecWidok {
 export interface Migawka {
   stan: NazwaStanu;
   widoczna: boolean;
+  /** Lewa połowa monitora widgetu: postać odbija się lustrzanie. */
   strona: Strona;
+  pion: Pion;
   imie: string;
   wybor: WyborWidok | null;
   lista: ListaWidok | null;

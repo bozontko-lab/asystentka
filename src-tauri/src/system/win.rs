@@ -23,7 +23,8 @@ use windows::Win32::UI::WindowsAndMessaging::{
     WS_OVERLAPPED, WTS_SESSION_LOCK, WTS_SESSION_UNLOCK,
 };
 
-use super::{Obsluga, ZdarzenieSystemowe};
+use super::{Obsluga, PierwszyPlan, StanPelnegoEkranu, ZdarzenieSystemowe};
+use crate::okno::Prostokat;
 
 static OBSLUGA: OnceLock<Obsluga> = OnceLock::new();
 
@@ -126,52 +127,58 @@ pub fn sekundy_bezczynnosci() -> Option<u64> {
     }
 }
 
-/// Pełny ekran według SHQueryUserNotificationState, a w zapasie: okno na
-/// pierwszym planie zajmuje cały monitor (bez pulpitu i paska zadań).
-pub fn pelny_ekran(wlasne_okno: Option<isize>) -> bool {
+/// Dane o pełnym ekranie: okno na pierwszym planie z jego monitorem i sygnał
+/// z `SHQueryUserNotificationState`. Decyzję, czy to monitor widgetu, podejmuje
+/// `pelny_ekran_na_monitorze`.
+pub fn pelny_ekran(wlasne_okno: Option<isize>) -> StanPelnegoEkranu {
     unsafe {
-        if let Ok(stan) = SHQueryUserNotificationState() {
-            if stan == QUNS_BUSY || stan == QUNS_RUNNING_D3D_FULL_SCREEN || stan == QUNS_PRESENTATION_MODE {
-                return true;
-            }
-        }
-        okno_na_pierwszym_planie_zajmuje_monitor(wlasne_okno)
+        let sygnal_systemu = SHQueryUserNotificationState()
+            .map(|stan| stan == QUNS_BUSY || stan == QUNS_RUNNING_D3D_FULL_SCREEN || stan == QUNS_PRESENTATION_MODE)
+            .unwrap_or(false);
+        StanPelnegoEkranu { pierwszy_plan: okno_na_pierwszym_planie(wlasne_okno), sygnal_systemu }
     }
 }
 
-unsafe fn okno_na_pierwszym_planie_zajmuje_monitor(wlasne_okno: Option<isize>) -> bool {
+unsafe fn okno_na_pierwszym_planie(wlasne_okno: Option<isize>) -> Option<PierwszyPlan> {
     let okno = GetForegroundWindow();
     if okno.is_invalid() || Some(okno.0 as isize) == wlasne_okno {
-        return false;
+        return None;
     }
     if okno == GetDesktopWindow() || okno == GetShellWindow() {
-        return false;
+        return None;
     }
     let mut bufor = [0u16; 64];
     let dlugosc = GetClassNameW(okno, &mut bufor).max(0) as usize;
     let klasa = String::from_utf16_lossy(&bufor[..dlugosc]);
     if matches!(klasa.as_str(), "Progman" | "WorkerW" | "Shell_TrayWnd" | "Shell_SecondaryTrayWnd") {
-        return false;
-    }
-    // Zmaksymalizowane okna z paskiem tytułu to zwykła praca, nie pełny ekran.
-    if IsZoomed(okno).as_bool() {
-        return false;
-    }
-    let styl = GetWindowLongW(okno, GWL_STYLE) as u32;
-    if styl & WS_CAPTION.0 == WS_CAPTION.0 {
-        return false;
+        return None;
     }
     let mut prostokat = RECT::default();
     if GetWindowRect(okno, &mut prostokat).is_err() {
-        return false;
+        return None;
     }
+    // Monitor okna na pierwszym planie, a nie główny: pełny ekran liczy się na jego własnym monitorze.
     let monitor = MonitorFromWindow(okno, MONITOR_DEFAULTTONEAREST);
     let mut info = MONITORINFO { cbSize: size_of::<MONITORINFO>() as u32, ..Default::default() };
     if !GetMonitorInfoW(monitor, &mut info).as_bool() {
-        return false;
+        return None;
     }
     let m = info.rcMonitor;
-    prostokat.left <= m.left && prostokat.top <= m.top && prostokat.right >= m.right && prostokat.bottom >= m.bottom
+    let styl = GetWindowLongW(okno, GWL_STYLE) as u32;
+    Some(PierwszyPlan {
+        pokrywa_monitor: prostokat.left <= m.left
+            && prostokat.top <= m.top
+            && prostokat.right >= m.right
+            && prostokat.bottom >= m.bottom,
+        // Zmaksymalizowane okna z paskiem tytułu to zwykła praca, nie pełny ekran.
+        zwykle_okno: IsZoomed(okno).as_bool() || styl & WS_CAPTION.0 == WS_CAPTION.0,
+        monitor: Prostokat {
+            x: m.left,
+            y: m.top,
+            szer: (m.right - m.left).max(0) as u32,
+            wys: (m.bottom - m.top).max(0) as u32,
+        },
+    })
 }
 
 pub fn kursor() -> Option<(i32, i32)> {
@@ -197,12 +204,24 @@ pub fn wyklucz_z_przechwytywania(okno: &WebviewWindow, wlacz: bool) -> Result<()
     unsafe { SetWindowDisplayAffinity(uchwyt, tryb) }.map_err(|e| e.to_string())
 }
 
-/// Pozycja i rozmiar jednym wywołaniem, żeby dolna krawędź nie drgała.
+/// Pozycja i rozmiar jednym wywołaniem, żeby dolna krawędź nie drgała. Gdy okno
+/// przechodzi na monitor z innym skalowaniem, Windows po przeniesieniu
+/// (`WM_DPICHANGED`) przelicza rozmiar okna, więc wynik sprawdzamy i poprawiamy:
+/// po przejściu nie może zostać skok rozmiaru ani pozycji (B6).
 pub fn ustaw_prostokat(okno: &WebviewWindow, x: i32, y: i32, szer: u32, wys: u32) {
-    if let Some(uchwyt) = hwnd(okno) {
+    let Some(uchwyt) = hwnd(okno) else { return };
+    for _ in 0..3 {
         let wynik = unsafe { SetWindowPos(uchwyt, None, x, y, szer as i32, wys as i32, SWP_NOZORDER | SWP_NOACTIVATE) };
         if let Err(e) = wynik {
             log::warn!("SetWindowPos: {e}");
+            return;
+        }
+        let mut r = RECT::default();
+        if unsafe { GetWindowRect(uchwyt, &mut r) }.is_err() {
+            return;
+        }
+        if (r.left, r.top, r.right - r.left, r.bottom - r.top) == (x, y, szer as i32, wys as i32) {
+            return;
         }
     }
 }

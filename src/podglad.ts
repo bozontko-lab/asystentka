@@ -1,6 +1,6 @@
 // Podgląd w zwykłej przeglądarce (`npm run dev`, bez Tauri): przykładowe
 // migawki wszystkich stanów do pracy nad wyglądem i do zrzutów ekranu.
-// Parametry adresu: ?stan=praca&strona=lewa&dymek=start
+// Parametry adresu: ?stan=praca&strona=lewa&pion=gora&dymek=start
 
 import type { Akcja, Most } from "./most";
 import type { Migawka, NazwaStanu, PodpowiedzKreatora, Reakcja, Ustawienia, ZadanieWidok, Zdarzenie } from "./typy";
@@ -26,7 +26,7 @@ export const PODPOWIEDZ: PodpowiedzKreatora = {
   vaulty: ["D:\\Second Brain", "D:\\Notatki"],
 };
 
-function przyklad(stan: NazwaStanu, strona: "prawa" | "lewa"): Migawka {
+function przyklad(stan: NazwaStanu, strona: "prawa" | "lewa", pion: "dol" | "gora"): Migawka {
   const teraz = Date.now();
   const z = (projekt: string, zadanie: string, szac: number | null, czas: number, opcje: Partial<ZadanieWidok> = {}): ZadanieWidok => ({
     projekt,
@@ -70,6 +70,7 @@ function przyklad(stan: NazwaStanu, strona: "prawa" | "lewa"): Migawka {
     stan,
     widoczna: true,
     strona,
+    pion,
     imie: "Dżiordżio",
     wybor: stan === "wybor_zadan" ? przeksztalcWybor(parametry.get("suma") === "duza") : null,
     lista:
@@ -150,10 +151,11 @@ export function mostPodglad(): Most {
   const stan = (parametry.get("stan") as NazwaStanu | null) ?? "lista";
   const strona = parametry.get("strona") === "lewa" ? "lewa" : "prawa";
   const bezDymka = parametry.get("dymek") === "nie";
-  const migawka = przyklad(STANY.includes(stan) ? stan : "lista", strona);
+  const pion = parametry.get("pion") === "gora" ? "gora" : "dol";
+  const migawka = przyklad(STANY.includes(stan) ? stan : "lista", strona, pion);
   let naZdarzenie: ((z: Zdarzenie) => void) | null = null;
 
-  pasekPodgladu(stan, strona);
+  pasekPodgladu(stan, strona, pion);
   return {
     migawka: async () => migawka,
     gotowy: async () => {
@@ -191,21 +193,25 @@ export function mostPodglad(): Most {
   };
 }
 
-function pasekPodgladu(stan: NazwaStanu, strona: string): void {
+function pasekPodgladu(stan: NazwaStanu, strona: string, pion: string): void {
   if (new URLSearchParams(location.search).has("czysto")) return;
   const pasek = document.createElement("nav");
   pasek.className = "podglad";
   for (const s of STANY) {
     const link = document.createElement("a");
-    link.href = `?stan=${s}&strona=${strona}`;
+    link.href = `?stan=${s}&strona=${strona}&pion=${pion}`;
     link.textContent = s;
     if (s === stan) link.setAttribute("aria-current", "page");
     pasek.append(link);
   }
   const lustro = document.createElement("a");
-  lustro.href = `?stan=${stan}&strona=${strona === "lewa" ? "prawa" : "lewa"}`;
+  lustro.href = `?stan=${stan}&strona=${strona === "lewa" ? "prawa" : "lewa"}&pion=${pion}`;
   lustro.textContent = "↔ strona";
   pasek.append(lustro);
+  const odwrot = document.createElement("a");
+  odwrot.href = `?stan=${stan}&strona=${strona}&pion=${pion === "gora" ? "dol" : "gora"}`;
+  odwrot.textContent = "↕ góra / dół";
+  pasek.append(odwrot);
   document.body.append(pasek);
   document.body.classList.add("tryb-podgladu");
 }

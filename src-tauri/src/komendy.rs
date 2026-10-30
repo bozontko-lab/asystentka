@@ -31,6 +31,14 @@ pub async fn dopasuj_okno(apl: Apl<'_>, szerokosc: f64, wysokosc: f64) -> Result
     Ok(())
 }
 
+/// Mousedown na postaci: od tej chwili przesunięcie okna to ruch użytkownika.
+/// Przesunięcia bez kliknięcia (system po zmianie monitorów, zmiana skalowania)
+/// nie zmieniają zapisanej pozycji widgetu.
+#[tauri::command]
+pub async fn przeciagnij(apl: Apl<'_>) -> Result<(), String> {
+    apl.inner().przeciagnij()
+}
+
 #[tauri::command]
 pub async fn rozpocznij(apl: Apl<'_>, projekt: String, zadanie: String) -> Result<(), String> {
     apl.inner().wykonaj(|r, t| r.rozpocznij(&Klucz { projekt, zadanie }, t))

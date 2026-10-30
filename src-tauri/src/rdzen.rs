@@ -12,7 +12,8 @@ use serde::Serialize;
 use crate::czas::{self, Chwila};
 use crate::dzien::{DzienStan, Edycja, Reakcja};
 use crate::dziennik::{self, DzienPracy, Podsumowanie, WpisSesji};
-use crate::magazyn::{KotwicaOkna, Magazyn, Strona};
+use crate::magazyn::Magazyn;
+use crate::okno::{KotwicaOkna, Naroznik, Pion, Strona};
 use crate::plik_zadan::{self, BladZmiany, Klucz, PlikZadan, Zadanie};
 use crate::sesja::{PowodPauzy, Sesja, ZadanieSesji};
 use crate::ustawienia::Ustawienia;
@@ -225,7 +226,10 @@ pub struct DzienWidok {
 pub struct Migawka {
     pub stan: &'static str,
     pub widoczna: bool,
+    /// Widget stoi na lewej (postać odbita lustrzanie) albo prawej połowie swojego monitora.
     pub strona: Strona,
+    /// Przy której krawędzi monitora stoi widget; od niej panel rośnie w stronę środka (B6).
+    pub pion: Pion,
     pub imie: String,
     pub wybor: Option<WyborWidok>,
     pub lista: Option<ListaWidok>,
@@ -256,7 +260,10 @@ pub struct Rdzen {
     dz: DzienStan,
     zadania: PlikZadan,
     blad_pliku: Option<String>,
+    /// Zapisane położenie widgetu (`okno.json`).
     okno: KotwicaOkna,
+    /// Róg, który naprawdę obowiązuje: inny niż zapisany, gdy monitor widgetu zniknął.
+    naroznik: Naroznik,
     faza: Faza,
     wybor: BTreeSet<Klucz>,
     wybor_przekroczony: bool,
@@ -272,6 +279,7 @@ pub struct Rdzen {
 impl Rdzen {
     pub fn nowy(magazyn: Magazyn, ust: Ustawienia, teraz: Chwila) -> Rdzen {
         let okno = magazyn.wczytaj_okno();
+        let naroznik = okno.kotwica;
         Rdzen {
             ust,
             dz: DzienStan::nowy(czas::dzien(teraz)),
@@ -279,6 +287,7 @@ impl Rdzen {
             zadania: PlikZadan::default(),
             blad_pliku: None,
             okno,
+            naroznik,
             faza: Faza::Lista,
             wybor: BTreeSet::new(),
             wybor_przekroczony: false,
@@ -346,6 +355,10 @@ impl Rdzen {
 
     pub fn kotwica(&self) -> KotwicaOkna {
         self.okno.clone()
+    }
+
+    pub fn naroznik(&self) -> Naroznik {
+        self.naroznik
     }
 
     pub fn wez_zdarzenia(&mut self) -> Vec<Zdarzenie> {
@@ -1141,13 +1154,26 @@ impl Rdzen {
         }
     }
 
+    /// Użytkownik przeniósł widget: nowy monitor, róg i odstępy trafiają do `okno.json`.
     pub fn ustaw_kotwice(&mut self, kotwica: KotwicaOkna, _teraz: Chwila) {
+        self.naroznik = kotwica.kotwica;
         if self.okno != kotwica {
             self.okno = kotwica;
             if let Err(e) = self.magazyn.zapisz_okno(&self.okno) {
                 log::warn!("nie mogę zapisać położenia okna: {e}");
             }
         }
+    }
+
+    /// Róg, który naprawdę obowiązuje po rozwiązaniu monitora (zapis zostaje,
+    /// gdy monitor chwilowo zniknął).
+    pub fn ustaw_naroznik(&mut self, naroznik: Naroznik) {
+        self.naroznik = naroznik;
+    }
+
+    /// „Przywróć pozycję”: domyślne miejsce na monitorze głównym (B6).
+    pub fn przywroc_pozycje(&mut self, teraz: Chwila) {
+        self.ustaw_kotwice(KotwicaOkna::default(), teraz);
     }
 
     pub fn zmien_ustawienia(&mut self, nowe: Ustawienia, teraz: Chwila) {
@@ -1398,7 +1424,8 @@ impl Rdzen {
         Migawka {
             stan: stan.nazwa(),
             widoczna: self.widoczna(),
-            strona: self.okno.strona,
+            strona: self.naroznik.strona(),
+            pion: self.naroznik.pion(),
             imie: self.ust.imie.clone(),
             wybor: (stan == Stan::WyborZadan).then(|| self.widok_wyboru()),
             lista: matches!(stan, Stan::Lista | Stan::Gratulacje).then(|| self.widok_listy()),
@@ -2526,5 +2553,61 @@ mod testy {
         assert!(dziennik.contains("- [x] 09:12–10:05 · Scenariusz: intro · 47 min (szac. 60)\n"));
         assert!(dziennik.contains("- [ ] 11:10–11:40 · Montaż: plansze 1–5 · 30 min · w toku · Film #1 · FIFA\n"));
         assert!(dziennik.contains("minuty: 77\n"));
+    }
+
+    #[test]
+    fn polozenie_widgetu_trafia_do_okno_json_i_do_migawki() {
+        use crate::okno::{MonitorOkna, Naroznik, Pion, Strona};
+        let sr = Srodowisko::nowe();
+        let mut r = sr.rdzen(t("08:00:00"));
+        let m = r.migawka();
+        assert_eq!((m.strona, m.pion), (Strona::Prawa, Pion::Dol), "domyślnie prawy dolny róg");
+
+        let drugi = MonitorOkna { nazwa: "\\\\.\\DISPLAY2".into(), x: 1920, y: 0, szer: 2560, wys: 1440 };
+        let kotwica =
+            KotwicaOkna { monitor: Some(drugi), kotwica: Naroznik::LewyGorny, odstep_x: 40.0, odstep_y: 20.0 };
+        r.ustaw_kotwice(kotwica.clone(), t("08:01:00"));
+        let m = r.migawka();
+        assert_eq!(
+            (m.strona, m.pion),
+            (Strona::Lewa, Pion::Gora),
+            "lewa połowa monitora: postać odbita, panel rośnie w dół"
+        );
+        assert_eq!(
+            sr.nowy_rdzen(t("08:02:00")).kotwica(),
+            kotwica,
+            "po restarcie widget stoi tam, gdzie go zostawiono"
+        );
+    }
+
+    #[test]
+    fn zastepczy_rog_nie_nadpisuje_zapisanej_pozycji() {
+        use crate::okno::{MonitorOkna, Naroznik};
+        let sr = Srodowisko::nowe();
+        let mut r = sr.rdzen(t("08:00:00"));
+        let drugi = MonitorOkna { nazwa: "DP-2".into(), x: 1600, y: 0, szer: 1600, wys: 1000 };
+        let kotwica =
+            KotwicaOkna { monitor: Some(drugi), kotwica: Naroznik::PrawyGorny, odstep_x: 10.0, odstep_y: 10.0 };
+        r.ustaw_kotwice(kotwica.clone(), t("08:01:00"));
+        // monitor zniknął: okno stoi w domyślnym rogu, ale zapis zostaje
+        r.ustaw_naroznik(Naroznik::PrawyDolny);
+        assert_eq!(r.migawka().pion, Pion::Dol);
+        assert_eq!(sr.nowy_rdzen(t("08:02:00")).kotwica(), kotwica);
+    }
+
+    #[test]
+    fn przywroc_pozycje_wraca_na_monitor_glowny() {
+        use crate::okno::{MonitorOkna, Naroznik};
+        let sr = Srodowisko::nowe();
+        let mut r = sr.rdzen(t("08:00:00"));
+        let drugi = MonitorOkna { nazwa: "DP-2".into(), x: 1600, y: 0, szer: 1600, wys: 1000 };
+        r.ustaw_kotwice(
+            KotwicaOkna { monitor: Some(drugi), kotwica: Naroznik::LewyGorny, odstep_x: 300.0, odstep_y: 200.0 },
+            t("08:01:00"),
+        );
+        r.przywroc_pozycje(t("08:02:00"));
+        assert_eq!(r.kotwica(), KotwicaOkna::default());
+        assert_eq!(r.migawka().strona, Strona::Prawa);
+        assert_eq!(sr.nowy_rdzen(t("08:03:00")).kotwica(), KotwicaOkna::default());
     }
 }

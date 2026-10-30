@@ -21,7 +21,7 @@ use tauri_plugin_opener::OpenerExt;
 use crate::czas::{self, Chwila};
 use crate::magazyn::Magazyn;
 use crate::obsidian;
-use crate::okno::{self, Obszar, Prostokat};
+use crate::okno::{self, Ekran, Obszar, Prostokat};
 use crate::rdzen::{Migawka, Rdzen, Stan, Zdarzenie};
 use crate::sesja::PowodPauzy;
 use crate::system::{self, ZdarzenieSystemowe};
@@ -35,6 +35,8 @@ const CO_ILE_CYKL: Duration = Duration::from_secs(30);
 const CO_ILE_PELNY_EKRAN: Duration = Duration::from_secs(2);
 const CO_ILE_KURSOR: Duration = Duration::from_millis(500);
 const PO_PRZECIAGNIECIU: Duration = Duration::from_millis(400);
+/// Tyle po kliknięciu w postać przesunięcie okna liczy się jako ruch użytkownika.
+const RECZNE_PRZESUNIECIE: Duration = Duration::from_secs(30);
 const ODSTEP_PO_ZAPISIE: Duration = Duration::from_millis(300);
 /// Glitch wyjścia trwa 400 ms; okno chowamy, gdy się skończy.
 const GLITCH_WYJSCIA: Duration = Duration::from_millis(420);
@@ -45,9 +47,18 @@ const BLISKO_PX: f64 = 300.0;
 struct StanOkna {
     rozmiar: Option<(f64, f64)>,
     prostokat: Option<Prostokat>,
+    /// Monitor, na którym stoi widget (po ostatnim ustawieniu okna).
+    ekran: Option<Ekran>,
+    /// Monitory z ostatniego sprawdzenia: zmiana zestawu przestawia okno.
+    monitory: Option<Vec<Ekran>>,
     widoczna: Option<bool>,
     pokolenie: u64,
+    /// Ostatni ruch okna, który zrobił użytkownik; przeciąganie kończy się po chwili spokoju.
     przesuniete: Option<Instant>,
+    /// Ostatnie kliknięcie w postać (początek przeciągania).
+    reka_od: Option<Instant>,
+    /// Ostatni ruch okna zrobiony przez system, do poprawienia po chwili spokoju.
+    do_poprawy: Option<Instant>,
 }
 
 pub struct Aplikacja {
@@ -252,33 +263,77 @@ impl Aplikacja {
 
     // ---- okno -----------------------------------------------------------
 
-    fn obszar_roboczy(&self) -> Option<Obszar> {
-        let monitor = match self.app.primary_monitor() {
-            Ok(Some(m)) => m,
-            _ => self.app.available_monitors().ok()?.into_iter().next()?,
-        };
-        let obszar = monitor.work_area();
-        Some(Obszar {
-            x: obszar.position.x,
-            y: obszar.position.y,
-            szer: obszar.size.width,
-            wys: obszar.size.height,
-            skala: monitor.scale_factor(),
-        })
+    /// Monitory systemu. Wszystkie obliczenia położenia są względem monitora
+    /// widgetu, a główny służy tylko za miejsce domyślne (B6).
+    fn ekrany(&self) -> Vec<Ekran> {
+        // Test w wersji deweloperskiej: wirtualny ekran Xvfb ma jeden monitor, więc
+        // układ monitorów można podać w pliku i zmieniać w trakcie (odłączenie).
+        #[cfg(debug_assertions)]
+        if let Some(plik) = std::env::var_os("ASYSTENTKA_MONITORY") {
+            return fs::read_to_string(plik).map(|opis| okno::ekrany_z_opisu(&opis)).unwrap_or_default();
+        }
+        let glowny = self.app.primary_monitor().ok().flatten();
+        let mut ekrany: Vec<Ekran> = self
+            .app
+            .available_monitors()
+            .unwrap_or_default()
+            .iter()
+            .map(|m| {
+                let (p, r, w) = (m.position(), m.size(), m.work_area());
+                let pelny = Prostokat { x: p.x, y: p.y, szer: r.width, wys: r.height };
+                Ekran {
+                    nazwa: m.name().cloned().unwrap_or_default(),
+                    pelny,
+                    obszar: Obszar {
+                        x: w.position.x,
+                        y: w.position.y,
+                        szer: w.size.width,
+                        wys: w.size.height,
+                        skala: m.scale_factor(),
+                    },
+                    glowny: glowny.as_ref().is_some_and(|g| (g.position(), g.size()) == (m.position(), m.size())),
+                }
+            })
+            .collect();
+        if !ekrany.iter().any(|e| e.glowny) {
+            if let Some(pierwszy) = ekrany.first_mut() {
+                pierwszy.glowny = true;
+            }
+        }
+        ekrany
     }
 
-    fn umiesc_okno(&self) {
+    /// Ustawia okno przy kotwicy, na monitorze widgetu. Rozmiar przelicza ze
+    /// skalowaniem tego monitora, więc po przejściu na monitor z innym
+    /// skalowaniem postać ma od razu tę samą wielkość logiczną.
+    fn umiesc_okno(self: &Arc<Self>) {
         let Some((szer, wys)) = zablokuj(&self.okno).rozmiar else { return };
-        let kotwica = zablokuj(&self.rdzen).kotwica();
-        let Some(obszar) = self.obszar_roboczy() else { return };
-        let (szer, wys) = okno::rozmiar_fizyczny(szer, wys, obszar.skala);
-        let cel = okno::umiesc(&kotwica, szer, wys, &obszar);
-        {
+        let zapisana = zablokuj(&self.rdzen).kotwica();
+        let ekrany = self.ekrany();
+        let Some(polozenie) = okno::polozenie(&zapisana, &ekrany) else { return };
+        if polozenie.zastepcze {
+            log::info!("monitor widgetu zniknął: staję w domyślnym miejscu na monitorze głównym");
+        }
+        let (szer, wys) = okno::rozmiar_fizyczny(szer, wys, polozenie.ekran.obszar.skala);
+        let cel = okno::umiesc(&polozenie.kotwica, szer, wys, &polozenie.ekran.obszar);
+        let zmienione = {
             let mut stan = zablokuj(&self.okno);
+            stan.ekran = Some(polozenie.ekran.clone());
+            stan.monitory = Some(ekrany);
             if stan.prostokat == Some(cel) {
-                return;
+                false
+            } else {
+                stan.prostokat = Some(cel);
+                true
             }
-            stan.prostokat = Some(cel);
+        };
+        // Róg w migawce (odbicie lustrzane, kierunek rozwijania) wynika z monitora widgetu.
+        let naroznik = polozenie.kotwica.kotwica;
+        if zablokuj(&self.rdzen).naroznik() != naroznik {
+            self.wykonaj(|r, _| r.ustaw_naroznik(naroznik));
+        }
+        if !zmienione {
+            return;
         }
         let app = self.app.clone();
         let _ = self.app.run_on_main_thread(move || {
@@ -286,6 +341,38 @@ impl Aplikacja {
                 system::ustaw_prostokat(&okno, cel.x, cel.y, cel.szer, cel.wys);
             }
         });
+    }
+
+    /// Zmiana zestawu albo układu monitorów (odłączenie, podłączenie,
+    /// rozdzielczość, pasek zadań): okno staje na swoim miejscu od nowa.
+    fn sprawdz_monitory(self: &Arc<Self>) {
+        let ekrany = self.ekrany();
+        {
+            let mut stan = zablokuj(&self.okno);
+            if stan.monitory.as_ref() == Some(&ekrany) {
+                return;
+            }
+            if stan.monitory.is_some() {
+                log::info!("zmiana monitorów: {}", ekrany.len());
+            }
+            stan.monitory = Some(ekrany);
+        }
+        self.umiesc_okno();
+    }
+
+    /// „Przywróć pozycję”: domyślne miejsce na monitorze głównym (B6).
+    pub fn przywroc_pozycje(self: &Arc<Self>) {
+        log::info!("przywracam pozycję okna");
+        self.wykonaj(|r, t| r.przywroc_pozycje(t));
+        zablokuj(&self.okno).prostokat = None;
+        self.umiesc_okno();
+    }
+
+    /// Mousedown na postaci: zaczyna przeciąganie okna przez użytkownika.
+    pub fn przeciagnij(&self) -> Result<(), String> {
+        zablokuj(&self.okno).reka_od = Some(Instant::now());
+        let okno = self.app.get_webview_window(OKNO).ok_or("brak okna widgetu")?;
+        okno.start_dragging().map_err(|e| e.to_string())
     }
 
     fn zastosuj_widocznosc(self: &Arc<Self>, widoczna: bool) {
@@ -343,36 +430,65 @@ impl Aplikacja {
         });
     }
 
-    /// Okno przesunięte: nasze własne ustawienie ignorujemy, przeciągnięcie
-    /// przez użytkownika kończymy po chwili spokoju.
+    /// Okno przesunięte. Nasze własne ustawienie ignorujemy. Ruch po kliknięciu
+    /// w postać to przeciąganie użytkownika; każdy inny ruch to system (zmiana
+    /// monitorów, skalowania), po którym okno wraca przy kotwicy, a zapisana
+    /// pozycja zostaje, jaka była.
     pub fn przesunieto(&self, pozycja: PhysicalPosition<i32>) {
         let mut stan = zablokuj(&self.okno);
-        if let Some(p) = stan.prostokat {
-            if (p.x - pozycja.x).abs() <= 2 && (p.y - pozycja.y).abs() <= 2 {
-                return;
-            }
+        let Some(p) = stan.prostokat else { return };
+        if (p.x - pozycja.x).abs() <= 2 && (p.y - pozycja.y).abs() <= 2 {
+            return;
         }
-        stan.przesuniete = Some(Instant::now());
+        let teraz = Instant::now();
+        if stan.reka_od.is_some_and(|t| t.elapsed() < RECZNE_PRZESUNIECIE) {
+            stan.reka_od = Some(teraz);
+            stan.przesuniete = Some(teraz);
+            stan.do_poprawy = None;
+        } else if okno::przeniesione_przez_system(&p, pozycja.x, pozycja.y) {
+            stan.do_poprawy = Some(teraz);
+        }
         drop(stan);
         self.obudz();
     }
 
     /// Zwraca chwilę następnego sprawdzenia, jeśli przeciąganie jeszcze trwa.
     fn zakoncz_przeciaganie(self: &Arc<Self>) -> Option<Instant> {
-        let kiedy = zablokuj(&self.okno).przesuniete?;
-        if kiedy.elapsed() < PO_PRZECIAGNIECIU {
-            return Some(kiedy + PO_PRZECIAGNIECIU);
+        let (przesuniete, do_poprawy) = {
+            let stan = zablokuj(&self.okno);
+            (stan.przesuniete, stan.do_poprawy)
+        };
+        if let Some(kiedy) = przesuniete {
+            if kiedy.elapsed() < PO_PRZECIAGNIECIU {
+                return Some(kiedy + PO_PRZECIAGNIECIU);
+            }
+            {
+                let mut stan = zablokuj(&self.okno);
+                stan.przesuniete = None;
+                stan.reka_od = None;
+            }
+            let okno = self.app.get_webview_window(OKNO)?;
+            let (Ok(pozycja), Ok(rozmiar)) = (okno.outer_position(), okno.outer_size()) else { return None };
+            let prostokat = Prostokat { x: pozycja.x, y: pozycja.y, szer: rozmiar.width, wys: rozmiar.height };
+            let kotwica = okno::kotwica_po_przeciagnieciu(&prostokat, &self.ekrany())?;
+            log::info!("nowa pozycja okna: {kotwica:?}");
+            zablokuj(&self.okno).prostokat = Some(prostokat);
+            self.wykonaj(|r, t| r.ustaw_kotwice(kotwica, t));
+            self.umiesc_okno();
+            return None;
         }
-        zablokuj(&self.okno).przesuniete = None;
-        let okno = self.app.get_webview_window(OKNO)?;
-        let (Ok(pozycja), Ok(rozmiar)) = (okno.outer_position(), okno.outer_size()) else { return None };
-        let obszar = self.obszar_roboczy()?;
-        let prostokat = Prostokat { x: pozycja.x, y: pozycja.y, szer: rozmiar.width, wys: rozmiar.height };
-        let kotwica = okno::kotwica(&prostokat, &obszar);
-        log::info!("nowa pozycja okna: {kotwica:?}");
-        zablokuj(&self.okno).prostokat = Some(prostokat);
-        self.wykonaj(|r, t| r.ustaw_kotwice(kotwica, t));
-        self.umiesc_okno();
+        if let Some(kiedy) = do_poprawy {
+            if kiedy.elapsed() < PO_PRZECIAGNIECIU {
+                return Some(kiedy + PO_PRZECIAGNIECIU);
+            }
+            {
+                let mut stan = zablokuj(&self.okno);
+                stan.do_poprawy = None;
+                stan.prostokat = None;
+            }
+            log::info!("system przesunął okno: stawiam je z powrotem przy kotwicy");
+            self.umiesc_okno();
+        }
         None
     }
 
@@ -386,8 +502,10 @@ impl Aplikacja {
     fn sprawdz_kursor(&self, sledz: bool) {
         let blisko = sledz
             && (|| {
-                let prostokat = zablokuj(&self.okno).prostokat?;
-                let skala = self.obszar_roboczy()?.skala;
+                let (prostokat, skala) = {
+                    let stan = zablokuj(&self.okno);
+                    (stan.prostokat?, stan.ekran.as_ref()?.obszar.skala)
+                };
                 let (x, y) =
                     system::kursor().or_else(|| self.app.cursor_position().ok().map(|p| (p.x as i32, p.y as i32)))?;
                 Some(okno::odleglosc(&prostokat, x, y) < BLISKO_PX * skala)
@@ -400,7 +518,10 @@ impl Aplikacja {
 
     fn sprawdz_pelny_ekran(self: &Arc<Self>) {
         let wlasne = Some(self.hwnd.load(Ordering::SeqCst)).filter(|h| *h != 0);
-        let pelny = system::pelny_ekran(wlasne);
+        // Pełny ekran liczy się tylko na monitorze widgetu (B5, B6).
+        let monitor_widgetu = zablokuj(&self.okno).ekran.as_ref().map(|e| e.pelny);
+        let stan = system::pelny_ekran(wlasne);
+        let pelny = monitor_widgetu.is_some_and(|m| system::pelny_ekran_na_monitorze(&stan, &m));
         if self.pelny_ekran.swap(pelny, Ordering::SeqCst) != pelny {
             log::info!("pełny ekran: {pelny}");
             self.wykonaj(|r, _| r.ustaw_pelny_ekran(pelny));
@@ -522,6 +643,7 @@ impl Aplikacja {
                 r.pokaz();
                 r.koniec_pracy(t);
             }),
+            zasobnik::PRZYWROC => self.przywroc_pozycje(),
             zasobnik::NAGRYWANIE => self.przelacz_ukrycie_przed_nagrywaniem(),
             zasobnik::USTAWIENIA => self.otworz_okno_ustawien(),
             zasobnik::ZAMKNIJ => self.zakoncz(),
@@ -564,6 +686,7 @@ impl Aplikacja {
             }
             zasobnik::CTX_PAUZA => self.wykonaj(|r, t| r.przelacz_pauze(t)),
             zasobnik::CTX_UKRYJ => self.wykonaj(|r, _| r.przelacz_widocznosc()),
+            zasobnik::CTX_PRZYWROC => self.przywroc_pozycje(),
             zasobnik::CTX_USTAWIENIA => self.otworz_okno_ustawien(),
             zasobnik::CTX_ZAMKNIJ => self.zakoncz(),
             _ => {}
@@ -774,6 +897,7 @@ impl Aplikacja {
 
             let chwila = Instant::now();
             if chwila >= pelny_ekran {
+                self.sprawdz_monitory();
                 self.sprawdz_pelny_ekran();
                 pelny_ekran = chwila + CO_ILE_PELNY_EKRAN;
             }

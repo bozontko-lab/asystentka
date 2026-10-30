@@ -6,37 +6,12 @@ use std::fs;
 use std::path::PathBuf;
 
 use chrono::NaiveDate;
-use serde::{Deserialize, Serialize};
 
 use crate::czas::{self, Chwila};
 use crate::dzien::DzienStan;
 use crate::dziennik::WpisSesji;
+use crate::okno::KotwicaOkna;
 use crate::pliki;
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Strona {
-    #[default]
-    Prawa,
-    Lewa,
-}
-
-/// Pozycja okna jako odległość od krawędzi obszaru roboczego monitora
-/// głównego, w pikselach logicznych. Dolna krawędź okna zostaje na miejscu,
-/// gdy okno zmienia rozmiar.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(default)]
-pub struct KotwicaOkna {
-    pub strona: Strona,
-    pub odstep_x: f64,
-    pub odstep_dol: f64,
-}
-
-impl Default for KotwicaOkna {
-    fn default() -> Self {
-        KotwicaOkna { strona: Strona::Prawa, odstep_x: 16.0, odstep_dol: 16.0 }
-    }
-}
 
 pub struct Magazyn {
     pub katalog: PathBuf,
@@ -86,7 +61,7 @@ impl Magazyn {
         pliki::zapisz_atomowo(&self.plik_dnia(), json.as_bytes()).map_err(|e| e.to_string())
     }
 
-    /// Położenie okna; w wersji 1 leżało w `stan.json`.
+    /// Położenie okna (monitor, róg i odstępy); w wersji 1 leżało w `stan.json`.
     pub fn wczytaj_okno(&self) -> KotwicaOkna {
         if let Ok(tekst) = pliki::czytaj_tekst(&self.plik_okna()) {
             if let Ok(k) = serde_json::from_str(&tekst) {
@@ -141,6 +116,7 @@ impl Magazyn {
 #[cfg(test)]
 mod testy {
     use super::*;
+    use crate::okno::{MonitorOkna, Naroznik};
 
     #[test]
     fn stan_dnia_i_okno_przezywaja_zapis_i_odczyt() {
@@ -151,7 +127,12 @@ mod testy {
         let dzien = DzienStan::nowy(NaiveDate::from_ymd_opt(2026, 10, 30).unwrap());
         m.zapisz_dzien(&dzien).unwrap();
         assert_eq!(m.wczytaj_dzien(), Some(dzien));
-        let kotwica = KotwicaOkna { strona: Strona::Lewa, odstep_x: 40.0, odstep_dol: 12.5 };
+        let kotwica = KotwicaOkna {
+            monitor: Some(MonitorOkna { nazwa: "\\\\.\\DISPLAY2".into(), x: 1920, y: 0, szer: 2560, wys: 1440 }),
+            kotwica: Naroznik::LewyGorny,
+            odstep_x: 40.0,
+            odstep_y: 12.5,
+        };
         m.zapisz_okno(&kotwica).unwrap();
         assert_eq!(m.wczytaj_okno(), kotwica);
     }
@@ -174,7 +155,9 @@ mod testy {
             r#"{"okno": {"strona": "lewa", "odstep_x": 30.0, "odstep_dol": 20.0}, "sesja": null}"#,
         )
         .unwrap();
-        assert_eq!(m.wczytaj_okno().strona, Strona::Lewa);
+        let okno = m.wczytaj_okno();
+        assert_eq!((okno.kotwica, okno.odstep_x, okno.odstep_y), (Naroznik::LewyDolny, 30.0, 20.0));
+        assert!(okno.monitor.is_none(), "w wersji 1 widget stał na monitorze głównym");
         fs::create_dir_all(katalog.path().join("dni")).unwrap();
         fs::write(
             katalog.path().join("dni").join("2026-10-30.json"),
