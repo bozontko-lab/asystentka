@@ -45,7 +45,7 @@ describe("kwestie.json a backend", () => {
   });
 
   it("używa tylko wstawek, które backend umie podać", () => {
-    const znane = new Set(["imie", "minuty", "zadanie", "czas", "szac", "czas_dnia", "pozostalo", "zadan"]);
+    const znane = new Set(["imie", "minuty", "zadanie", "czas", "szac", "czas_dnia", "pozostalo", "zadan", "skrot"]);
     for (const warianty of Object.values(kwestie)) {
       for (const wzor of warianty) {
         for (const [, nazwa] of wzor.matchAll(/\{(\w+)\}/g)) {

@@ -18,6 +18,7 @@
   "cofniete": ["Cofnięte. Wracamy do „{zadanie}”."],
   "zostalo": ["Zostało {zadan}, ok. {pozostalo}."],
   "plan_wykonany": ["Plan na dziś wykonany! Kończymy czy dokładasz coś jeszcze?"],
+  "skrot_zajety": ["Skrót {skrot} jest zajęty przez inny program. Wybierz inny w ustawieniach."],
   "nie_znaleziono": ["Nie znalazłam „{zadanie}” w pliku. Czas zapisałam w dzienniku."],
   "koniec_zachwycona": ["Wszystko zrobione i {czas_dnia} pracy! Jestem zachwycona!"],
   "koniec_zadowolona": ["{czas_dnia} pracy, szacun! Plan był chyba trochę za duży, resztę dokończymy jutro."],

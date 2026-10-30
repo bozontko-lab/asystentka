@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::czas;
 use crate::pliki;
+use crate::skrot;
 
 pub const NAZWA_PLIKU_ZADAN: &str = "Zadania.md";
 pub const NAZWA_FOLDERU_DZIENNIKA: &str = "Dziennik pracy";
@@ -46,7 +47,7 @@ impl Default for Ustawienia {
             przypomnienie_przerwy_min: 50,
             ukryj_przed_nagrywaniem: true,
             chowaj_przy_pelnym_ekranie: true,
-            skrot_pokaz_ukryj: "Ctrl+Alt+Space".into(),
+            skrot_pokaz_ukryj: skrot::DOMYSLNY.into(),
         }
     }
 }
@@ -108,8 +109,8 @@ impl Ustawienia {
         if self.przypomnienie_przerwy_min > 480 {
             bledy.push("Przypomnienie o przerwie nie może przekraczać 480 minut.".to_string());
         }
-        if self.skrot_pokaz_ukryj.trim().is_empty() {
-            bledy.push("Wpisz skrót klawiszowy, np. Ctrl+Alt+Space.".to_string());
+        if let Err(blad) = skrot::analizuj(&self.skrot_pokaz_ukryj) {
+            bledy.push(blad);
         }
         bledy
     }
@@ -195,9 +196,29 @@ pub fn wczytaj_przy_starcie(sciezka: &Path) -> Wynik {
     };
     let ma_plik_zadan = dokument.get("plik_zadan").and_then(|v| v.as_str()).is_some_and(|s| !s.trim().is_empty());
     match serde_json::from_value::<Ustawienia>(dokument) {
-        Ok(u) if ma_plik_zadan => Wynik::Wczytane(u),
-        Ok(u) => Wynik::Kreator(u),
+        Ok(mut u) => {
+            zamien_stary_skrot(sciezka, &mut u);
+            if ma_plik_zadan {
+                Wynik::Wczytane(u)
+            } else {
+                Wynik::Kreator(u)
+            }
+        }
         Err(e) => Wynik::Blad(Ustawienia::default(), format!("błąd w {}: {e}", sciezka.display())),
+    }
+}
+
+/// Stary domyślny skrót (Ctrl+Alt+Spacja) zajmuje szybkie okno aplikacji Claude,
+/// więc przy pierwszym starcie wersji 2.1 zamieniamy go w pliku na nowy (B6).
+/// Inne skróty zostają, jakie są.
+fn zamien_stary_skrot(sciezka: &Path, ustawienia: &mut Ustawienia) {
+    if !skrot::to_stary_domyslny(&ustawienia.skrot_pokaz_ukryj) {
+        return;
+    }
+    ustawienia.skrot_pokaz_ukryj = skrot::DOMYSLNY.to_string();
+    match zapisz_pole(sciezka, "skrot_pokaz_ukryj", serde_json::Value::String(skrot::DOMYSLNY.to_string())) {
+        Ok(()) => log::info!("skrót pokaż/ukryj: {} zamieniony na {}", skrot::STARY_DOMYSLNY, skrot::DOMYSLNY),
+        Err(e) => log::warn!("nie mogę zapisać nowego skrótu w {}: {e}", sciezka.display()),
     }
 }
 
@@ -430,5 +451,38 @@ mod testy {
         assert_eq!(v["godzina_konca_dnia"], "22:00");
         assert_eq!(v["autostart"], true);
         assert!(v.get("folder_planow").is_none());
+    }
+
+    #[test]
+    fn stary_domyslny_skrot_jest_zamieniany_w_pliku_przy_pierwszym_starcie() {
+        let (_k, plik) = plik_v1();
+        let Wynik::Kreator(u) = wczytaj_przy_starcie(&plik) else { panic!("powinien być kreator") };
+        assert_eq!(u.skrot_pokaz_ukryj, "Ctrl+Alt+Shift+Space");
+        let zapisany: serde_json::Value = serde_json::from_str(&fs::read_to_string(&plik).unwrap()).unwrap();
+        assert_eq!(zapisany["skrot_pokaz_ukryj"], "Ctrl+Alt+Shift+Space", "zamiana trafia do pliku");
+        assert_eq!(zapisany["imie"], "Dżiordżio", "reszta pliku zostaje");
+        assert_eq!(zapisany["folder_planow"], "G:\\Mój dysk\\Asystentka\\plany", "także stare klucze");
+    }
+
+    #[test]
+    fn wlasny_skrot_zostaje_nietkniety() {
+        let katalog = tempfile::tempdir().unwrap();
+        let plik = katalog.path().join("ustawienia.json");
+        fs::write(&plik, r#"{"imie": "Ola", "plik_zadan": "/v/Zadania.md", "skrot_pokaz_ukryj": "Ctrl+Shift+F9"}"#)
+            .unwrap();
+        let Wynik::Wczytane(u) = wczytaj_przy_starcie(&plik) else { panic!("powinny być wczytane") };
+        assert_eq!(u.skrot_pokaz_ukryj, "Ctrl+Shift+F9");
+        assert!(fs::read_to_string(&plik).unwrap().contains("Ctrl+Shift+F9"));
+    }
+
+    #[test]
+    fn nowy_domyslny_skrot_i_walidacja_skrotu() {
+        assert_eq!(Ustawienia::default().skrot_pokaz_ukryj, "Ctrl+Alt+Shift+Space");
+        let dobre = Ustawienia { imie: "Ola".into(), plik_zadan: "/v/Zadania.md".into(), ..Ustawienia::default() };
+        assert!(dobre.waliduj().is_empty(), "{:?}", dobre.waliduj());
+        let altgr = Ustawienia { skrot_pokaz_ukryj: "Ctrl+Alt+A".into(), ..dobre.clone() };
+        assert!(altgr.waliduj().iter().any(|b| b.contains("AltGr")));
+        let pusty = Ustawienia { skrot_pokaz_ukryj: "  ".into(), ..dobre };
+        assert_eq!(pusty.waliduj().len(), 1);
     }
 }

@@ -16,6 +16,7 @@ use crate::magazyn::Magazyn;
 use crate::okno::{KotwicaOkna, Naroznik, Pion, Strona};
 use crate::plik_zadan::{self, BladZmiany, Klucz, PlikZadan, Zadanie};
 use crate::sesja::{PowodPauzy, Sesja, ZadanieSesji};
+use crate::skrot;
 use crate::ustawienia::Ustawienia;
 
 /// Jak długo trwa powitanie, zanim postać przejdzie dalej.
@@ -284,6 +285,8 @@ pub struct Rdzen {
     /// Kiedy ponowić zapis w pliku zadań, który się nie udał, i które to już ponowienie.
     zapis_ponow: Option<Chwila>,
     proby_zapisu: usize,
+    /// Skrót pokaż/ukryj nie zarejestrował się: dymek o tym czeka na swoją chwilę (raz).
+    skrot_zajety: Option<(String, Chwila)>,
 }
 
 impl Rdzen {
@@ -310,6 +313,7 @@ impl Rdzen {
             wczoraj: None,
             zapis_ponow: None,
             proby_zapisu: 0,
+            skrot_zajety: None,
         }
     }
 
@@ -404,6 +408,9 @@ impl Rdzen {
         if let Some(t) = self.zapis_ponow {
             wez(t);
         }
+        if let (Some((_, t)), true) = (&self.skrot_zajety, self.mozna_mowic_o_skrocie()) {
+            wez(*t);
+        }
         let co = self.ust.przypomnienie_przerwy_min;
         if let (Some(s), Stan::Praca, true) = (&self.dz.sesja, self.stan(), co > 0) {
             if let Some(od) = s.otwarty_od() {
@@ -437,6 +444,27 @@ impl Rdzen {
             self.brudny = true;
         }
         zmiana
+    }
+
+    /// Rejestracja skrótu pokaż/ukryj się nie udała (zajmuje go inny program). Widget
+    /// działa dalej bez skrótu i raz mówi o tym w dymku `skrot_zajety` (B6, B7),
+    /// nie wcześniej niż `najwczesniej`, żeby nie zagłuszyć powitania.
+    pub fn skrot_zajety(&mut self, skrot: &str, najwczesniej: Chwila) {
+        self.skrot_zajety = Some((skrot.to_string(), najwczesniej));
+    }
+
+    /// Dymek o skrócie nie przerywa kreatora ani powitania.
+    fn mozna_mowic_o_skrocie(&self) -> bool {
+        !self.kreator && !matches!(self.faza, Faza::Konfiguracja | Faza::Powitanie { .. })
+    }
+
+    fn dymek_o_zajetym_skrocie(&mut self, teraz: Chwila) {
+        let Some((skrot, od)) = self.skrot_zajety.clone() else { return };
+        if teraz < od || !self.mozna_mowic_o_skrocie() {
+            return;
+        }
+        self.skrot_zajety = None;
+        self.dymek("skrot_zajety", &[("skrot", skrot::dla_czlowieka(&skrot))]);
     }
 
     /// Obserwacja pliku zadań działa, więc nie trzeba go odpytywać.
@@ -511,6 +539,10 @@ impl Rdzen {
         self.wybor = self.domyslny_wybor();
         self.wybor_przekroczony = self.przekroczony();
         self.dymek("konfiguracja_gotowe", &[]);
+        if let Some((_, od)) = self.skrot_zajety.as_mut() {
+            // Najpierw „Gotowe!”, dopiero potem uwaga o skrócie.
+            *od = (*od).max(teraz + Duration::seconds(8));
+        }
         self.brudny = true;
         self.zapisz_stan(teraz);
     }
@@ -582,6 +614,7 @@ impl Rdzen {
             self.koniec_pracy(teraz);
         }
         self.przypomnienie_o_przerwie(teraz);
+        self.dymek_o_zajetym_skrocie(teraz);
         if self.zapis_ponow.is_some_and(|t| teraz >= t) {
             self.zastosuj_edycje(teraz);
             self.zapisz_stan(teraz);
@@ -2864,5 +2897,59 @@ mod testy {
         assert!(!r.migawka().gratulacje.unwrap().mozna_cofnac, "po 10 s Cofnij znika, zostają przyciski końca");
         r.cofnij(t("10:11:11"));
         assert_eq!(r.stan(), Stan::Gratulacje);
+    }
+
+    // ---- zajęty skrót (2.1) -------------------------------------------------------------------
+
+    #[test]
+    fn zajety_skrot_daje_jeden_dymek_po_powitaniu_i_nastepnym_dymku() {
+        let sr = Srodowisko::nowe();
+        let mut r = sr.rdzen(t("09:00:00"));
+        assert_eq!(r.stan(), Stan::Powitanie);
+        r.skrot_zajety("Ctrl+Alt+Shift+Space", t("09:00:13"));
+        r.wez_zdarzenia();
+        r.tick(t("09:00:06"));
+        r.tick(t("09:00:12"));
+        assert!(
+            !dymki(&mut r).contains(&"skrot_zajety".to_string()),
+            "nie zagłusza powitania ani „Co bierzemy na dziś?”"
+        );
+        assert_eq!(r.najblizszy_termin(t("09:00:12")), t("09:00:13"));
+        r.tick(t("09:00:13"));
+        let zd = r.wez_zdarzenia();
+        assert_eq!(wstawki(&zd, "skrot_zajety")["skrot"], "Ctrl+Alt+Shift+Spacja");
+        r.tick(t("09:00:20"));
+        assert!(dymki(&mut r).is_empty(), "dymek tylko raz");
+        assert!(r.najblizszy_termin(t("09:00:20")) > t("09:00:30"), "nic już nie budzi wątku");
+    }
+
+    #[test]
+    fn zajety_skrot_czeka_na_koniec_powitania_i_kreatora() {
+        let sr = Srodowisko::nowe();
+        let mut r = Rdzen::nowy(Magazyn::new(sr.lokalny.clone()), Ustawienia::default(), t("09:00:00"));
+        r.wymus_kreator();
+        r.start(t("09:00:00"));
+        r.skrot_zajety("Ctrl+Alt+Shift+Space", t("09:00:13"));
+        r.wez_zdarzenia();
+        r.tick(t("09:05:00"));
+        assert!(dymki(&mut r).is_empty(), "w kreatorze dymek o skrócie nie przeszkadza");
+        r.zakoncz_kreator(sr.ustawienia(), t("09:06:00"));
+        assert_eq!(dymki(&mut r), vec!["konfiguracja_gotowe"]);
+        r.tick(t("09:06:05"));
+        assert!(dymki(&mut r).is_empty(), "najpierw „Gotowe!”");
+        r.tick(t("09:06:08"));
+        assert_eq!(dymki(&mut r), vec!["skrot_zajety"]);
+    }
+
+    #[test]
+    fn zmiana_skrotu_w_ustawieniach_mowi_o_konflikcie_od_razu() {
+        let sr = Srodowisko::nowe();
+        let mut r = sr.rdzen(t("09:00:00"));
+        r.tick(t("09:00:06"));
+        r.tick(t("09:00:12"));
+        r.wez_zdarzenia();
+        r.skrot_zajety("Ctrl+Shift+F9", t("11:00:00"));
+        r.tick(t("11:00:00"));
+        assert_eq!(wstawki(&r.wez_zdarzenia(), "skrot_zajety")["skrot"], "Ctrl+Shift+F9");
     }
 }

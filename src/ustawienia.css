@@ -85,3 +85,33 @@ body {
   padding: 6px 10px;
   white-space: nowrap;
 }
+
+/* Pole skrótu: nagrywa naciśniętą kombinację (B6). */
+.pole-skrotu {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 7px 9px;
+  border: 1.5px solid rgba(185, 166, 255, 0.45);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--tekst);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+
+.pole-skrotu:focus-visible,
+.pole-skrotu.nagrywa {
+  outline: none;
+  border-color: var(--cyjan);
+  background: rgba(46, 219, 232, 0.08);
+}
+
+.pole-skrotu[aria-invalid="true"] {
+  border-color: var(--brzoskwinia);
+}
+
+.blad-skrotu {
+  color: var(--brzoskwinia);
+}

@@ -5,6 +5,7 @@ mod aplikacja;
 mod komendy;
 mod obsidian;
 mod okno;
+mod skrot;
 mod system;
 mod zasobnik;
 
@@ -100,6 +101,8 @@ pub fn run() {
             komendy::ustawienia_pobierz,
             komendy::ustawienia_zapisz,
             komendy::otworz_ustawienia,
+            komendy::skrot_sprawdz,
+            komendy::skrot_wstrzymaj,
             komendy::plik_istnieje,
             komendy::ustaw_fokus,
             komendy::wybierz_plik,

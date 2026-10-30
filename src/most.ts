@@ -51,6 +51,10 @@ export interface Most {
   wybierzFolder(start?: string, tytul?: string): Promise<string | null>;
   /** Okno widgetu nie przejmuje fokusu; pola tekstowe włączają go na czas wpisywania. */
   fokus(wlacz: boolean): Promise<void>;
+  /** Pole skrótu w ustawieniach: czy kombinacja jest dozwolona i wolna. Zwraca zapis kanoniczny albo odrzuca komunikatem. */
+  skrotSprawdz(skrot: string): Promise<string>;
+  /** Pole skrótu nagrywa kombinację (`true`) albo skończyło (`false`): własny skrót widgetu na ten czas nie działa. */
+  skrotWstrzymaj(wstrzymaj: boolean): Promise<void>;
   ustawieniaPobierz(): Promise<Ustawienia>;
   ustawieniaZapisz(ustawienia: Ustawienia): Promise<void>;
   otworzUstawienia(): Promise<void>;
@@ -86,6 +90,8 @@ export function mostTauri(): Most {
     wybierzPlik: (start) => invoke<string | null>("wybierz_plik", { start }),
     wybierzFolder: (start, tytul) => invoke<string | null>("wybierz_folder", { start, tytul }),
     fokus: (wlacz) => invoke("ustaw_fokus", { wlacz }),
+    skrotSprawdz: (skrot) => invoke<string>("skrot_sprawdz", { skrot }),
+    skrotWstrzymaj: (wstrzymaj) => invoke("skrot_wstrzymaj", { wstrzymaj }),
     ustawieniaPobierz: () => invoke<Ustawienia>("ustawienia_pobierz"),
     ustawieniaZapisz: (ustawienia) => invoke("ustawienia_zapisz", { ustawienia }),
     otworzUstawienia: () => invoke("otworz_ustawienia"),

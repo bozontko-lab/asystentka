@@ -8,6 +8,7 @@ import { el } from "./dom";
 import { godzinyNaMinuty, minutyNaGodziny } from "./kreator";
 import { type Most, mostTauri, wTauri } from "./most";
 import { mostPodglad } from "./podglad";
+import { PoleSkrotu } from "./skrot";
 import type { Ustawienia } from "./typy";
 
 const most: Most = wTauri() ? mostTauri() : mostPodglad();
@@ -113,7 +114,7 @@ async function start(): Promise<void> {
     "Gry i filmy na pełnym ekranie chowają widget; licznik liczy dalej.",
     u.chowaj_przy_pelnym_ekranie,
   );
-  const skrot = tekst("skrot", u.skrot_pokaz_ukryj);
+  const poleSkrotu = new PoleSkrotu(most, u.skrot_pokaz_ukryj);
 
   const blad = el("div", { class: "blad-formularza", role: "alert", hidden: true });
   const zapisz = el("button", { class: "przycisk glowny", type: "button" }, "Zapisz");
@@ -134,7 +135,7 @@ async function start(): Promise<void> {
       przypomnienie_przerwy_min: Number.parseInt(przerwa.value || "0", 10),
       ukryj_przed_nagrywaniem: nagrywanie.checked,
       chowaj_przy_pelnym_ekranie: pelnyEkran.checked,
-      skrot_pokaz_ukryj: skrot.value.trim(),
+      skrot_pokaz_ukryj: poleSkrotu.skrot,
     };
   };
 
@@ -177,7 +178,7 @@ async function start(): Promise<void> {
     poleAutostartu,
     poleNagrywania,
     polePelnegoEkranu,
-    pole("skrot", "Skrót pokazujący i chowający widget", skrot, "Np. Ctrl+Alt+Space."),
+    poleSkrotu.korzen,
     blad,
     el("div", { class: "przyciski" }, anuluj, zapisz),
   );

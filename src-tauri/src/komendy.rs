@@ -158,6 +158,20 @@ pub async fn otworz_ustawienia(apl: Apl<'_>) -> Result<(), String> {
 }
 
 /// Czy pod tą ścieżką jest plik; kreator odróżnia nowy plik od istniejącego.
+/// Pole skrótu w ustawieniach: czy ta kombinacja jest dozwolona i wolna.
+/// Zwraca zapis kanoniczny albo komunikat dla użytkownika.
+#[tauri::command]
+pub async fn skrot_sprawdz(apl: Apl<'_>, skrot: String) -> Result<String, String> {
+    apl.inner().sprawdz_skrot(&skrot)
+}
+
+/// Pole skrótu zaczyna (`true`) i kończy (`false`) nagrywanie kombinacji.
+#[tauri::command]
+pub async fn skrot_wstrzymaj(apl: Apl<'_>, wstrzymaj: bool) -> Result<(), String> {
+    apl.inner().skrot_wstrzymaj(wstrzymaj);
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn plik_istnieje(sciezka: String) -> Result<bool, String> {
     Ok(!sciezka.trim().is_empty() && std::path::Path::new(sciezka.trim()).is_file())

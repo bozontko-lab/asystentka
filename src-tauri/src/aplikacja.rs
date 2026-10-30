@@ -24,6 +24,7 @@ use crate::obsidian;
 use crate::okno::{self, Ekran, Obszar, Prostokat};
 use crate::rdzen::{Migawka, Rdzen, Stan, Zdarzenie};
 use crate::sesja::PowodPauzy;
+use crate::skrot;
 use crate::system::{self, ZdarzenieSystemowe};
 use crate::ustawienia::{self, PodpowiedzKreatora, Ustawienia};
 use crate::zasobnik::{self, StanMenu, Zasobnik};
@@ -42,6 +43,8 @@ const ODSTEP_PO_ZAPISIE: Duration = Duration::from_millis(300);
 const GLITCH_WYJSCIA: Duration = Duration::from_millis(420);
 /// Odległość kursora, przy której postać patrzy na Ciebie (piksele logiczne).
 const BLISKO_PX: f64 = 300.0;
+/// Po starcie dymek o zajętym skrócie czeka, aż skończy się powitanie i następny dymek.
+const SKROT_ZAJETY_PO_STARCIE_S: i64 = 13;
 
 #[derive(Default)]
 struct StanOkna {
@@ -70,7 +73,12 @@ pub struct Aplikacja {
     hwnd: AtomicIsize,
     zasobnik: OnceLock<Zasobnik>,
     ostatnia_migawka: Mutex<String>,
+    /// Skrót zarejestrowany w systemie w tej chwili.
     skrot: Mutex<Option<String>>,
+    /// Skrót z ustawień, który widget chce mieć zarejestrowany.
+    skrot_docelowy: Mutex<String>,
+    /// Pole skrótu w ustawieniach nagrywa kombinację: nasz skrót nie może jej przechwycić.
+    skrot_wstrzymany: AtomicBool,
     ustawienia_zmienione: Mutex<Option<SystemTime>>,
     pelny_ekran: AtomicBool,
     kursor_blisko: AtomicBool,
@@ -136,6 +144,8 @@ pub fn uruchom(app: &mut tauri::App) -> Result<(), Box<dyn Error>> {
         zasobnik: OnceLock::new(),
         ostatnia_migawka: Mutex::new(String::new()),
         skrot: Mutex::new(None),
+        skrot_docelowy: Mutex::new(String::new()),
+        skrot_wstrzymany: AtomicBool::new(false),
         ustawienia_zmienione: Mutex::new(fs::metadata(&sciezka_ustawien).and_then(|m| m.modified()).ok()),
         pelny_ekran: AtomicBool::new(false),
         kursor_blisko: AtomicBool::new(false),
@@ -166,7 +176,10 @@ pub fn uruchom(app: &mut tauri::App) -> Result<(), Box<dyn Error>> {
     )?;
     let _ = apl.zasobnik.set(zasobnik);
 
-    apl.zarejestruj_skrot(&ust.skrot_pokaz_ukryj);
+    if !apl.zarejestruj_skrot(&ust.skrot_pokaz_ukryj) {
+        let po = teraz + chrono::Duration::seconds(SKROT_ZAJETY_PO_STARCIE_S);
+        zablokuj(&apl.rdzen).skrot_zajety(&ust.skrot_pokaz_ukryj, po);
+    }
     apl.uruchom_obserwatora();
     wlacz_autostart(&handle, ust.autostart);
 
@@ -543,8 +556,14 @@ impl Aplikacja {
         match ustawienia::wczytaj(&sciezka) {
             Ok(nowe) => {
                 log::info!("wczytano zmienione ustawienia");
-                self.zarejestruj_skrot(&nowe.skrot_pokaz_ukryj);
-                self.wykonaj(|r, t| r.zmien_ustawienia(nowe, t));
+                let skrot_dziala = self.zarejestruj_skrot(&nowe.skrot_pokaz_ukryj);
+                let skrot_tekst = nowe.skrot_pokaz_ukryj.clone();
+                self.wykonaj(|r, t| {
+                    r.zmien_ustawienia(nowe, t);
+                    if !skrot_dziala {
+                        r.skrot_zajety(&skrot_tekst, t);
+                    }
+                });
                 self.uruchom_obserwatora();
             }
             Err(e) => {
@@ -606,21 +625,73 @@ impl Aplikacja {
         zablokuj(&self.rdzen).ustaw_obserwacje_pliku(dziala);
     }
 
-    fn zarejestruj_skrot(&self, skrot: &str) {
+    /// Rejestruje skrót pokazujący i chowający widget. `false`, gdy się nie udało
+    /// (zajmuje go inny program): widget działa dalej bez skrótu i raz o tym mówi (B6).
+    fn zarejestruj_skrot(&self, skrot: &str) -> bool {
+        *zablokuj(&self.skrot_docelowy) = skrot.trim().to_string();
+        self.zastosuj_skrot()
+    }
+
+    /// Doprowadza rejestrację w systemie do tego, czego chcą ustawienia, chyba że
+    /// pole skrótu właśnie nagrywa kombinację.
+    fn zastosuj_skrot(&self) -> bool {
+        let docelowy = zablokuj(&self.skrot_docelowy).clone();
+        let chce = !docelowy.is_empty() && !self.skrot_wstrzymany.load(Ordering::SeqCst);
         let mut obecny = zablokuj(&self.skrot);
-        if obecny.as_deref() == Some(skrot) {
-            return;
+        if chce && obecny.as_deref() == Some(docelowy.as_str()) {
+            return true;
         }
         let skroty = self.app.global_shortcut();
         if let Some(stary) = obecny.take() {
             let _ = skroty.unregister(stary.as_str());
         }
-        match skroty.register(skrot) {
+        if !chce {
+            return true;
+        }
+        match skroty.register(docelowy.as_str()) {
             Ok(()) => {
-                log::info!("skrót pokaż/ukryj: {skrot}");
-                *obecny = Some(skrot.to_string());
+                log::info!("skrót pokaż/ukryj: {docelowy}");
+                *obecny = Some(docelowy);
+                true
             }
-            Err(e) => log::warn!("nie mogę zarejestrować skrótu {skrot}: {e}"),
+            Err(e) => {
+                log::warn!("nie mogę zarejestrować skrótu {docelowy}: {e}");
+                false
+            }
+        }
+    }
+
+    /// Pole skrótu w ustawieniach nagrywa kombinację: na ten czas zwalniamy własny
+    /// skrót, bo inaczej system oddałby naciśnięcie nam, a nie polu.
+    pub fn skrot_wstrzymaj(&self, wstrzymaj: bool) {
+        self.skrot_wstrzymany.store(wstrzymaj, Ordering::SeqCst);
+        self.zastosuj_skrot();
+    }
+
+    /// Sprawdza kombinację z pola w ustawieniach: reguły (Ctrl+Alt z literą to AltGr)
+    /// i to, czy da się ją zarejestrować. Zwraca zapis kanoniczny.
+    pub fn sprawdz_skrot(&self, tekst: &str) -> Result<String, String> {
+        let analiza = skrot::analizuj(tekst)?;
+        let docelowy = zablokuj(&self.skrot_docelowy).clone();
+        let juz_nasz = !self.skrot_wstrzymany.load(Ordering::SeqCst)
+            && skrot::analizuj(&docelowy).is_ok_and(|d| d.tekst == analiza.tekst)
+            && zablokuj(&self.skrot).is_some();
+        if juz_nasz {
+            return Ok(analiza.tekst);
+        }
+        let skroty = self.app.global_shortcut();
+        match skroty.register(analiza.skrot) {
+            Ok(()) => {
+                let _ = skroty.unregister(analiza.skrot);
+                Ok(analiza.tekst)
+            }
+            Err(e) => {
+                log::info!("skrót {} jest zajęty: {e}", analiza.tekst);
+                Err(format!(
+                    "Skrót {} jest zajęty przez inny program. Wybierz inny.",
+                    skrot::dla_czlowieka(&analiza.tekst)
+                ))
+            }
         }
     }
 
@@ -726,15 +797,16 @@ impl Aplikacja {
 
     /// Sprawdza, zapisuje i stosuje ustawienia poza rdzeniem: skrót globalny
     /// i autostart. Przy `utworz_plik` tworzy plik zadań z szablonu (nigdy
-    /// nie nadpisuje istniejącego). Zwraca pierwszy błąd w formie komunikatu.
-    fn zapisz_i_zastosuj(&self, nowe: &Ustawienia, utworz_plik: bool) -> Result<(), String> {
+    /// nie nadpisuje istniejącego). Zwraca pierwszy błąd w formie komunikatu;
+    /// w `Ok` jest informacja, czy skrót udało się zarejestrować (zajęty skrót
+    /// nie blokuje zapisu, widget mówi o nim w dymku). Skrót trafia do pliku
+    /// w zapisie kanonicznym.
+    fn zapisz_i_zastosuj(&self, nowe: &mut Ustawienia, utworz_plik: bool) -> Result<bool, String> {
         let bledy = nowe.waliduj();
         if !bledy.is_empty() {
             return Err(bledy.join("\n"));
         }
-        if nowe.skrot_pokaz_ukryj.parse::<tauri_plugin_global_shortcut::Shortcut>().is_err() {
-            return Err(format!("Nie rozumiem skrótu „{}”. Przykład: Ctrl+Alt+Space.", nowe.skrot_pokaz_ukryj));
-        }
+        nowe.skrot_pokaz_ukryj = skrot::analizuj(&nowe.skrot_pokaz_ukryj)?.tekst;
         let plik = nowe.plik_zadan().ok_or("Wskaż plik zadań.")?;
         if utworz_plik {
             obsidian::utworz_plik_zadan(&plik, czas::dzien(czas::teraz())).map_err(|e| match e.kind() {
@@ -755,23 +827,35 @@ impl Aplikacja {
         let sciezka = zablokuj(&self.rdzen).ustawienia_sciezka();
         ustawienia::zapisz(&sciezka, nowe)?;
         *zablokuj(&self.ustawienia_zmienione) = fs::metadata(&sciezka).and_then(|m| m.modified()).ok();
-        self.zarejestruj_skrot(&nowe.skrot_pokaz_ukryj);
+        let skrot_dziala = self.zarejestruj_skrot(&nowe.skrot_pokaz_ukryj);
         wlacz_autostart(&self.app, nowe.autostart);
-        Ok(())
+        Ok(skrot_dziala)
     }
 
     /// Okienko ustawień: zmiany działają od razu, bez restartu.
-    pub fn zapisz_ustawienia(self: &Arc<Self>, nowe: Ustawienia) -> Result<(), String> {
-        self.zapisz_i_zastosuj(&nowe, false)?;
-        self.wykonaj(|r, t| r.zmien_ustawienia(nowe, t));
+    pub fn zapisz_ustawienia(self: &Arc<Self>, mut nowe: Ustawienia) -> Result<(), String> {
+        let skrot_dziala = self.zapisz_i_zastosuj(&mut nowe, false)?;
+        let skrot_tekst = nowe.skrot_pokaz_ukryj.clone();
+        self.wykonaj(|r, t| {
+            r.zmien_ustawienia(nowe, t);
+            if !skrot_dziala {
+                r.skrot_zajety(&skrot_tekst, t);
+            }
+        });
         self.uruchom_obserwatora();
         Ok(())
     }
 
-    pub fn zakoncz_kreator(self: &Arc<Self>, nowe: Ustawienia, utworz_plik: bool) -> Result<(), String> {
-        self.zapisz_i_zastosuj(&nowe, utworz_plik)?;
+    pub fn zakoncz_kreator(self: &Arc<Self>, mut nowe: Ustawienia, utworz_plik: bool) -> Result<(), String> {
+        let skrot_dziala = self.zapisz_i_zastosuj(&mut nowe, utworz_plik)?;
         let plik = nowe.plik_zadan();
-        self.wykonaj(|r, t| r.zakoncz_kreator(nowe, t));
+        let skrot_tekst = nowe.skrot_pokaz_ukryj.clone();
+        self.wykonaj(|r, t| {
+            r.zakoncz_kreator(nowe, t);
+            if !skrot_dziala {
+                r.skrot_zajety(&skrot_tekst, t);
+            }
+        });
         self.uruchom_obserwatora();
         if let (true, Some(plik)) = (utworz_plik, plik) {
             self.otworz_plik(&plik);

@@ -36,7 +36,6 @@ const wspolne = {
   przypomnienie_przerwy_min: 50,
   ukryj_przed_nagrywaniem: true,
   chowaj_przy_pelnym_ekranie: true,
-  skrot_pokaz_ukryj: "Ctrl+Alt+Space",
 };
 
 if (argumenty.has("--kreator")) {
@@ -46,12 +45,21 @@ if (argumenty.has("--kreator")) {
     ? // Plik ustawień z wersji 1: bez plik_zadan, więc otwiera się kreator wypełniony tymi danymi.
       {
         ...wspolne,
+        // Stary domyślny skrót: widget zamienia go na nowy przy pierwszym starcie wersji 2.1.
+        skrot_pokaz_ukryj: "Ctrl+Alt+Space",
         folder_planow: join(katalog, "Dysk", "Asystentka", "plany"),
         plik_stanu: join(katalog, "Dysk", "Asystentka", "stan-zadan.json"),
         folder_dziennika: dziennik,
         godzina_planu: "07:40",
       }
-    : { ...wspolne, plik_zadan: plikZadan, folder_dziennika: dziennik, cel_dzienny_min: 240, autostart: false };
+    : {
+        ...wspolne,
+        skrot_pokaz_ukryj: "Ctrl+Alt+Shift+Space",
+        plik_zadan: plikZadan,
+        folder_dziennika: dziennik,
+        cel_dzienny_min: 240,
+        autostart: false,
+      };
   writeFileSync(ustawienia, `${JSON.stringify(wartosci, null, 2)}\n`);
 }
 

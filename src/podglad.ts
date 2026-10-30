@@ -20,7 +20,7 @@ export const PODPOWIEDZ: PodpowiedzKreatora = {
     przypomnienie_przerwy_min: 50,
     ukryj_przed_nagrywaniem: true,
     chowaj_przy_pelnym_ekranie: true,
-    skrot_pokaz_ukryj: "Ctrl+Alt+Space",
+    skrot_pokaz_ukryj: "Ctrl+Alt+Shift+Space",
   } satisfies Ustawienia,
   plik_istnieje: false,
   vaulty: ["D:\\Second Brain", "D:\\Notatki"],
@@ -187,6 +187,14 @@ export function mostPodglad(): Most {
     wybierzPlik: async () => "D:\\Second Brain\\Zadania.md",
     wybierzFolder: async () => "D:\\Second Brain",
     fokus: async () => undefined,
+    skrotSprawdz: async (skrot) => {
+      // Jak w backendzie: Ctrl+Alt z literą to AltGr.
+      if (/^Ctrl\+Alt(\+Shift)?\+[A-Z]$/.test(skrot)) {
+        throw "Ctrl+Alt z literą to na polskiej klawiaturze AltGr: taki skrót zablokowałby pisanie ą, ć, ę, ł, ń, ó, ś, ź i ż.";
+      }
+      return skrot;
+    },
+    skrotWstrzymaj: async () => undefined,
     ustawieniaPobierz: async () => PODPOWIEDZ.ustawienia,
     ustawieniaZapisz: async (ustawienia) => console.info("zapisano", ustawienia),
     otworzUstawienia: async () => undefined,
