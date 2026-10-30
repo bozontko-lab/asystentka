@@ -70,6 +70,8 @@ export interface Gratulacje {
   szac_min: number | null;
   czas_dnia_min: number;
   plan_wykonany: boolean;
+  /** Przez pierwsze 10 s dymek ma przycisk Cofnij (B5). */
+  mozna_cofnac: boolean;
 }
 
 export type Reakcja = "zachwycona" | "zadowolona" | "dumna" | "lekko_pochwalajaca" | "czula" | "zmartwiona";

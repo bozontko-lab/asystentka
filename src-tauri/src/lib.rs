@@ -82,6 +82,8 @@ pub fn run() {
             komendy::zrobione,
             komendy::przerwij,
             komendy::odpowiedz_jestes,
+            komendy::cofnij,
+            komendy::dalej_po_gratulacjach,
             komendy::wroc_do_listy,
             komendy::przelacz_wybor,
             komendy::zatwierdz_wybor,

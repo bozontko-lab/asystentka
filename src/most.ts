@@ -13,6 +13,8 @@ export type Akcja =
   | "wznow"
   | "zrobione"
   | "przerwij"
+  | "cofnij"
+  | "dalej_po_gratulacjach"
   | "wroc_do_listy"
   | "zatwierdz_wybor"
   | "anuluj_wybor"

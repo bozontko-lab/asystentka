@@ -980,3 +980,25 @@ body.tryb-podgladu #scena {
 .panel-gratulacje .przycisk {
   white-space: nowrap;
 }
+
+/* Przycisk Cofnij w dymku gratulacji (B4, B5). */
+.dymek-przycisk {
+  display: block;
+  margin: 6px 0 0 auto;
+  padding: 3px 10px;
+  border: 1.5px solid var(--lawenda);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--granat);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.dymek-przycisk:hover {
+  background: var(--lawenda);
+}
+.dymek-przycisk:focus-visible {
+  outline: 2px solid var(--granat);
+  outline-offset: 1px;
+}

@@ -5,7 +5,7 @@ import "./formularz.css";
 import "./style.css";
 
 import { Dodawanie } from "./dodawanie";
-import { Dymek, kwestia } from "./dymki";
+import { CZAS_DYMKU_COFNIJ_MS, Dymek, kwestia } from "./dymki";
 import { KONFETTI_DLUGIE_MS, KONFETTI_MS, konfetti } from "./efekty";
 import { type Geometria, Grafiki } from "./grafiki";
 import { Kreator } from "./kreator";
@@ -183,6 +183,8 @@ async function start(): Promise<void> {
         if (lista) lista.scrollTop = przewiniecie;
       }
     }
+    // Cofnij działa przez 10 s po Zrobione; gdy backend już nie pozwala, przycisk znika.
+    if (!m.gratulacje?.mozna_cofnac) dymek.usunPrzycisk();
     ustawFokus(m.stan === "konfiguracja" || dodawanie !== null);
     aktualizuj(miejscePanelu, m, Date.now());
     postac.ustaw(m);
@@ -196,7 +198,17 @@ async function start(): Promise<void> {
   const obsluzZdarzenie = (z: Zdarzenie) => {
     if (z.rodzaj === "dymek") {
       const tekst = kwestia(z.klucz, z.wstawki);
-      if (tekst && widoczna) dymek.pokaz(tekst);
+      if (!tekst || !widoczna) return;
+      if (z.klucz === "zrobione" && migawka?.gratulacje?.mozna_cofnac) {
+        // Dymek gratulacji: przez 10 s przycisk Cofnij; kliknięcie w dymek idzie do Listy (B4, B5).
+        dymek.pokaz(tekst, {
+          czasMs: CZAS_DYMKU_COFNIJ_MS,
+          przycisk: { etykieta: "Cofnij", poKliknieciu: () => most.akcja("cofnij").catch(blad) },
+          poKliknieciu: () => most.akcja("dalej_po_gratulacjach").catch(blad),
+        });
+      } else {
+        dymek.pokaz(tekst);
+      }
       return;
     }
     switch (z.nazwa) {

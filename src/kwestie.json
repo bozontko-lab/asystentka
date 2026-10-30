@@ -15,6 +15,7 @@
   "jestes": ["Halo? Przerwa czy praca?"],
   "przypomnienie_przerwy": ["{minuty} za nami. Może chwila przerwy?"],
   "zrobione": ["Brawo! {zadanie}: {czas} (szac. {szac}). Dziś razem {czas_dnia}.", "Mamy to! {zadanie} w {czas}. Dziś już {czas_dnia}."],
+  "cofniete": ["Cofnięte. Wracamy do „{zadanie}”."],
   "zostalo": ["Zostało {zadan}, ok. {pozostalo}."],
   "plan_wykonany": ["Plan na dziś wykonany! Kończymy czy dokładasz coś jeszcze?"],
   "nie_znaleziono": ["Nie znalazłam „{zadanie}” w pliku. Czas zapisałam w dzienniku."],

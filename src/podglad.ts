@@ -91,6 +91,7 @@ function przyklad(stan: NazwaStanu, strona: "prawa" | "lewa", pion: "dol" | "gor
             szac_min: 60,
             czas_dnia_min: 132,
             plan_wykonany: parametry.get("plan") === "wykonany",
+            mozna_cofnac: parametry.get("cofnij") !== "nie",
           }
         : null,
     koniec:

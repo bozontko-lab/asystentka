@@ -68,6 +68,20 @@ pub async fn przerwij(apl: Apl<'_>) -> Result<(), String> {
     Ok(())
 }
 
+/// Cofnij w dymku gratulacji: zdejmuje ptaszka i wraca do pracy nad tym samym zadaniem.
+#[tauri::command]
+pub async fn cofnij(apl: Apl<'_>) -> Result<(), String> {
+    apl.inner().wykonaj(|r, t| r.cofnij(t));
+    Ok(())
+}
+
+/// Kliknięcie w dymek gratulacji: dalej, bez czekania na koniec 10 s.
+#[tauri::command]
+pub async fn dalej_po_gratulacjach(apl: Apl<'_>) -> Result<(), String> {
+    apl.inner().wykonaj(|r, _| r.dalej_po_gratulacjach());
+    Ok(())
+}
+
 /// Odpowiedź na „Jesteś?”: `przerwa = true` odejmuje czas bezczynności.
 #[tauri::command]
 pub async fn odpowiedz_jestes(apl: Apl<'_>, przerwa: bool) -> Result<(), String> {

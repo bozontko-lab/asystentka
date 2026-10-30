@@ -20,8 +20,12 @@ use crate::ustawienia::Ustawienia;
 
 /// Jak długo trwa powitanie, zanim postać przejdzie dalej.
 const POWITANIE_S: i64 = 6;
-/// Gratulacje wracają do listy „po 4 s” (diagram stanów w SPEC.md).
-const GRATULACJE_S: i64 = 4;
+/// Gratulacje wracają do listy po 10 s albo po kliknięciu w dymek; tyle też
+/// działa Cofnij (B4, B5).
+const GRATULACJE_S: i64 = 10;
+/// Zapis do pliku zadań, który się nie udał (plik chwilowo zajęty), ponawiamy po
+/// kilku sekundach, a nie dopiero w cyklu co 30 s: ptaszek ma pojawić się od razu (B5).
+const PONOWIENIA_ZAPISU_S: [i64; 6] = [1, 1, 2, 3, 5, 10];
 /// Krótszej sesji przerwanej przez „Przerwij” nie zapisujemy.
 const MIN_SESJA_S: i64 = 60;
 /// Wybór zadań liczy co najmniej tyle minut na zadanie (B4).
@@ -70,6 +74,9 @@ pub struct GratulacjeInfo {
     pub szac_min: Option<u32>,
     pub czas_dnia_min: u32,
     pub plan_wykonany: bool,
+    /// Przez pierwsze 10 s dymek ma przycisk Cofnij.
+    #[serde(default)]
+    pub mozna_cofnac: bool,
 }
 
 /// Faza poza sesją. W czasie sesji stan wynika z samej sesji (Praca, Pauza, Jesteś?).
@@ -79,7 +86,7 @@ enum Faza {
     Powitanie { do_: Chwila },
     Wybor,
     Lista,
-    Gratulacje { do_: Option<Chwila>, info: GratulacjeInfo },
+    Gratulacje { do_: Option<Chwila>, info: GratulacjeInfo, klucz: Klucz },
     KoniecDnia { etap: EtapKonca, reakcja: Reakcja },
 }
 
@@ -274,6 +281,9 @@ pub struct Rdzen {
     obserwacja_pliku: bool,
     ostatni_dymek_powrotu: Option<Chwila>,
     wczoraj: Option<Wczoraj>,
+    /// Kiedy ponowić zapis w pliku zadań, który się nie udał, i które to już ponowienie.
+    zapis_ponow: Option<Chwila>,
+    proby_zapisu: usize,
 }
 
 impl Rdzen {
@@ -298,6 +308,8 @@ impl Rdzen {
             obserwacja_pliku: false,
             ostatni_dymek_powrotu: None,
             wczoraj: None,
+            zapis_ponow: None,
+            proby_zapisu: 0,
         }
     }
 
@@ -387,6 +399,9 @@ impl Rdzen {
             _ => {}
         }
         if let Some(t) = self.czas_automatycznego_zamkniecia(teraz) {
+            wez(t);
+        }
+        if let Some(t) = self.zapis_ponow {
             wez(t);
         }
         let co = self.ust.przypomnienie_przerwy_min;
@@ -543,7 +558,7 @@ impl Rdzen {
             self.faza = Faza::Lista;
             self.dymek("powrot", &[]);
         }
-        self.zastosuj_edycje();
+        self.zastosuj_edycje(teraz);
         self.brudny = true;
         self.zapisz_stan(teraz);
     }
@@ -567,6 +582,10 @@ impl Rdzen {
             self.koniec_pracy(teraz);
         }
         self.przypomnienie_o_przerwie(teraz);
+        if self.zapis_ponow.is_some_and(|t| teraz >= t) {
+            self.zastosuj_edycje(teraz);
+            self.zapisz_stan(teraz);
+        }
     }
 
     /// Co 30 s: ponowienie zapisów z kolejki i zapis stanu dnia.
@@ -577,7 +596,7 @@ impl Rdzen {
             self.wczytaj_zadania();
         }
         if !self.dz.oczekujace.is_empty() {
-            self.zastosuj_edycje();
+            self.zastosuj_edycje(teraz);
         }
         if self.dz.dziennik_do_zapisu {
             self.zapisz_dziennik();
@@ -615,18 +634,18 @@ impl Rdzen {
     /// a dziennik dostaje ostatni stan. Dzień, którego nie zamknąłeś, zamyka
     /// się za Ciebie z podsumowaniem. Zwraca niedokończone zadania z planu i
     /// podsumowanie do pokazania.
-    fn zamknij_stary_dzien(&mut self, _teraz: Chwila) -> (Vec<Klucz>, Option<Wczoraj>) {
+    fn zamknij_stary_dzien(&mut self, teraz: Chwila) -> (Vec<Klucz>, Option<Wczoraj>) {
         if let Some(mut s) = self.dz.sesja.take() {
             let koniec = s.pauza.as_ref().map_or(s.koniec(), |p| p.od);
             s.zakoncz(koniec);
             self.dz.sesja = Some(s);
             self.zakoncz_sesje(false, koniec);
         }
-        self.zastosuj_edycje();
+        self.zastosuj_edycje(teraz);
         let przeniesione: Vec<Klucz> =
             self.dz.plan.iter().filter(|k| self.zadanie(k).is_some_and(|z| !z.zrobione)).cloned().collect();
         let wczoraj = if !self.dz.zamkniety && self.dzien_mial_aktywnosc() {
-            let reakcja = self.domknij_dzien();
+            let reakcja = self.domknij_dzien(teraz);
             Some(Wczoraj { widok: self.podsumowanie_widok(), reakcja })
         } else {
             if !self.dz.sesje.is_empty() {
@@ -704,8 +723,8 @@ impl Rdzen {
 
     /// Zamyka dzień: trwająca sesja zapisuje się jak „Przerwij”, a dziennik
     /// dostaje podsumowanie z reakcją.
-    fn domknij_dzien(&mut self) -> Reakcja {
-        self.zastosuj_edycje();
+    fn domknij_dzien(&mut self, teraz: Chwila) -> Reakcja {
+        self.zastosuj_edycje(teraz);
         let reakcja = self.reakcja_dnia();
         self.dz.zamkniety = true;
         self.dz.reakcja = Some(reakcja);
@@ -722,7 +741,7 @@ impl Rdzen {
         if self.dz.sesja.is_some() {
             self.zakoncz_sesje(false, teraz);
         }
-        let reakcja = self.domknij_dzien();
+        let reakcja = self.domknij_dzien(teraz);
         self.faza =
             Faza::KoniecDnia { etap: EtapKonca::Reakcja { do_: teraz + Duration::seconds(REAKCJA_S) }, reakcja };
         self.dymek(reakcja.klucz_dymku(), &[("czas_dnia", czas::minuty_tekst(self.dz.minuty_sesji()))]);
@@ -795,14 +814,14 @@ impl Rdzen {
         }
     }
 
-    /// Po 4 s gratulacje wracają do listy z dymkiem o tym, co jeszcze zostało.
+    /// Po 10 s gratulacje wracają do listy z dymkiem o tym, co jeszcze zostało.
     /// Po ostatnim zadaniu planu zostają z przyciskami, bo to Ty decydujesz,
     /// czy kończysz dzień, czy coś dokładasz.
     fn po_gratulacjach(&mut self) {
-        let Faza::Gratulacje { info, .. } = self.faza.clone() else { return };
+        let Faza::Gratulacje { info, klucz, .. } = self.faza.clone() else { return };
         self.brudny = true;
         if info.plan_wykonany {
-            self.faza = Faza::Gratulacje { do_: None, info };
+            self.faza = Faza::Gratulacje { do_: None, info, klucz };
             self.dymek("plan_wykonany", &[]);
         } else {
             self.faza = Faza::Lista;
@@ -1052,12 +1071,14 @@ impl Rdzen {
         self.efekt("konfetti");
         self.faza = Faza::Gratulacje {
             do_: Some(teraz + Duration::seconds(GRATULACJE_S)),
+            klucz: Klucz { projekt: wpis.projekt, zadanie: wpis.zadanie.clone() },
             info: GratulacjeInfo {
                 zadanie: wpis.zadanie,
                 czas_min: czas_zadania,
                 szac_min: wpis.szac_min,
                 czas_dnia_min: czas_dnia,
                 plan_wykonany,
+                mozna_cofnac: false,
             },
         };
     }
@@ -1068,6 +1089,41 @@ impl Rdzen {
         }
         self.zakoncz_sesje(false, teraz);
         self.faza = Faza::Lista;
+    }
+
+    /// Kliknięcie w dymek gratulacji: dalej bez czekania na koniec 10 s.
+    pub fn dalej_po_gratulacjach(&mut self) {
+        if matches!(self.faza, Faza::Gratulacje { do_: Some(_), .. }) {
+            self.po_gratulacjach();
+        }
+    }
+
+    /// Cofnij w dymku gratulacji (B5), do 10 s po Zrobione: zdejmuje ptaszka i datę
+    /// w pliku zadań, w linii sesji w dzienniku zmienia `[x]` na `[ ]` i zaczyna
+    /// nową sesję tego samego zadania z dymkiem `cofniete`. Zapisany czas zostaje.
+    pub fn cofnij(&mut self, teraz: Chwila) {
+        let Faza::Gratulacje { do_: Some(_), klucz, .. } = self.faza.clone() else { return };
+        let Some(wpis) =
+            self.dz.sesje.last_mut().filter(|w| w.zrobione && w.projekt == klucz.projekt && w.zadanie == klucz.zadanie)
+        else {
+            return;
+        };
+        wpis.zrobione = false;
+        // Ptaszek, który jeszcze czeka w kolejce (plik był zajęty), po prostu nie trafi do pliku.
+        match self.dz.oczekujace.iter().rposition(|e| e.klucz == klucz && e.zrobione.is_some()) {
+            Some(i) => self.dz.oczekujace[i].zrobione = None,
+            None => self.dz.oczekujace.push(Edycja { klucz: klucz.clone(), minuty: 0, zrobione: None, odznacz: true }),
+        }
+        self.zastosuj_edycje(teraz);
+        self.zapisz_dziennik();
+        // Wracamy do pracy nad tym samym zadaniem; czas z pliku obejmuje już zapisaną sesję.
+        let (szac_min, czas_pliku_min) = self.zadanie(&klucz).map_or((None, 0), |z| (z.szac_min, self.czas_zadania(z)));
+        self.pozna_praca(teraz);
+        self.dymek("cofniete", &[("zadanie", klucz.zadanie.clone())]);
+        self.dz.sesja = Some(Sesja::nowa(ZadanieSesji { klucz, szac_min, czas_pliku_min }, teraz));
+        self.faza = Faza::Lista;
+        self.brudny = true;
+        self.zapisz_stan(teraz);
     }
 
     /// „Przerwa” odejmuje czas od ostatniej aktywności, „Pracowałem” go zostawia.
@@ -1204,17 +1260,33 @@ impl Rdzen {
 
     // ---- sesje i pliki -----------------------------------------------------------------------------
 
-    /// Zapisuje czas (i ptaszka) w pliku zadań. Co się nie uda z powodu
-    /// dostępu do pliku, czeka w kolejce na kolejny cykl; zadanie, którego
-    /// już nie ma w pliku, zostaje tylko w dzienniku.
-    fn zastosuj_edycje(&mut self) {
+    /// Zapisuje czas (i ptaszka) w pliku zadań, od razu, gdy sesja się kończy.
+    /// Co się nie uda z powodu dostępu do pliku (Obsidian, antywirus, synchronizacja
+    /// chwilowo go trzymają), czeka w kolejce i jest ponawiane po sekundzie, potem
+    /// coraz rzadziej; zadanie, którego już nie ma w pliku, zostaje tylko w dzienniku.
+    fn zastosuj_edycje(&mut self, teraz: Chwila) {
         let Some(sciezka) = self.ust.plik_zadan() else { return };
+        let poczatek = std::time::Instant::now();
         let mut zmiana = false;
+        let mut blad_zapisu = false;
         while let Some(e) = self.dz.oczekujace.first().cloned() {
-            let wynik =
-                plik_zadan::zmien(&sciezka, |t| Ok((plik_zadan::dopisz_czas(t, &e.klucz, e.minuty, e.zrobione)?, ())));
+            let wynik = plik_zadan::zmien(&sciezka, |t| {
+                let nowy = if e.odznacz {
+                    plik_zadan::odznacz_zrobione(t, &e.klucz)?
+                } else {
+                    plik_zadan::dopisz_czas(t, &e.klucz, e.minuty, e.zrobione)?
+                };
+                Ok((nowy, ()))
+            });
             match wynik {
                 Ok(()) => {
+                    log::info!(
+                        "plik zadań: {} · {}{} ({} ms)",
+                        e.klucz.zadanie,
+                        if e.odznacz { "ptaszek zdjęty".to_string() } else { format!("+{} min", e.minuty) },
+                        if e.zrobione.is_some() { " · ✅" } else { "" },
+                        poczatek.elapsed().as_millis()
+                    );
                     self.dz.oczekujace.remove(0);
                     zmiana = true;
                 }
@@ -1224,10 +1296,30 @@ impl Rdzen {
                     zmiana = true;
                 }
                 Err(BladZmiany::Io(err)) => {
-                    log::warn!("zapis w pliku zadań czeka w kolejce ({}): {err}", sciezka.display());
+                    let proba = self.proby_zapisu;
+                    if proba == 0 {
+                        log::warn!(
+                            "zapis w pliku zadań czeka w kolejce, ponowię za chwilę ({}): {err}",
+                            sciezka.display()
+                        );
+                    } else {
+                        log::debug!("zapis w pliku zadań wciąż czeka (próba {proba}): {err}");
+                    }
+                    blad_zapisu = true;
                     break;
                 }
             }
+        }
+        if blad_zapisu {
+            let za = PONOWIENIA_ZAPISU_S[self.proby_zapisu.min(PONOWIENIA_ZAPISU_S.len() - 1)];
+            self.zapis_ponow = Some(teraz + Duration::seconds(za));
+            self.proby_zapisu += 1;
+        } else {
+            if self.proby_zapisu > 0 && self.dz.oczekujace.is_empty() {
+                log::info!("zapis w pliku zadań udał się po {} ponowieniach", self.proby_zapisu);
+            }
+            self.zapis_ponow = None;
+            self.proby_zapisu = 0;
         }
         if zmiana {
             self.wczytaj_zadania();
@@ -1311,13 +1403,14 @@ impl Rdzen {
             klucz: s.zadanie.klucz.clone(),
             minuty,
             zrobione: zrobione.then_some(s.dzien),
+            odznacz: false,
         });
         log::info!(
             "sesja zapisana: {} · {minuty} min · {}",
             wpis.zadanie,
             if zrobione { "Zrobione" } else { "W toku" }
         );
-        self.zastosuj_edycje();
+        self.zastosuj_edycje(teraz);
         self.zapisz_dziennik();
         self.zapisz_stan(teraz);
         Some((wpis, s.zadanie.czas_pliku_min + minuty))
@@ -1406,7 +1499,9 @@ impl Rdzen {
             bezczynna_od_ms: s.bezczynna_od.map(czas::ms),
         });
         let gratulacje = match &self.faza {
-            Faza::Gratulacje { info, .. } if self.dz.sesja.is_none() => Some(info.clone()),
+            Faza::Gratulacje { info, do_, .. } if self.dz.sesja.is_none() => {
+                Some(GratulacjeInfo { mozna_cofnac: do_.is_some(), ..info.clone() })
+            }
             _ => None,
         };
         let koniec = match &self.faza {
@@ -1714,7 +1809,7 @@ mod testy {
         r.zatwierdz_wybor(t("09:01:00"));
         r.rozpocznij(&miniatura(), t("09:02:00")).unwrap();
         r.zrobione(t("09:50:00"));
-        r.tick(t("09:50:05"));
+        r.tick(t("09:50:10"));
         assert_eq!(r.stan(), Stan::Lista);
         r.otworz_wybor();
         assert_eq!(r.stan(), Stan::WyborZadan);
@@ -1823,7 +1918,7 @@ mod testy {
         assert!(r.rozpocznij(&montaz(), t("11:31:00")).is_err(), "w Pracy jest zawsze jedno zadanie");
         r.zrobione(t("12:10:00"));
         assert_eq!(r.stan(), Stan::Gratulacje);
-        r.tick(t("12:10:04"));
+        r.tick(t("12:10:10"));
         assert_eq!(r.stan(), Stan::Lista);
 
         r.rozpocznij(&montaz(), t("10:20:00")).unwrap();
@@ -1998,7 +2093,7 @@ mod testy {
         assert_eq!((g.czas_min, g.szac_min, g.czas_dnia_min, g.plan_wykonany), (40, Some(30), 40, false));
 
         // Drugie zadanie tego samego dnia: łączny czas zadania z pliku i czas całego dnia.
-        r.tick(t("10:40:04"));
+        r.tick(t("10:40:10"));
         assert_eq!(dymki(&mut r), vec!["zostalo"]);
         r.rozpocznij(&montaz(), t("11:00:00")).unwrap();
         r.zrobione(t("11:30:00"));
@@ -2042,7 +2137,7 @@ mod testy {
         r.zatwierdz_wybor(t("09:00:30"));
         r.rozpocznij(&mail(), t("10:00:00")).unwrap();
         r.zrobione(t("10:10:00"));
-        r.tick(t("10:10:04"));
+        r.tick(t("10:10:10"));
         let zd = r.wez_zdarzenia();
         let w = wstawki(&zd, "zostalo");
         // Zostają Montaż (120 − 45) i Miniatura (30): 2 zadania, 1 h 45 min.
@@ -2062,7 +2157,7 @@ mod testy {
         r.zrobione(t("10:40:00"));
         assert!(r.migawka().gratulacje.unwrap().plan_wykonany);
         r.wez_zdarzenia();
-        r.tick(t("10:40:04"));
+        r.tick(t("10:40:10"));
         assert_eq!(r.stan(), Stan::Gratulacje, "po ostatnim zadaniu to Ty wybierasz, co dalej");
         assert_eq!(dymki(&mut r), vec!["plan_wykonany"]);
         r.tick(t("10:50:00"));
@@ -2609,5 +2704,165 @@ mod testy {
         assert_eq!(r.kotwica(), KotwicaOkna::default());
         assert_eq!(r.migawka().strona, Strona::Prawa);
         assert_eq!(sr.nowy_rdzen(t("08:03:00")).kotwica(), KotwicaOkna::default());
+    }
+
+    // ---- Zrobione od razu w pliku i Cofnij (2.1) -----------------------------------------------
+
+    fn zaczynamy_miniature(sr: &Srodowisko) -> Rdzen {
+        let mut r = sr.rdzen(t("09:00:00"));
+        r.tick(t("09:00:06"));
+        r.przelacz_wybor(&miniatura());
+        r.zatwierdz_wybor(t("09:00:30"));
+        r.rozpocznij(&miniatura(), t("11:30:00")).unwrap();
+        r.wez_zdarzenia();
+        r
+    }
+
+    const MINIATURA_ZROBIONA: &str = "- [x] Miniatura [szac:: 30] [czas:: 40] ✅ 2026-10-30";
+
+    #[test]
+    fn zrobione_zapisuje_ptaszka_w_pliku_od_razu_bez_czekania_na_dymek_i_koniec_dnia() {
+        let sr = Srodowisko::nowe();
+        let mut r = zaczynamy_miniature(&sr);
+        r.zrobione(t("12:10:00"));
+        // Bez ticka, bez cyklu, bez zamknięcia dymku: plik jest już gotowy.
+        assert!(sr.zadania().contains(MINIATURA_ZROBIONA), "{}", sr.zadania());
+        assert!(r.dz.oczekujace.is_empty());
+        assert!(sr.dziennik("2026-10-30").contains("- [x] 11:30–12:10 · Miniatura"));
+    }
+
+    #[test]
+    fn zajety_plik_jest_ponawiany_po_sekundzie_a_nie_po_30_sekundach() {
+        let sr = Srodowisko::nowe();
+        let mut r = zaczynamy_miniature(&sr);
+        let schowany = sr.plik().with_extension("zajety");
+        fs::rename(sr.plik(), &schowany).unwrap();
+        r.zrobione(t("12:10:00"));
+        assert_eq!(r.dz.oczekujace.len(), 1, "zapis czeka, bo plik jest niedostępny");
+        assert_eq!(r.najblizszy_termin(t("12:10:00")), t("12:10:01"), "ponowienie za sekundę");
+        fs::rename(&schowany, sr.plik()).unwrap();
+        r.tick(t("12:10:01"));
+        assert!(r.dz.oczekujace.is_empty(), "po sekundzie, bez cyklu co 30 s");
+        assert!(sr.zadania().contains(MINIATURA_ZROBIONA), "{}", sr.zadania());
+    }
+
+    #[test]
+    fn ponowienia_zapisu_zwalniaja_ale_nie_przekraczaja_10_sekund() {
+        let sr = Srodowisko::nowe();
+        let mut r = zaczynamy_miniature(&sr);
+        fs::rename(sr.plik(), sr.plik().with_extension("zajety")).unwrap();
+        r.zrobione(t("12:10:00"));
+        let mut teraz = t("12:10:00");
+        let mut odstepy = Vec::new();
+        for _ in 0..8 {
+            let nastepny = r.zapis_ponow.expect("zapis czeka na ponowienie");
+            odstepy.push((nastepny - teraz).num_seconds());
+            teraz = nastepny;
+            r.tick(teraz);
+        }
+        assert_eq!(odstepy, [1, 1, 2, 3, 5, 10, 10, 10]);
+    }
+
+    #[test]
+    fn cofnij_zdejmuje_ptaszka_i_wraca_do_pracy_nad_tym_samym_zadaniem() {
+        let sr = Srodowisko::nowe();
+        let mut r = zaczynamy_miniature(&sr);
+        r.zrobione(t("12:10:00"));
+        assert_eq!(r.stan(), Stan::Gratulacje);
+        assert!(r.migawka().gratulacje.unwrap().mozna_cofnac);
+        r.wez_zdarzenia();
+
+        r.cofnij(t("12:10:07"));
+        assert_eq!(
+            sr.zadania(),
+            ZADANIA.replace("- [ ] Miniatura [szac:: 30]", "- [ ] Miniatura [szac:: 30] [czas:: 40]"),
+            "ptaszek i data zdjęte, zapisany czas zostaje"
+        );
+        let dziennik = sr.dziennik("2026-10-30");
+        assert!(dziennik.contains("- [ ] 11:30–12:10 · Miniatura · 40 min · w toku · Film #1 · FIFA\n"), "{dziennik}");
+        assert!(dziennik.contains("zrobione: 0\n"), "{dziennik}");
+        assert_eq!(r.stan(), Stan::Praca);
+        let s = r.migawka().sesja.unwrap();
+        assert_eq!(s.zadanie, "Miniatura");
+        assert_eq!(s.sekundy_zamkniete, 40 * 60, "bez utraty czasu: licznik zaczyna od zapisanych 40 min");
+        assert_eq!(wstawki(&r.wez_zdarzenia(), "cofniete")["zadanie"], "Miniatura");
+        assert!(r.migawka().gratulacje.is_none());
+    }
+
+    #[test]
+    fn po_cofnieciu_kolejne_zrobione_znowu_zapisuje_ptaszka_i_czas() {
+        let sr = Srodowisko::nowe();
+        let mut r = zaczynamy_miniature(&sr);
+        r.zrobione(t("12:10:00"));
+        r.cofnij(t("12:10:05"));
+        r.zrobione(t("12:25:05"));
+        assert!(sr.zadania().contains("- [x] Miniatura [szac:: 30] [czas:: 55] ✅ 2026-10-30"), "{}", sr.zadania());
+        let dziennik = sr.dziennik("2026-10-30");
+        assert!(dziennik.contains("- [ ] 11:30–12:10 · Miniatura · 40 min · w toku"), "{dziennik}");
+        assert!(dziennik.contains("- [x] 12:10–12:25 · Miniatura · 15 min (szac. 30)"), "{dziennik}");
+    }
+
+    #[test]
+    fn cofnij_przed_zapisem_ptaszka_w_zajetym_pliku_nie_dopisuje_go_wcale() {
+        let sr = Srodowisko::nowe();
+        let mut r = zaczynamy_miniature(&sr);
+        let schowany = sr.plik().with_extension("zajety");
+        fs::rename(sr.plik(), &schowany).unwrap();
+        r.zrobione(t("12:10:00"));
+        r.cofnij(t("12:10:03"));
+        assert_eq!(r.stan(), Stan::Praca, "wracamy do pracy mimo zajętego pliku");
+        fs::rename(&schowany, sr.plik()).unwrap();
+        r.tick(t("12:10:10"));
+        assert_eq!(
+            sr.zadania(),
+            ZADANIA.replace("- [ ] Miniatura [szac:: 30]", "- [ ] Miniatura [szac:: 30] [czas:: 40]"),
+            "czas zapisany, ptaszka nie ma"
+        );
+        assert!(r.dz.oczekujace.is_empty());
+    }
+
+    #[test]
+    fn cofnij_po_10_sekundach_albo_poza_gratulacjami_nic_nie_robi() {
+        let sr = Srodowisko::nowe();
+        let mut r = zaczynamy_miniature(&sr);
+        r.cofnij(t("11:31:00"));
+        assert_eq!(r.stan(), Stan::Praca, "w Pracy nie ma czego cofać");
+        r.zrobione(t("12:10:00"));
+        r.tick(t("12:10:10"));
+        assert_eq!(r.stan(), Stan::Lista);
+        r.cofnij(t("12:10:11"));
+        assert_eq!(r.stan(), Stan::Lista);
+        assert!(sr.zadania().contains(MINIATURA_ZROBIONA));
+    }
+
+    #[test]
+    fn gratulacje_trwaja_10_sekund_a_klikniecie_w_dymek_idzie_do_listy_od_razu() {
+        let sr = Srodowisko::nowe();
+        let mut r = zaczynamy_miniature(&sr);
+        r.zrobione(t("12:10:00"));
+        r.tick(t("12:10:09"));
+        assert_eq!(r.stan(), Stan::Gratulacje, "przez 9 s dymek z przyciskiem Cofnij jeszcze trwa");
+        r.dalej_po_gratulacjach();
+        assert_eq!(r.stan(), Stan::Lista);
+        assert!(dymki(&mut r).contains(&"zostalo".to_string()));
+    }
+
+    #[test]
+    fn po_ostatnim_zadaniu_cofnij_dziala_przez_10_sekund_potem_zostaja_przyciski() {
+        let sr = Srodowisko::nowe();
+        let mut r = sr.rdzen(t("09:00:00"));
+        r.tick(t("09:00:06"));
+        r.zatwierdz_wybor(t("09:00:10"));
+        for (k, od, do_) in [(montaz(), "09:10:00", "09:40:00"), (miniatura(), "09:41:00", "10:11:00")] {
+            r.rozpocznij(&k, t(od)).unwrap();
+            r.zrobione(t(do_));
+            r.tick(t(&format!("{}0", &do_[..7])));
+        }
+        let g = r.migawka().gratulacje.unwrap();
+        assert!(g.plan_wykonany);
+        r.tick(t("10:11:10"));
+        assert!(!r.migawka().gratulacje.unwrap().mozna_cofnac, "po 10 s Cofnij znika, zostają przyciski końca");
+        r.cofnij(t("10:11:11"));
+        assert_eq!(r.stan(), Stan::Gratulacje);
     }
 }

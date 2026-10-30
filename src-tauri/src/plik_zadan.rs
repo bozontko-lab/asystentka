@@ -114,6 +114,12 @@ fn re_zrobiono() -> &'static Regex {
     R.get_or_init(|| Regex::new("✅\u{fe0f}?\\s*\\d{4}-\\d{2}-\\d{2}").expect("poprawny wzorzec"))
 }
 
+/// `✅ RRRR-MM-DD` razem ze spacjami przed nim.
+fn re_ptaszek_z_data() -> &'static Regex {
+    static R: OnceLock<Regex> = OnceLock::new();
+    R.get_or_init(|| Regex::new("\\s*✅\u{fe0f}?\\s*\\d{4}-\\d{2}-\\d{2}").expect("poprawny wzorzec"))
+}
+
 fn re_czas() -> &'static Regex {
     static R: OnceLock<Regex> = OnceLock::new();
     R.get_or_init(|| Regex::new(r"(?i)\[czas::[^\]]*\]").expect("poprawny wzorzec"))
@@ -283,6 +289,32 @@ pub fn dopisz_czas(
     let tresc = bez_konca_linii(&stara);
     let koniec = &stara[tresc.len()..];
     linie[cel] = format!("{}{koniec}", zmien_linie(tresc, dodaj_min, zrobione));
+    Ok(linie.concat())
+}
+
+/// Cofa „Zrobione”: zmienia `[x]` z powrotem na `[ ]` i usuwa `✅ RRRR-MM-DD`.
+/// Czas zostaje. Zadanie, które jest już otwarte (np. odznaczone w Obsidianie),
+/// zostaje takie, jakie jest.
+pub fn odznacz_zrobione(tekst: &str, klucz: &Klucz) -> Result<String, BladEdycji> {
+    let plik = parsuj(tekst);
+    let cel = plik
+        .zadania
+        .iter()
+        .find(|z| &z.klucz == klucz && z.zrobione)
+        .or_else(|| plik.zadania.iter().find(|z| &z.klucz == klucz))
+        .ok_or(BladEdycji::NieZnaleziono)?
+        .linia;
+    let mut linie: Vec<String> = tekst.split_inclusive('\n').map(str::to_string).collect();
+    let stara = linie[cel].clone();
+    let tresc = bez_konca_linii(&stara);
+    let koniec = &stara[tresc.len()..];
+    let mut s = tresc.to_string();
+    if let Some(c) = re_zadanie().captures(&s) {
+        let (poczatek, koniec_znaku) = (c.get(2).map_or(0, |m| m.start()), c.get(2).map_or(0, |m| m.end()));
+        s.replace_range(poczatek..koniec_znaku, " ");
+    }
+    let bez_daty = re_ptaszek_z_data().replace_all(&s, "").into_owned();
+    linie[cel] = format!("{bez_daty}{koniec}");
     Ok(linie.concat())
 }
 
@@ -616,5 +648,30 @@ mod testy {
         let po = fs::read_to_string(&plik).unwrap();
         assert!(po.contains("Dopisane w Obsidianie"));
         assert!(po.contains("[czas:: 50]"));
+    }
+
+    #[test]
+    fn odznacz_zrobione_przywraca_linie_sprzed_zrobione_bajt_w_bajt() {
+        let przed = "# Z\n\n## P\n- [ ] Miniatura [szac:: 30] [czas:: 40]\n- [ ] Inne [szac:: 5]\n";
+        let po_zrobione = dopisz_czas(przed, &Klucz::new("P", "Miniatura"), 0, Some(data("2026-10-30"))).unwrap();
+        assert!(po_zrobione.contains("- [x] Miniatura [szac:: 30] [czas:: 40] ✅ 2026-10-30\n"));
+        assert_eq!(odznacz_zrobione(&po_zrobione, &Klucz::new("P", "Miniatura")).unwrap(), przed);
+    }
+
+    #[test]
+    fn odznacz_zrobione_zachowuje_crlf_i_zadanie_juz_otwarte() {
+        let tekst = "## P\r\n- [x] A [szac:: 3] [czas:: 3] ✅ 2026-10-30\r\n- [ ] B\r\n";
+        let nowy = odznacz_zrobione(tekst, &Klucz::new("P", "A")).unwrap();
+        assert_eq!(nowy, "## P\r\n- [ ] A [szac:: 3] [czas:: 3]\r\n- [ ] B\r\n");
+        // odznaczone wcześniej w Obsidianie: nic się nie zmienia
+        assert_eq!(odznacz_zrobione(&nowy, &Klucz::new("P", "A")).unwrap(), nowy);
+        assert!(matches!(odznacz_zrobione(&nowy, &Klucz::new("P", "Nie ma")), Err(BladEdycji::NieZnaleziono)));
+    }
+
+    #[test]
+    fn odznacz_zrobione_nie_rusza_innych_linii_ani_tekstu_po_dacie() {
+        let tekst = "## P\n- [x] A ✅ 2026-10-29 [szac:: 3]\n- [x] B [czas:: 4] ✅ 2026-10-30\n";
+        let nowy = odznacz_zrobione(tekst, &Klucz::new("P", "B")).unwrap();
+        assert_eq!(nowy, "## P\n- [x] A ✅ 2026-10-29 [szac:: 3]\n- [ ] B [czas:: 4]\n");
     }
 }
