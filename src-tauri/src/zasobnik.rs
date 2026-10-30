@@ -4,8 +4,8 @@
 //! wszystkie polecenia są też w menu pod prawym przyciskiem na postaci i panelu.
 //!
 //! Zasobnik: Pokaż / Ukryj · Pauza / Wznów · Koniec pracy na dziś · Przywróć
-//! pozycję · Ukryj przed nagrywaniem · Ustawienia · Zamknij asystentkę. Lewy klik w ikonę pokazuje i
-//! chowa widget.
+//! pozycję · Ukryj przed nagrywaniem · Ustawienia · Zamknij {postac}. Lewy klik w ikonę pokazuje i
+//! chowa widget; podpowiedź ikony to imię postaci.
 
 use std::sync::Mutex;
 
@@ -43,12 +43,25 @@ pub struct StanMenu {
     pub pauza: Option<bool>,
     pub koniec_pracy: bool,
     pub ukryj_przed_nagrywaniem: bool,
+    /// Imię postaci: w „Zamknij {postac}” i w podpowiedzi ikony (B6).
+    pub postac: String,
 }
 
 impl StanMenu {
-    pub fn z(m: &Mozliwosci, ukryj_przed_nagrywaniem: bool) -> StanMenu {
-        StanMenu { widoczna: m.widoczna, pauza: m.pauza, koniec_pracy: m.koniec_pracy, ukryj_przed_nagrywaniem }
+    pub fn z(m: &Mozliwosci, ukryj_przed_nagrywaniem: bool, postac: &str) -> StanMenu {
+        StanMenu {
+            widoczna: m.widoczna,
+            pauza: m.pauza,
+            koniec_pracy: m.koniec_pracy,
+            ukryj_przed_nagrywaniem,
+            postac: postac.to_string(),
+        }
     }
+}
+
+/// Pozycja „Zamknij {postac}” w obu menu.
+pub fn etykieta_zamkniecia(postac: &str) -> String {
+    format!("Zamknij {postac}")
 }
 
 pub struct Zasobnik {
@@ -56,7 +69,8 @@ pub struct Zasobnik {
     pauza: MenuItem<Wry>,
     koniec: MenuItem<Wry>,
     nagrywanie: CheckMenuItem<Wry>,
-    _ikona: TrayIcon<Wry>,
+    zamknij: MenuItem<Wry>,
+    ikona: TrayIcon<Wry>,
     ostatni: Mutex<Option<StanMenu>>,
 }
 
@@ -80,7 +94,7 @@ impl Zasobnik {
             None::<&str>,
         )?;
         let ustawienia = MenuItem::with_id(app, USTAWIENIA, "Ustawienia", true, None::<&str>)?;
-        let zamknij = MenuItem::with_id(app, ZAMKNIJ, "Zamknij asystentkę", true, None::<&str>)?;
+        let zamknij = MenuItem::with_id(app, ZAMKNIJ, etykieta_zamkniecia(&stan.postac), true, None::<&str>)?;
         let menu = Menu::with_items(
             app,
             &[
@@ -96,7 +110,7 @@ impl Zasobnik {
             ],
         )?;
         let mut budowniczy = TrayIconBuilder::with_id("asystentka")
-            .tooltip("Asystentka")
+            .tooltip(&stan.postac)
             .menu(&menu)
             .show_menu_on_left_click(false)
             .on_menu_event(menu_klik)
@@ -111,7 +125,7 @@ impl Zasobnik {
             budowniczy = budowniczy.icon(obraz.clone());
         }
         let ikona = budowniczy.build(app)?;
-        let zasobnik = Zasobnik { pokaz, pauza, koniec, nagrywanie, _ikona: ikona, ostatni: Mutex::new(None) };
+        let zasobnik = Zasobnik { pokaz, pauza, koniec, nagrywanie, zamknij, ikona, ostatni: Mutex::new(None) };
         zasobnik.odswiez(stan);
         Ok(zasobnik)
     }
@@ -139,6 +153,11 @@ impl Zasobnik {
         if poprzedni.as_ref().map(|p| p.ukryj_przed_nagrywaniem) != Some(stan.ukryj_przed_nagrywaniem) {
             let _ = self.nagrywanie.set_checked(stan.ukryj_przed_nagrywaniem);
         }
+        // Nowe imię postaci od razu w menu i w podpowiedzi ikony, bez restartu.
+        if poprzedni.as_ref().map(|p| &p.postac) != Some(&stan.postac) {
+            let _ = self.zamknij.set_text(etykieta_zamkniecia(&stan.postac));
+            let _ = self.ikona.set_tooltip(Some(stan.postac.as_str()));
+        }
     }
 
     pub fn nagrywanie_zaznaczone(&self) -> Option<bool> {
@@ -148,8 +167,8 @@ impl Zasobnik {
 
 /// Menu pod prawym przyciskiem na postaci i panelu: Koniec pracy na dziś ·
 /// Zmień plan · Dodaj zadanie · Pauza / Wznów · Ukryj · Przywróć pozycję ·
-/// Ustawienia · Zamknij asystentkę. Pozycje, których w danym stanie nie ma sensu używać, są wyszarzone.
-pub fn menu_kontekstowe(app: &AppHandle, m: &Mozliwosci) -> tauri::Result<Menu<Wry>> {
+/// Ustawienia · Zamknij {postac}. Pozycje, których w danym stanie nie ma sensu używać, są wyszarzone.
+pub fn menu_kontekstowe(app: &AppHandle, m: &Mozliwosci, postac: &str) -> tauri::Result<Menu<Wry>> {
     let koniec = MenuItem::with_id(app, CTX_KONIEC, "Koniec pracy na dziś", m.koniec_pracy, None::<&str>)?;
     let plan = MenuItem::with_id(app, CTX_PLAN, "Zmień plan", m.zmien_plan, None::<&str>)?;
     let dodaj = MenuItem::with_id(app, CTX_DODAJ, "Dodaj zadanie", m.dodaj_zadanie, None::<&str>)?;
@@ -163,7 +182,7 @@ pub fn menu_kontekstowe(app: &AppHandle, m: &Mozliwosci) -> tauri::Result<Menu<W
     let ukryj = MenuItem::with_id(app, CTX_UKRYJ, "Ukryj", true, None::<&str>)?;
     let przywroc = MenuItem::with_id(app, CTX_PRZYWROC, "Przywróć pozycję", true, None::<&str>)?;
     let ustawienia = MenuItem::with_id(app, CTX_USTAWIENIA, "Ustawienia", true, None::<&str>)?;
-    let zamknij = MenuItem::with_id(app, CTX_ZAMKNIJ, "Zamknij asystentkę", true, None::<&str>)?;
+    let zamknij = MenuItem::with_id(app, CTX_ZAMKNIJ, etykieta_zamkniecia(postac), true, None::<&str>)?;
     Menu::with_items(
         app,
         &[
@@ -179,4 +198,24 @@ pub fn menu_kontekstowe(app: &AppHandle, m: &Mozliwosci) -> tauri::Result<Menu<W
             &zamknij,
         ],
     )
+}
+
+#[cfg(test)]
+mod testy {
+    use super::*;
+
+    #[test]
+    fn zamkniecie_nosi_imie_postaci() {
+        assert_eq!(etykieta_zamkniecia("Sai"), "Zamknij Sai");
+        assert_eq!(etykieta_zamkniecia("才ちゃん"), "Zamknij 才ちゃん");
+    }
+
+    #[test]
+    fn stan_menu_niesie_imie_postaci_i_zmiana_imienia_to_zmiana_stanu() {
+        let m = Mozliwosci { koniec_pracy: true, zmien_plan: true, dodaj_zadanie: true, pauza: None, widoczna: true };
+        let a = StanMenu::z(&m, true, "Sai");
+        let b = StanMenu::z(&m, true, "Bajtka");
+        assert_eq!(a.postac, "Sai");
+        assert_ne!(a, b, "odświeżenie menu zauważy nowe imię");
+    }
 }

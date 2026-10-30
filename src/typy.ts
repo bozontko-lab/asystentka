@@ -124,6 +124,8 @@ export type Zdarzenie =
 /** Ustawienia z %APPDATA%\Asystentka\ustawienia.json (SPEC.md, B7). */
 export interface Ustawienia {
   imie: string;
+  /** Imię postaci w interfejsie (domyślnie „Sai”); zastępuje słowo „asystentka”. */
+  nazwa_postaci: string;
   plik_zadan: string;
   folder_dziennika: string;
   cel_dzienny_min: number;

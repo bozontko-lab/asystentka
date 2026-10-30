@@ -20,7 +20,7 @@
   --oddech-max: 1.015;
 
   color-scheme: dark;
-  font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Yu Gothic UI", "Meiryo", sans-serif;
   font-size: 13px;
   -webkit-font-smoothing: antialiased;
 }

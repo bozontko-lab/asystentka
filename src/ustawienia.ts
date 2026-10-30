@@ -74,6 +74,10 @@ async function start(): Promise<void> {
   if (!korzen) return;
 
   const imie = tekst("imie", u.imie);
+  const postac = tekst("postac", u.nazwa_postaci);
+  postac.maxLength = 30;
+  const nazwaPostaci = u.nazwa_postaci.trim() || "Sai";
+  document.title = `${nazwaPostaci} · ustawienia`;
   const [poleZadan, plikZadan] = sciezka(
     "plik-zadan",
     "Plik zadań",
@@ -126,6 +130,7 @@ async function start(): Promise<void> {
     return {
       ...u,
       imie: imie.value.trim(),
+      nazwa_postaci: postac.value.trim(),
       plik_zadan: plikZadan.value.trim(),
       folder_dziennika: folderDziennika.value.trim(),
       cel_dzienny_min: celMin,
@@ -163,9 +168,15 @@ async function start(): Promise<void> {
   });
 
   korzen.replaceChildren(
-    el("h1", {}, "Ustawienia asystentki"),
+    el("h1", {}, `${nazwaPostaci} · ustawienia`),
     el("h2", {}, "Ty"),
     pole("imie", "Jak mam się do Ciebie zwracać", imie, "Forma wstawiana do dymków bez zmian, np. w wołaczu."),
+    pole(
+      "postac",
+      "Imię postaci",
+      postac,
+      "Tak nazywa się w dymkach, menu i oknach. Może mieć też znaki japońskie, np. 才ちゃん.",
+    ),
     el("h2", {}, "Pliki"),
     poleZadan,
     poleDziennika,

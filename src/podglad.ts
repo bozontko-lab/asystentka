@@ -11,6 +11,7 @@ const MINUTA = 60_000;
 export const PODPOWIEDZ: PodpowiedzKreatora = {
   ustawienia: {
     imie: "Dżiordżio",
+    nazwa_postaci: "Sai",
     plik_zadan: "D:\\Second Brain\\Zadania.md",
     folder_dziennika: "D:\\Second Brain\\Dziennik pracy",
     cel_dzienny_min: 240,
@@ -122,7 +123,7 @@ function przyklad(stan: NazwaStanu, strona: "prawa" | "lewa", pion: "dol" | "gor
 }
 
 const DYMKI: Partial<Record<NazwaStanu, Zdarzenie>> = {
-  konfiguracja: { rodzaj: "dymek", klucz: "konfiguracja_imie", wstawki: {} },
+  konfiguracja: { rodzaj: "dymek", klucz: "konfiguracja_imie", wstawki: { postac: "Sai" } },
   powitanie: { rodzaj: "dymek", klucz: "powitanie", wstawki: { imie: "Dżiordżio" } },
   wybor_zadan: { rodzaj: "dymek", klucz: "wybor", wstawki: {} },
   lista: { rodzaj: "dymek", klucz: "lista", wstawki: {} },

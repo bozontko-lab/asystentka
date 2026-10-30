@@ -16,12 +16,20 @@ use crate::pliki;
 use crate::skrot;
 
 pub const NAZWA_PLIKU_ZADAN: &str = "Zadania.md";
+/// Imię postaci w interfejsie, dopóki nie wpiszesz innego (B7).
+pub const NAZWA_POSTACI: &str = "Sai";
+/// Najdłuższe imię postaci, żeby mieściło się w menu i podpowiedzi ikony.
+const NAJDLUZSZA_NAZWA_POSTACI: usize = 30;
 pub const NAZWA_FOLDERU_DZIENNIKA: &str = "Dziennik pracy";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Ustawienia {
+    /// Forma, w jakiej postać zwraca się do Ciebie (np. wołacz).
     pub imie: String,
+    /// Imię postaci w interfejsie; zastępuje słowo „asystentka” w kreatorze, dymkach,
+    /// menu, podpowiedzi ikony i tytule okienka ustawień. Przyjmuje też znaki japońskie.
+    pub nazwa_postaci: String,
     pub plik_zadan: String,
     pub folder_dziennika: String,
     pub cel_dzienny_min: u32,
@@ -38,6 +46,7 @@ impl Default for Ustawienia {
     fn default() -> Self {
         Ustawienia {
             imie: String::new(),
+            nazwa_postaci: NAZWA_POSTACI.into(),
             plik_zadan: String::new(),
             folder_dziennika: String::new(),
             cel_dzienny_min: 240,
@@ -67,6 +76,16 @@ impl Ustawienia {
         sciezka(&self.plik_zadan)
     }
 
+    /// Imię postaci do pokazania w interfejsie; puste pole znaczy „Sai”.
+    pub fn postac(&self) -> &str {
+        let nazwa = self.nazwa_postaci.trim();
+        if nazwa.is_empty() {
+            NAZWA_POSTACI
+        } else {
+            nazwa
+        }
+    }
+
     /// Folder dziennika z ustawień, a gdy go brak, `Dziennik pracy` obok pliku zadań.
     pub fn folder_dziennika(&self) -> Option<PathBuf> {
         sciezka(&self.folder_dziennika).or_else(|| {
@@ -90,6 +109,11 @@ impl Ustawienia {
         let mut bledy = Vec::new();
         if self.imie.trim().is_empty() {
             bledy.push("Wpisz, jak mam się do Ciebie zwracać.".to_string());
+        }
+        if self.nazwa_postaci.trim().is_empty() {
+            bledy.push("Wpisz imię postaci.".to_string());
+        } else if self.nazwa_postaci.trim().chars().count() > NAJDLUZSZA_NAZWA_POSTACI {
+            bledy.push(format!("Imię postaci może mieć najwyżej {NAJDLUZSZA_NAZWA_POSTACI} znaków."));
         }
         if self.plik_zadan().is_none() {
             bledy.push("Wskaż plik zadań.".to_string());
@@ -387,6 +411,7 @@ mod testy {
             klucze,
             [
                 "imie",
+                "nazwa_postaci",
                 "plik_zadan",
                 "folder_dziennika",
                 "cel_dzienny_min",
@@ -484,5 +509,35 @@ mod testy {
         assert!(altgr.waliduj().iter().any(|b| b.contains("AltGr")));
         let pusty = Ustawienia { skrot_pokaz_ukryj: "  ".into(), ..dobre };
         assert_eq!(pusty.waliduj().len(), 1);
+    }
+
+    #[test]
+    fn imie_postaci_domyslnie_sai_i_przyjmuje_znaki_japonskie() {
+        let u = Ustawienia::default();
+        assert_eq!((u.nazwa_postaci.as_str(), u.postac()), ("Sai", "Sai"));
+        let dobre = Ustawienia { imie: "Ola".into(), plik_zadan: "/v/Zadania.md".into(), ..u };
+        let japonskie = Ustawienia { nazwa_postaci: "  才ちゃん  ".into(), ..dobre.clone() };
+        assert!(japonskie.waliduj().is_empty(), "{:?}", japonskie.waliduj());
+        assert_eq!(japonskie.postac(), "才ちゃん");
+        let json = japonskie.do_json();
+        assert!(json.contains("才ちゃん"), "{json}");
+        assert!(json.find("\"nazwa_postaci\"").unwrap() < json.find("\"plik_zadan\"").unwrap(), "kolejność jak w B7");
+        let pusta = Ustawienia { nazwa_postaci: "   ".into(), ..dobre.clone() };
+        assert!(pusta.waliduj().iter().any(|b| b.contains("imię postaci")));
+        assert_eq!(pusta.postac(), "Sai", "puste pole nie psuje interfejsu");
+        let za_dluga = Ustawienia { nazwa_postaci: "x".repeat(31), ..dobre };
+        assert!(za_dluga.waliduj().iter().any(|b| b.contains("najwyżej 30 znaków")));
+    }
+
+    #[test]
+    fn plik_ustawien_bez_imienia_postaci_dostaje_sai_a_zapis_je_dopisuje() {
+        let (_k, plik) = plik_v1();
+        let Wynik::Kreator(u) = wczytaj_przy_starcie(&plik) else { panic!("powinien być kreator") };
+        assert_eq!(u.nazwa_postaci, "Sai");
+        let nowe = Ustawienia { nazwa_postaci: "Bajtka".into(), ..u };
+        zapisz(&plik, &nowe).unwrap();
+        let zapisany: serde_json::Value = serde_json::from_str(&fs::read_to_string(&plik).unwrap()).unwrap();
+        assert_eq!(zapisany["nazwa_postaci"], "Bajtka");
+        assert_eq!(wczytaj(&plik).unwrap().nazwa_postaci, "Bajtka");
     }
 }

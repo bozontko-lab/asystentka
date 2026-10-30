@@ -1484,11 +1484,12 @@ impl Rdzen {
 
     // ---- dymki --------------------------------------------------------------------------------------
 
-    /// Dymek z wstawkami; `imie` jest dodawane zawsze.
+    /// Dymek z wstawkami; `imie` (forma zwracania się) i `postac` (imię postaci) są dodawane zawsze.
     fn dymek(&mut self, klucz: &str, wstawki: &[(&str, String)]) {
         let mut mapa: std::collections::BTreeMap<String, String> =
             wstawki.iter().map(|(k, v)| (k.to_string(), v.clone())).collect();
         mapa.insert("imie".into(), self.ust.imie.clone());
+        mapa.insert("postac".into(), self.ust.postac().to_string());
         self.zdarzenia.push(Zdarzenie::Dymek { klucz: klucz.to_string(), wstawki: mapa });
     }
 
@@ -3034,5 +3035,33 @@ mod testy {
         r.tick(t("12:11:00"));
         assert!(dymki(&mut r).is_empty(), "spóźniony dymek byłby bez sensu");
         assert!(r.najblizszy_termin(t("12:11:00")) > t("12:12:00"));
+    }
+
+    // ---- imię postaci (2.1) -----------------------------------------------------------------
+
+    #[test]
+    fn kazdy_dymek_niesie_imie_postaci_do_wstawki_postac() {
+        let sr = Srodowisko::nowe();
+        let ust = Ustawienia { nazwa_postaci: "Bajtka".into(), ..sr.ustawienia() };
+        let mut r = Rdzen::nowy(Magazyn::new(sr.lokalny.clone()), ust, t("09:00:00"));
+        r.start(t("09:00:00"));
+        let zd = r.wez_zdarzenia();
+        assert_eq!(wstawki(&zd, "powitanie")["postac"], "Bajtka");
+        assert_eq!(wstawki(&zd, "powitanie")["imie"], "Dżiordżio", "forma zwracania się to osobne pole");
+    }
+
+    #[test]
+    fn kreator_przedstawia_sie_imieniem_postaci_a_zmiana_w_ustawieniach_dziala_od_razu() {
+        let sr = Srodowisko::nowe();
+        let mut r = Rdzen::nowy(Magazyn::new(sr.lokalny.clone()), Ustawienia::default(), t("09:00:00"));
+        r.wymus_kreator();
+        r.start(t("09:00:00"));
+        assert_eq!(wstawki(&r.wez_zdarzenia(), "konfiguracja_imie")["postac"], "Sai");
+        r.zakoncz_kreator(sr.ustawienia(), t("09:01:00"));
+        r.wez_zdarzenia();
+        r.zmien_ustawienia(Ustawienia { nazwa_postaci: "才ちゃん".into(), ..sr.ustawienia() }, t("09:02:00"));
+        r.skrot_zajety("Ctrl+Shift+F9", t("09:02:00"));
+        r.tick(t("09:02:10"));
+        assert_eq!(wstawki(&r.wez_zdarzenia(), "skrot_zajety")["postac"], "才ちゃん");
     }
 }

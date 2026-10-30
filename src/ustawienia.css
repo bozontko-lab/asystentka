@@ -8,7 +8,7 @@
   --tekst: #f3f1ff;
   --tekst-cichy: #b8b4dc;
   color-scheme: dark;
-  font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Yu Gothic UI", "Meiryo", sans-serif;
   font-size: 13.5px;
   -webkit-font-smoothing: antialiased;
 }

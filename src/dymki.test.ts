@@ -25,6 +25,14 @@ describe("kwestia", () => {
     expect(kwestia("nie_ma_takiego", {}, kwestie)).toBeNull();
   });
 
+  it("kreator przedstawia się imieniem postaci, także japońskim", () => {
+    expect(kwestia("konfiguracja_imie", { postac: "Sai" }, kwestie)).toBe(
+      "Cześć! Jestem Sai, Twoja asystentka. Jak mam się do Ciebie zwracać?",
+    );
+    expect(kwestia("konfiguracja_imie", { postac: "才ちゃん" }, kwestie)).toContain("Jestem 才ちゃん,");
+    expect(kwestia("konfiguracja_imie", {}, kwestie)).toBeNull();
+  });
+
   it("losuje spośród pasujących wariantów", () => {
     expect(kwestia("powitanie", { imie: "Ola" }, kwestie, () => 0)).toBe("Dzień dobry, Ola!");
     expect(kwestia("powitanie", { imie: "Ola" }, kwestie, () => 0.99)).toBe("Hej, Ola! Co dziś robimy?");
@@ -45,7 +53,7 @@ describe("kwestie.json a backend", () => {
   });
 
   it("używa tylko wstawek, które backend umie podać", () => {
-    const znane = new Set(["imie", "minuty", "zadanie", "czas", "szac", "czas_dnia", "pozostalo", "zadan", "skrot"]);
+    const znane = new Set(["imie", "minuty", "zadanie", "czas", "szac", "czas_dnia", "pozostalo", "zadan", "skrot", "postac"]);
     for (const warianty of Object.values(kwestie)) {
       for (const wzor of warianty) {
         for (const [, nazwa] of wzor.matchAll(/\{(\w+)\}/g)) {

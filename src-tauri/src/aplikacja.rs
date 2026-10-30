@@ -92,7 +92,7 @@ fn zablokuj<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 }
 
 fn stan_menu(r: &Rdzen) -> StanMenu {
-    StanMenu::z(&r.mozliwosci(), r.ust.ukryj_przed_nagrywaniem)
+    StanMenu::z(&r.mozliwosci(), r.ust.ukryj_przed_nagrywaniem, r.ust.postac())
 }
 
 /// `%APPDATA%\Asystentka`, albo katalog z `ASYSTENTKA_KATALOG` (piaskownica do testów).
@@ -724,11 +724,14 @@ impl Aplikacja {
 
     /// Prawy przycisk na postaci albo panelu: menu z poleceniami (B6).
     pub fn menu_kontekstowe(self: &Arc<Self>) {
-        let mozliwosci = zablokuj(&self.rdzen).mozliwosci();
+        let (mozliwosci, postac) = {
+            let r = zablokuj(&self.rdzen);
+            (r.mozliwosci(), r.ust.postac().to_string())
+        };
         let app = self.app.clone();
         let _ = self.app.run_on_main_thread(move || {
             let Some(okno) = app.get_webview_window(OKNO) else { return };
-            match zasobnik::menu_kontekstowe(&app, &mozliwosci) {
+            match zasobnik::menu_kontekstowe(&app, &mozliwosci, &postac) {
                 Ok(menu) => {
                     if let Err(e) = okno.popup_menu(&menu) {
                         log::warn!("nie mogę pokazać menu pod prawym przyciskiem: {e}");
@@ -809,12 +812,14 @@ impl Aplikacja {
         nowe.skrot_pokaz_ukryj = skrot::analizuj(&nowe.skrot_pokaz_ukryj)?.tekst;
         let plik = nowe.plik_zadan().ok_or("Wskaż plik zadań.")?;
         if utworz_plik {
-            obsidian::utworz_plik_zadan(&plik, czas::dzien(czas::teraz())).map_err(|e| match e.kind() {
-                std::io::ErrorKind::AlreadyExists => {
-                    "Ten plik już istnieje. Wybierz „Mam własny plik”, żeby go użyć.".to_string()
+            obsidian::utworz_plik_zadan(&plik, czas::dzien(czas::teraz()), nowe.postac()).map_err(|e| {
+                match e.kind() {
+                    std::io::ErrorKind::AlreadyExists => {
+                        "Ten plik już istnieje. Wybierz „Mam własny plik”, żeby go użyć.".to_string()
+                    }
+                    std::io::ErrorKind::NotFound => format!("Folder pliku zadań nie istnieje: {}", plik.display()),
+                    _ => format!("Nie mogę utworzyć pliku zadań: {e}"),
                 }
-                std::io::ErrorKind::NotFound => format!("Folder pliku zadań nie istnieje: {}", plik.display()),
-                _ => format!("Nie mogę utworzyć pliku zadań: {e}"),
             })?;
         } else if !plik.is_file() {
             return Err(format!("Nie widzę pliku zadań: {}", plik.display()));
@@ -894,6 +899,7 @@ impl Aplikacja {
 
     pub fn otworz_okno_ustawien(self: &Arc<Self>) {
         let app = self.app.clone();
+        let tytul = format!("{} · ustawienia", zablokuj(&self.rdzen).ust.postac());
         // Budowanie okna z wątku zdarzeń blokuje się na Windows, więc osobny wątek.
         thread::spawn(move || {
             if let Some(okno) = app.get_webview_window(OKNO_USTAWIEN) {
@@ -904,7 +910,7 @@ impl Aplikacja {
             }
             let wynik =
                 tauri::WebviewWindowBuilder::new(&app, OKNO_USTAWIEN, tauri::WebviewUrl::App("ustawienia.html".into()))
-                    .title("Asystentka — ustawienia")
+                    .title(tytul)
                     .inner_size(540.0, 700.0)
                     .min_inner_size(460.0, 520.0)
                     .center()

@@ -1,5 +1,5 @@
 {
-  "konfiguracja_imie": ["Cześć! Jestem Twoją asystentką. Jak mam się do Ciebie zwracać?"],
+  "konfiguracja_imie": ["Cześć! Jestem {postac}, Twoja asystentka. Jak mam się do Ciebie zwracać?"],
   "konfiguracja_plik": ["Gdzie trzymasz zadania? Mogę założyć nowy plik albo użyć Twojego."],
   "konfiguracja_gotowe": ["Gotowe, {imie}! Dopisz zadania w pliku, a ja zaraz je wczytam."],
   "powitanie": ["Dzień dobry, {imie}!", "Hej, {imie}! Co dziś robimy?"],

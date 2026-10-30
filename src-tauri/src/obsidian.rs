@@ -54,17 +54,18 @@ pub fn adres_otwarcia(plik: &Path) -> String {
     wynik
 }
 
-/// Szablon tworzony przez kreator; termin przykładu to dziś + 14 dni.
-pub fn szablon_zadan(dzis: NaiveDate) -> String {
+/// Szablon tworzony przez kreator; termin przykładu to dziś + 14 dni, a w komentarzu
+/// stoi imię postaci (B3).
+pub fn szablon_zadan(dzis: NaiveDate, postac: &str) -> String {
     let termin = czas::data_iso(dzis + Duration::days(14));
     format!(
         "# Zadania
 
-<!-- Jak pisać zadania dla asystentki:
+<!-- Jak pisać zadania dla {postac}:
 - jedna linia to jedno zadanie: - [ ] Nazwa [szac:: minuty]
 - nagłówek ## grupuje zadania w projekt
 - opcjonalnie termin: [termin:: RRRR-MM-DD]
-- [czas:: …] i ✅ dopisuje asystentka -->
+- [czas:: …] i ✅ dopisuje {postac} -->
 
 ## Przykładowy projekt
 - [ ] Pierwsze zadanie [szac:: 30]
@@ -76,14 +77,14 @@ pub fn szablon_zadan(dzis: NaiveDate) -> String {
 }
 
 /// Tworzy plik zadań z szablonu. Istniejącego pliku nigdy nie nadpisuje.
-pub fn utworz_plik_zadan(plik: &Path, dzis: NaiveDate) -> io::Result<()> {
+pub fn utworz_plik_zadan(plik: &Path, dzis: NaiveDate, postac: &str) -> io::Result<()> {
     if let Some(folder) = plik.parent().filter(|f| !f.as_os_str().is_empty()) {
         if !folder.is_dir() {
             return Err(io::Error::new(io::ErrorKind::NotFound, format!("folder {} nie istnieje", folder.display())));
         }
     }
     let mut otwarty = fs::OpenOptions::new().write(true).create_new(true).open(plik)?;
-    otwarty.write_all(szablon_zadan(dzis).as_bytes())?;
+    otwarty.write_all(szablon_zadan(dzis, postac).as_bytes())?;
     otwarty.sync_all()
 }
 
@@ -126,10 +127,19 @@ mod testy {
 
     #[test]
     fn szablon_jak_w_b3_z_terminem_za_14_dni() {
-        let s = szablon_zadan(NaiveDate::from_ymd_opt(2026, 10, 29).unwrap());
-        assert!(s.starts_with("# Zadania\n\n<!-- Jak pisać zadania dla asystentki:\n"));
+        let s = szablon_zadan(NaiveDate::from_ymd_opt(2026, 10, 29).unwrap(), "Sai");
+        assert!(s.starts_with("# Zadania\n\n<!-- Jak pisać zadania dla Sai:\n"));
+        assert!(s.contains("- [czas:: …] i ✅ dopisuje Sai -->\n"), "imię postaci także w drugiej linii komentarza");
+        assert!(!s.contains("{postac}"));
         assert!(s.contains("- [ ] Drugie zadanie [szac:: 60] [termin:: 2026-11-12]\n"));
         assert!(s.ends_with("## Inbox\n"));
+    }
+
+    #[test]
+    fn szablon_przyjmuje_dowolne_imie_postaci() {
+        let s = szablon_zadan(NaiveDate::from_ymd_opt(2026, 10, 29).unwrap(), "才ちゃん");
+        assert!(s.contains("Jak pisać zadania dla 才ちゃん:"), "{s}");
+        assert!(s.contains("dopisuje 才ちゃん -->"), "{s}");
     }
 
     #[test]
@@ -137,12 +147,12 @@ mod testy {
         let k = tempfile::tempdir().unwrap();
         let plik = k.path().join("Zadania.md");
         let dzis = NaiveDate::from_ymd_opt(2026, 10, 29).unwrap();
-        utworz_plik_zadan(&plik, dzis).unwrap();
+        utworz_plik_zadan(&plik, dzis, "Sai").unwrap();
         fs::write(&plik, "moje zadania").unwrap();
-        assert_eq!(utworz_plik_zadan(&plik, dzis).unwrap_err().kind(), io::ErrorKind::AlreadyExists);
+        assert_eq!(utworz_plik_zadan(&plik, dzis, "Sai").unwrap_err().kind(), io::ErrorKind::AlreadyExists);
         assert_eq!(fs::read_to_string(&plik).unwrap(), "moje zadania");
         assert_eq!(
-            utworz_plik_zadan(&k.path().join("brak").join("Z.md"), dzis).unwrap_err().kind(),
+            utworz_plik_zadan(&k.path().join("brak").join("Z.md"), dzis, "Sai").unwrap_err().kind(),
             io::ErrorKind::NotFound
         );
     }
