@@ -50,6 +50,36 @@
   gap: 6px;
 }
 
+/* Suwak głośności dźwięku 40 Hz z wartością i przyciskiem „Odsłuchaj” (B7). */
+.wiersz-glosnosci {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wiersz-glosnosci input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--miedz);
+}
+
+.wiersz-glosnosci input[type="range"]:focus-visible {
+  outline: 2px solid var(--fiolet-jasny);
+  outline-offset: 2px;
+}
+
+.wartosc-suwaka {
+  min-width: 3.2em;
+  color: var(--tekst-2);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.wiersz-glosnosci .przycisk {
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
 .wiersz-sciezki input {
   flex: 1;
   min-width: 0;

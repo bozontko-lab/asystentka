@@ -4,8 +4,8 @@
 //! wszystkie polecenia są też w menu pod prawym przyciskiem na postaci i panelu.
 //!
 //! Zasobnik: Pokaż / Ukryj · Pauza / Wznów · Koniec pracy na dziś · Przywróć
-//! pozycję · Ukryj przed nagrywaniem · Ustawienia · Zamknij {postac}. Lewy klik w ikonę pokazuje i
-//! chowa widget; podpowiedź ikony to imię postaci.
+//! pozycję · Ukryj przed nagrywaniem · Dźwięk 40 Hz · Ustawienia · Zamknij {postac}. Lewy klik w
+//! ikonę pokazuje i chowa widget; podpowiedź ikony to imię postaci.
 
 use std::sync::Mutex;
 
@@ -20,6 +20,7 @@ pub const PAUZA: &str = "pauza";
 pub const KONIEC: &str = "koniec";
 pub const PRZYWROC: &str = "przywroc";
 pub const NAGRYWANIE: &str = "nagrywanie";
+pub const DZWIEK: &str = "dzwiek";
 pub const USTAWIENIA: &str = "ustawienia";
 pub const ZAMKNIJ: &str = "zamknij";
 
@@ -32,6 +33,7 @@ pub const CTX_DODAJ: &str = "ctx_dodaj";
 pub const CTX_PAUZA: &str = "ctx_pauza";
 pub const CTX_UKRYJ: &str = "ctx_ukryj";
 pub const CTX_PRZYWROC: &str = "ctx_przywroc";
+pub const CTX_DZWIEK: &str = "ctx_dzwiek";
 pub const CTX_USTAWIENIA: &str = "ctx_ustawienia";
 pub const CTX_ZAMKNIJ: &str = "ctx_zamknij";
 
@@ -43,17 +45,20 @@ pub struct StanMenu {
     pub pauza: Option<bool>,
     pub koniec_pracy: bool,
     pub ukryj_przed_nagrywaniem: bool,
+    /// Przełącznik „Dźwięk 40 Hz” (B7): zaznaczony, gdy dźwięk skupienia jest włączony.
+    pub dzwiek: bool,
     /// Imię postaci: w „Zamknij {postac}” i w podpowiedzi ikony (B6).
     pub postac: String,
 }
 
 impl StanMenu {
-    pub fn z(m: &Mozliwosci, ukryj_przed_nagrywaniem: bool, postac: &str) -> StanMenu {
+    pub fn z(m: &Mozliwosci, ukryj_przed_nagrywaniem: bool, dzwiek: bool, postac: &str) -> StanMenu {
         StanMenu {
             widoczna: m.widoczna,
             pauza: m.pauza,
             koniec_pracy: m.koniec_pracy,
             ukryj_przed_nagrywaniem,
+            dzwiek,
             postac: postac.to_string(),
         }
     }
@@ -64,11 +69,15 @@ pub fn etykieta_zamkniecia(postac: &str) -> String {
     format!("Zamknij {postac}")
 }
 
+/// Pozycja przełączająca dźwięk skupienia w obu menu.
+pub const ETYKIETA_DZWIEKU: &str = "Dźwięk 40 Hz";
+
 pub struct Zasobnik {
     pokaz: MenuItem<Wry>,
     pauza: MenuItem<Wry>,
     koniec: MenuItem<Wry>,
     nagrywanie: CheckMenuItem<Wry>,
+    dzwiek: CheckMenuItem<Wry>,
     zamknij: MenuItem<Wry>,
     ikona: TrayIcon<Wry>,
     ostatni: Mutex<Option<StanMenu>>,
@@ -93,6 +102,7 @@ impl Zasobnik {
             stan.ukryj_przed_nagrywaniem,
             None::<&str>,
         )?;
+        let dzwiek = CheckMenuItem::with_id(app, DZWIEK, ETYKIETA_DZWIEKU, true, stan.dzwiek, None::<&str>)?;
         let ustawienia = MenuItem::with_id(app, USTAWIENIA, "Ustawienia", true, None::<&str>)?;
         let zamknij = MenuItem::with_id(app, ZAMKNIJ, etykieta_zamkniecia(&stan.postac), true, None::<&str>)?;
         let menu = Menu::with_items(
@@ -104,6 +114,7 @@ impl Zasobnik {
                 &przywroc,
                 &PredefinedMenuItem::separator(app)?,
                 &nagrywanie,
+                &dzwiek,
                 &ustawienia,
                 &PredefinedMenuItem::separator(app)?,
                 &zamknij,
@@ -125,7 +136,7 @@ impl Zasobnik {
             budowniczy = budowniczy.icon(obraz.clone());
         }
         let ikona = budowniczy.build(app)?;
-        let zasobnik = Zasobnik { pokaz, pauza, koniec, nagrywanie, zamknij, ikona, ostatni: Mutex::new(None) };
+        let zasobnik = Zasobnik { pokaz, pauza, koniec, nagrywanie, dzwiek, zamknij, ikona, ostatni: Mutex::new(None) };
         zasobnik.odswiez(stan);
         Ok(zasobnik)
     }
@@ -153,6 +164,9 @@ impl Zasobnik {
         if poprzedni.as_ref().map(|p| p.ukryj_przed_nagrywaniem) != Some(stan.ukryj_przed_nagrywaniem) {
             let _ = self.nagrywanie.set_checked(stan.ukryj_przed_nagrywaniem);
         }
+        if poprzedni.as_ref().map(|p| p.dzwiek) != Some(stan.dzwiek) {
+            let _ = self.dzwiek.set_checked(stan.dzwiek);
+        }
         // Nowe imię postaci od razu w menu i w podpowiedzi ikony, bez restartu.
         if poprzedni.as_ref().map(|p| &p.postac) != Some(&stan.postac) {
             let _ = self.zamknij.set_text(etykieta_zamkniecia(&stan.postac));
@@ -163,12 +177,18 @@ impl Zasobnik {
     pub fn nagrywanie_zaznaczone(&self) -> Option<bool> {
         self.nagrywanie.is_checked().ok()
     }
+
+    /// Kliknięcie przełącza ptaszka samo; po zapisie stanu ustawiamy go tak, jak jest naprawdę.
+    pub fn ustaw_dzwiek(&self, zaznaczony: bool) {
+        let _ = self.dzwiek.set_checked(zaznaczony);
+    }
 }
 
 /// Menu pod prawym przyciskiem na postaci i panelu: Koniec pracy na dziś ·
 /// Zmień plan · Dodaj zadanie · Pauza / Wznów · Ukryj · Przywróć pozycję ·
-/// Ustawienia · Zamknij {postac}. Pozycje, których w danym stanie nie ma sensu używać, są wyszarzone.
-pub fn menu_kontekstowe(app: &AppHandle, m: &Mozliwosci, postac: &str) -> tauri::Result<Menu<Wry>> {
+/// Dźwięk 40 Hz · Ustawienia · Zamknij {postac}. Pozycje, których w danym stanie nie ma sensu używać,
+/// są wyszarzone.
+pub fn menu_kontekstowe(app: &AppHandle, m: &Mozliwosci, postac: &str, dzwiek: bool) -> tauri::Result<Menu<Wry>> {
     let koniec = MenuItem::with_id(app, CTX_KONIEC, "Koniec pracy na dziś", m.koniec_pracy, None::<&str>)?;
     let plan = MenuItem::with_id(app, CTX_PLAN, "Zmień plan", m.zmien_plan, None::<&str>)?;
     let dodaj = MenuItem::with_id(app, CTX_DODAJ, "Dodaj zadanie", m.dodaj_zadanie, None::<&str>)?;
@@ -181,6 +201,7 @@ pub fn menu_kontekstowe(app: &AppHandle, m: &Mozliwosci, postac: &str) -> tauri:
     )?;
     let ukryj = MenuItem::with_id(app, CTX_UKRYJ, "Ukryj", true, None::<&str>)?;
     let przywroc = MenuItem::with_id(app, CTX_PRZYWROC, "Przywróć pozycję", true, None::<&str>)?;
+    let dzwiek = CheckMenuItem::with_id(app, CTX_DZWIEK, ETYKIETA_DZWIEKU, true, dzwiek, None::<&str>)?;
     let ustawienia = MenuItem::with_id(app, CTX_USTAWIENIA, "Ustawienia", true, None::<&str>)?;
     let zamknij = MenuItem::with_id(app, CTX_ZAMKNIJ, etykieta_zamkniecia(postac), true, None::<&str>)?;
     Menu::with_items(
@@ -194,6 +215,7 @@ pub fn menu_kontekstowe(app: &AppHandle, m: &Mozliwosci, postac: &str) -> tauri:
             &ukryj,
             &przywroc,
             &PredefinedMenuItem::separator(app)?,
+            &dzwiek,
             &ustawienia,
             &zamknij,
         ],
@@ -213,9 +235,19 @@ mod testy {
     #[test]
     fn stan_menu_niesie_imie_postaci_i_zmiana_imienia_to_zmiana_stanu() {
         let m = Mozliwosci { koniec_pracy: true, zmien_plan: true, dodaj_zadanie: true, pauza: None, widoczna: true };
-        let a = StanMenu::z(&m, true, "Sai");
-        let b = StanMenu::z(&m, true, "Bajtka");
+        let a = StanMenu::z(&m, true, true, "Sai");
+        let b = StanMenu::z(&m, true, true, "Bajtka");
         assert_eq!(a.postac, "Sai");
         assert_ne!(a, b, "odświeżenie menu zauważy nowe imię");
+    }
+
+    #[test]
+    fn stan_menu_niesie_przelacznik_dzwieku() {
+        let m = Mozliwosci { koniec_pracy: true, zmien_plan: true, dodaj_zadanie: true, pauza: None, widoczna: true };
+        let z = StanMenu::z(&m, true, true, "Sai");
+        let bez = StanMenu::z(&m, true, false, "Sai");
+        assert!(z.dzwiek && !bez.dzwiek);
+        assert_ne!(z, bez, "odświeżenie menu zauważy włączenie i wyłączenie dźwięku");
+        assert_eq!(ETYKIETA_DZWIEKU, "Dźwięk 40 Hz");
     }
 }

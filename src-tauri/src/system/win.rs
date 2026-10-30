@@ -5,8 +5,11 @@ use std::sync::OnceLock;
 
 use tauri::WebviewWindow;
 use windows::core::w;
-use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, WPARAM};
+use windows::Win32::Foundation::{CloseHandle, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM};
 use windows::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST};
+use windows::Win32::System::Diagnostics::ToolHelp::{
+    CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
+};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::RemoteDesktop::{WTSRegisterSessionNotification, NOTIFY_FOR_THIS_SESSION};
 use windows::Win32::System::SystemInformation::GetTickCount;
@@ -23,7 +26,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
     WS_OVERLAPPED, WTS_SESSION_LOCK, WTS_SESSION_UNLOCK,
 };
 
-use super::{Obsluga, PierwszyPlan, StanPelnegoEkranu, ZdarzenieSystemowe};
+use super::{nazwa_procesu_pasuje, Obsluga, PierwszyPlan, StanPelnegoEkranu, ZdarzenieSystemowe};
 use crate::okno::Prostokat;
 
 static OBSLUGA: OnceLock<Obsluga> = OnceLock::new();
@@ -239,5 +242,28 @@ pub fn pokaz_bez_aktywacji(okno: &WebviewWindow) {
         {
             let _ = SetForegroundWindow(poprzednie);
         }
+    }
+}
+
+/// Czy działa proces o tej nazwie pliku (np. `obs64.exe`), według migawki procesów systemu.
+pub fn proces_dziala(nazwa: &str) -> bool {
+    unsafe {
+        let Ok(migawka) = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) else { return false };
+        let mut wpis = PROCESSENTRY32W { dwSize: size_of::<PROCESSENTRY32W>() as u32, ..Default::default() };
+        let mut znaleziony = false;
+        if Process32FirstW(migawka, &mut wpis).is_ok() {
+            loop {
+                let dlugosc = wpis.szExeFile.iter().position(|&c| c == 0).unwrap_or(wpis.szExeFile.len());
+                if nazwa_procesu_pasuje(&String::from_utf16_lossy(&wpis.szExeFile[..dlugosc]), nazwa) {
+                    znaleziony = true;
+                    break;
+                }
+                if Process32NextW(migawka, &mut wpis).is_err() {
+                    break;
+                }
+            }
+        }
+        let _ = CloseHandle(migawka);
+        znaleziony
     }
 }

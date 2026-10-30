@@ -586,6 +586,38 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Etykieta „♪ 40 Hz” w panelu Pracy: --zielen, gdy dźwięk gra, i --tekst-2, gdy jest wyłączony
+   albo wyciszony przez OBS. Kliknięcie przełącza dźwięk (B7). */
+.wiersz-dzwieku {
+  margin-top: 6px;
+}
+
+.dzwiek {
+  margin: 0 0 0 -6px;
+  padding: 1px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--tekst-2);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dzwiek.gra {
+  color: var(--zielen);
+}
+
+.dzwiek:hover {
+  background: var(--tlo-2);
+}
+
+.dzwiek:focus-visible {
+  outline: 2px solid var(--fiolet-jasny);
+  outline-offset: 2px;
+}
+
 .przyciski {
   display: flex;
   gap: 6px;

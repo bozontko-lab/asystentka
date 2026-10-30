@@ -6,6 +6,7 @@ import "./formularz.css";
 import "./ustawienia.css";
 
 import { el } from "./dom";
+import { PoleGlosnosci } from "./dzwiek";
 import { godzinyNaMinuty, minutyNaGodziny } from "./kreator";
 import { type Most, mostTauri, wTauri } from "./most";
 import { mostPodglad } from "./podglad";
@@ -120,6 +121,19 @@ async function start(): Promise<void> {
     u.chowaj_przy_pelnym_ekranie,
   );
   const poleSkrotu = new PoleSkrotu(most, u.skrot_pokaz_ukryj);
+  const [poleDzwieku, dzwiek] = przelacznik(
+    "dzwiek",
+    "Dźwięk 40 Hz w czasie pracy",
+    "Zapętlone dudnienie, tylko gdy licznik liczy czas zadania. Narasta przy starcie, cichnie przy pauzie.",
+    u.dzwiek_skupienia,
+  );
+  const poleGlosnosci = new PoleGlosnosci(most, u.dzwiek_skupienia_glosnosc);
+  const [poleCiszy, cisza] = przelacznik(
+    "cisza",
+    "Cisza przy nagrywaniu (OBS)",
+    "Gdy działa OBS (obs64.exe), dźwięk milknie, żeby nie trafił do nagrania.",
+    u.cisza_przy_nagrywaniu,
+  );
 
   const blad = el("div", { class: "blad-formularza", role: "alert", hidden: true });
   const zapisz = el("button", { class: "przycisk glowny", type: "button" }, "Zapisz");
@@ -141,6 +155,9 @@ async function start(): Promise<void> {
       przypomnienie_przerwy_min: Number.parseInt(przerwa.value || "0", 10),
       ukryj_przed_nagrywaniem: nagrywanie.checked,
       chowaj_przy_pelnym_ekranie: pelnyEkran.checked,
+      dzwiek_skupienia: dzwiek.checked,
+      dzwiek_skupienia_glosnosc: poleGlosnosci.glosnosc,
+      cisza_przy_nagrywaniu: cisza.checked,
       skrot_pokaz_ukryj: poleSkrotu.skrot,
     };
   };
@@ -186,6 +203,10 @@ async function start(): Promise<void> {
     pole("koniec", "Zamknięcie dnia o godzinie", koniec, "Wtedy sam podsumowuję dzień, jeśli nie zrobiłeś tego wcześniej."),
     pole("bezczynnosc", "Pytaj „Przerwa czy praca?” po (min bez ruchu)", bezczynnosc, "0 wyłącza pytanie."),
     pole("przerwa", "Przypomnij o przerwie po (min pracy)", przerwa, "0 wyłącza przypomnienie."),
+    el("h2", {}, "Dźwięk"),
+    poleDzwieku,
+    poleGlosnosci.korzen,
+    poleCiszy,
     el("h2", {}, "Okno i system"),
     poleAutostartu,
     poleNagrywania,

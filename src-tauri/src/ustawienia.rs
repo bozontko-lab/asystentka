@@ -39,6 +39,12 @@ pub struct Ustawienia {
     pub przypomnienie_przerwy_min: u32,
     pub ukryj_przed_nagrywaniem: bool,
     pub chowaj_przy_pelnym_ekranie: bool,
+    /// Dźwięk skupienia (dudnienie 40 Hz) w czasie pracy (B7).
+    pub dzwiek_skupienia: bool,
+    /// Głośność dźwięku skupienia, od 0 do 100.
+    pub dzwiek_skupienia_glosnosc: u32,
+    /// Gdy działa OBS, dźwięk milknie, żeby nie trafił do nagrania.
+    pub cisza_przy_nagrywaniu: bool,
     pub skrot_pokaz_ukryj: String,
 }
 
@@ -56,6 +62,9 @@ impl Default for Ustawienia {
             przypomnienie_przerwy_min: 50,
             ukryj_przed_nagrywaniem: true,
             chowaj_przy_pelnym_ekranie: true,
+            dzwiek_skupienia: true,
+            dzwiek_skupienia_glosnosc: 25,
+            cisza_przy_nagrywaniu: true,
             skrot_pokaz_ukryj: skrot::DOMYSLNY.into(),
         }
     }
@@ -74,6 +83,11 @@ pub struct PodpowiedzKreatora {
 impl Ustawienia {
     pub fn plik_zadan(&self) -> Option<PathBuf> {
         sciezka(&self.plik_zadan)
+    }
+
+    /// Głośność dźwięku skupienia jako mnożnik od 0 do 1; wartość spoza zakresu jest przycinana.
+    pub fn glosnosc_dzwieku(&self) -> f32 {
+        self.dzwiek_skupienia_glosnosc.min(100) as f32 / 100.0
     }
 
     /// Imię postaci do pokazania w interfejsie; puste pole znaczy „Sai”.
@@ -132,6 +146,9 @@ impl Ustawienia {
         }
         if self.przypomnienie_przerwy_min > 480 {
             bledy.push("Przypomnienie o przerwie nie może przekraczać 480 minut.".to_string());
+        }
+        if self.dzwiek_skupienia_glosnosc > 100 {
+            bledy.push("Głośność dźwięku skupienia to liczba od 0 do 100.".to_string());
         }
         if let Err(blad) = skrot::analizuj(&self.skrot_pokaz_ukryj) {
             bledy.push(blad);
@@ -421,6 +438,9 @@ mod testy {
                 "przypomnienie_przerwy_min",
                 "ukryj_przed_nagrywaniem",
                 "chowaj_przy_pelnym_ekranie",
+                "dzwiek_skupienia",
+                "dzwiek_skupienia_glosnosc",
+                "cisza_przy_nagrywaniu",
                 "skrot_pokaz_ukryj"
             ]
         );
@@ -539,5 +559,27 @@ mod testy {
         let zapisany: serde_json::Value = serde_json::from_str(&fs::read_to_string(&plik).unwrap()).unwrap();
         assert_eq!(zapisany["nazwa_postaci"], "Bajtka");
         assert_eq!(wczytaj(&plik).unwrap().nazwa_postaci, "Bajtka");
+    }
+
+    #[test]
+    fn dzwiek_skupienia_ma_domyslne_ustawienia_z_b7_i_sprawdzana_glosnosc() {
+        let u = Ustawienia::default();
+        assert!(u.dzwiek_skupienia && u.cisza_przy_nagrywaniu);
+        assert_eq!(u.dzwiek_skupienia_glosnosc, 25);
+        assert_eq!(u.glosnosc_dzwieku(), 0.25);
+        let dobre = Ustawienia { imie: "Ola".into(), plik_zadan: "/v/Zadania.md".into(), ..u };
+        assert!(Ustawienia { dzwiek_skupienia_glosnosc: 100, ..dobre.clone() }.waliduj().is_empty());
+        assert!(Ustawienia { dzwiek_skupienia_glosnosc: 0, ..dobre.clone() }.waliduj().is_empty());
+        let za_glosno = Ustawienia { dzwiek_skupienia_glosnosc: 101, ..dobre };
+        assert!(za_glosno.waliduj().iter().any(|b| b.contains("od 0 do 100")));
+        assert_eq!(za_glosno.glosnosc_dzwieku(), 1.0, "przy odtwarzaniu przycinane do 100");
+    }
+
+    #[test]
+    fn stary_plik_ustawien_bez_pol_dzwieku_dostaje_wartosci_domyslne() {
+        let (_k, plik) = plik_v1();
+        let Wynik::Kreator(u) = wczytaj_przy_starcie(&plik) else { panic!("powinien być kreator") };
+        assert!(u.dzwiek_skupienia && u.cisza_przy_nagrywaniu);
+        assert_eq!(u.dzwiek_skupienia_glosnosc, 25);
     }
 }

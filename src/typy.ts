@@ -99,6 +99,15 @@ export interface KoniecWidok {
   podsumowanie: PodsumowanieWidok;
 }
 
+/** Dźwięk skupienia (B7): etykieta „♪ 40 Hz” w panelu Pracy. */
+export interface DzwiekWidok {
+  /** Przełącznik „Dźwięk 40 Hz” jest zaznaczony. */
+  wlaczony: boolean;
+  /** Dźwięk faktycznie ma grać w pracy: włączony, głośność powyżej 0, bez ciszy OBS i z urządzeniem audio. */
+  gra: boolean;
+  wyciszony_przez_obs: boolean;
+}
+
 export interface Migawka {
   stan: NazwaStanu;
   widoczna: boolean;
@@ -112,6 +121,7 @@ export interface Migawka {
   gratulacje: Gratulacje | null;
   koniec: KoniecWidok | null;
   dzien: { minuty: number; cel_min: number };
+  dzwiek: DzwiekWidok;
   blad_pliku: string | null;
   /** Projekty do wyboru w „Dodaj zadanie”: nagłówki z pliku i Inbox. */
   projekty_do_dopisania: string[];
@@ -135,6 +145,12 @@ export interface Ustawienia {
   przypomnienie_przerwy_min: number;
   ukryj_przed_nagrywaniem: boolean;
   chowaj_przy_pelnym_ekranie: boolean;
+  /** Dudnienie 40 Hz w czasie pracy (B7). */
+  dzwiek_skupienia: boolean;
+  /** Głośność dźwięku skupienia, od 0 do 100. */
+  dzwiek_skupienia_glosnosc: number;
+  /** Gdy działa OBS, dźwięk milknie. */
+  cisza_przy_nagrywaniu: boolean;
   skrot_pokaz_ukryj: string;
 }
 

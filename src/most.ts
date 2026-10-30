@@ -22,7 +22,8 @@ export type Akcja =
   | "koniec_pracy"
   | "do_jutra"
   | "wroc_do_pracy"
-  | "dalej_po_wczoraju";
+  | "dalej_po_wczoraju"
+  | "przelacz_dzwiek";
 
 export interface Most {
   migawka(): Promise<Migawka>;
@@ -55,6 +56,8 @@ export interface Most {
   skrotSprawdz(skrot: string): Promise<string>;
   /** Pole skrótu nagrywa kombinację (`true`) albo skończyło (`false`): własny skrót widgetu na ten czas nie działa. */
   skrotWstrzymaj(wstrzymaj: boolean): Promise<void>;
+  /** „Odsłuchaj” w ustawieniach: 5 s na podanej głośności (0 do 100). Odrzuca komunikatem, gdy nie da się zagrać. */
+  dzwiekOdsluch(poziom: number): Promise<void>;
   ustawieniaPobierz(): Promise<Ustawienia>;
   ustawieniaZapisz(ustawienia: Ustawienia): Promise<void>;
   otworzUstawienia(): Promise<void>;
@@ -92,6 +95,7 @@ export function mostTauri(): Most {
     fokus: (wlacz) => invoke("ustaw_fokus", { wlacz }),
     skrotSprawdz: (skrot) => invoke<string>("skrot_sprawdz", { skrot }),
     skrotWstrzymaj: (wstrzymaj) => invoke("skrot_wstrzymaj", { wstrzymaj }),
+    dzwiekOdsluch: (poziom) => invoke("dzwiek_odsluch", { poziom }),
     ustawieniaPobierz: () => invoke<Ustawienia>("ustawienia_pobierz"),
     ustawieniaZapisz: (ustawienia) => invoke("ustawienia_zapisz", { ustawienia }),
     otworzUstawienia: () => invoke("otworz_ustawienia"),

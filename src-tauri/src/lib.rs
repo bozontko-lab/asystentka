@@ -2,6 +2,7 @@
 //! pracy w Obsidianie. Specyfikacja: SPEC.md w katalogu głównym repozytorium.
 
 mod aplikacja;
+mod dzwiek;
 mod komendy;
 mod obsidian;
 mod okno;
@@ -96,6 +97,8 @@ pub fn run() {
             komendy::wroc_do_pracy,
             komendy::dalej_po_wczoraju,
             komendy::menu_kontekstowe,
+            komendy::przelacz_dzwiek,
+            komendy::dzwiek_odsluch,
             komendy::kreator_dane,
             komendy::kreator_zakoncz,
             komendy::ustawienia_pobierz,

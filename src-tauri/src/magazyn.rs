@@ -105,6 +105,7 @@ impl Magazyn {
                             sekundy: s.get("sekundy").and_then(|m| m.as_i64()).unwrap_or(0),
                             minuty: s.get("minuty").and_then(|m| m.as_u64()).unwrap_or(0) as u32,
                             zrobione: s.get("status").and_then(|m| m.as_str()) == Some("Zrobione"),
+                            dzwiek: false,
                         })
                     })
                     .collect()

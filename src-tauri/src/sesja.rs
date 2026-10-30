@@ -78,6 +78,12 @@ pub struct Sesja {
     /// Ile przypomnień o przerwie padło w bieżącym odcinku.
     #[serde(default)]
     pub przypomnienia: u32,
+    /// Ile sekund w tej sesji grał dźwięk skupienia (B7): z tego wynika znacznik „· 40 Hz” w dzienniku.
+    #[serde(default)]
+    pub dzwiek_s: i64,
+    /// Od kiedy dźwięk gra w tej chwili.
+    #[serde(default)]
+    pub dzwiek_od: Option<Chwila>,
 }
 
 impl Sesja {
@@ -90,7 +96,32 @@ impl Sesja {
             pauza: None,
             bezczynna_od: None,
             przypomnienia: 0,
+            dzwiek_s: 0,
+            dzwiek_od: None,
         }
+    }
+
+    /// Dźwięk skupienia zaczął (`gra`) albo przestał grać w chwili `kiedy`.
+    pub fn dzwiek_ustaw(&mut self, gra: bool, kiedy: Chwila) {
+        match (gra, self.dzwiek_od) {
+            (true, None) => self.dzwiek_od = Some(kiedy),
+            (false, Some(od)) => {
+                self.dzwiek_s += (kiedy - od).num_seconds().max(0);
+                self.dzwiek_od = None;
+            }
+            _ => {}
+        }
+    }
+
+    /// Sekundy, w których grał dźwięk, razem z trwającym teraz odcinkiem.
+    pub fn dzwiek_sekundy(&self, teraz: Chwila) -> i64 {
+        self.dzwiek_s + self.dzwiek_od.map_or(0, |od| (teraz - od).num_seconds().max(0))
+    }
+
+    /// Dźwięk grał przez większość czasu sesji (B3: znacznik „· 40 Hz”).
+    pub fn dzwiek_wiekszosc(&self, teraz: Chwila) -> bool {
+        let czas = self.sekundy(teraz);
+        czas > 0 && self.dzwiek_sekundy(teraz) * 2 > czas
     }
 
     pub fn trwa(&self) -> bool {
@@ -140,6 +171,8 @@ impl Sesja {
             return;
         }
         let od = self.zamknij_odcinek(kiedy).unwrap_or(kiedy);
+        // Pauza (też z blokady ekranu albo uśpienia) kończy dźwięk od początku pauzy.
+        self.dzwiek_ustaw(false, od);
         self.pauza = Some(Pauza { od, powod });
         self.bezczynna_od = None;
     }
@@ -164,6 +197,7 @@ impl Sesja {
 
     /// Zamyka sesję przed zapisem do dziennika.
     pub fn zakoncz(&mut self, teraz: Chwila) {
+        self.dzwiek_ustaw(false, teraz);
         self.zamknij_odcinek(teraz);
         self.pauza = None;
         self.bezczynna_od = None;
@@ -257,5 +291,44 @@ mod testy {
         assert_eq!(s.sekundy(chwila("2026-10-30T12:00:00+01:00")), 0);
         s.wznow(chwila("2026-10-30T10:05:00+01:00"));
         assert_eq!(s.sekundy(chwila("2026-10-30T10:06:00+01:00")), 60);
+    }
+
+    #[test]
+    fn dzwiek_liczy_sie_tylko_gdy_gral_a_znacznik_wymaga_wiekszosci_czasu() {
+        let mut s = Sesja::nowa(zadanie(), chwila("2026-10-30T10:00:00+01:00"));
+        s.dzwiek_ustaw(true, chwila("2026-10-30T10:00:00+01:00"));
+        s.dzwiek_ustaw(true, chwila("2026-10-30T10:05:00+01:00")); // drugie „gra” nic nie zmienia
+        assert_eq!(s.dzwiek_sekundy(chwila("2026-10-30T10:10:00+01:00")), 600);
+        s.dzwiek_ustaw(false, chwila("2026-10-30T10:10:00+01:00"));
+        assert_eq!(s.dzwiek_sekundy(chwila("2026-10-30T10:30:00+01:00")), 600);
+        // 10 z 20 minut to dokładnie połowa, a „większość” to więcej niż połowa
+        assert!(!s.dzwiek_wiekszosc(chwila("2026-10-30T10:20:00+01:00")));
+        assert!(s.dzwiek_wiekszosc(chwila("2026-10-30T10:19:00+01:00")));
+    }
+
+    #[test]
+    fn pauza_i_zakonczenie_zamykaja_dzwiek_w_chwili_pauzy() {
+        let mut s = Sesja::nowa(zadanie(), chwila("2026-10-30T10:00:00+01:00"));
+        s.dzwiek_ustaw(true, chwila("2026-10-30T10:00:00+01:00"));
+        // uśpienie komputera o 10:20, a widget zauważył je dopiero o 10:50
+        s.pauzuj(chwila("2026-10-30T10:20:00+01:00"), PowodPauzy::Uspienie);
+        assert_eq!(s.dzwiek_sekundy(chwila("2026-10-30T10:50:00+01:00")), 20 * 60);
+        s.wznow(chwila("2026-10-30T10:50:00+01:00"));
+        s.dzwiek_ustaw(true, chwila("2026-10-30T10:50:00+01:00"));
+        s.zakoncz(chwila("2026-10-30T11:00:00+01:00"));
+        assert_eq!(s.dzwiek_sekundy(chwila("2026-10-30T11:30:00+01:00")), 30 * 60);
+        assert!(s.dzwiek_wiekszosc(chwila("2026-10-30T11:30:00+01:00")), "30 z 30 minut pracy");
+    }
+
+    #[test]
+    fn licznik_dzwieku_przezywa_zapis_i_odczyt_a_stare_sesje_go_nie_maja() {
+        let mut s = Sesja::nowa(zadanie(), chwila("2026-10-30T10:00:00+01:00"));
+        s.dzwiek_ustaw(true, chwila("2026-10-30T10:00:00+01:00"));
+        let json = serde_json::to_string(&s).unwrap();
+        assert_eq!(serde_json::from_str::<Sesja>(&json).unwrap(), s);
+        let stary =
+            r#"{"projekt":"P","zadanie":"Z","dzien":"2026-10-30","start":"2026-10-30T10:00:00+01:00","odcinki":[]}"#;
+        let stara: Sesja = serde_json::from_str(stary).unwrap();
+        assert_eq!((stara.dzwiek_s, stara.dzwiek_od), (0, None));
     }
 }

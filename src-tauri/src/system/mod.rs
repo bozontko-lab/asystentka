@@ -49,6 +49,15 @@ pub fn pelny_ekran_na_monitorze(stan: &StanPelnegoEkranu, monitor_widgetu: &Pros
     p.monitor.srodek_w(monitor_widgetu) && p.pokrywa_monitor && (!p.zwykle_okno || stan.sygnal_systemu)
 }
 
+/// Proces nagrywania ekranu, przy którym milknie dźwięk skupienia (B7).
+pub const PROCES_OBS: &str = "obs64.exe";
+
+/// Nazwy plików wykonywalnych na Windows nie rozróżniają wielkości liter.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn nazwa_procesu_pasuje(proces: &str, szukany: &str) -> bool {
+    proces.eq_ignore_ascii_case(szukany)
+}
+
 #[cfg(windows)]
 mod win;
 #[cfg(windows)]
@@ -104,6 +113,15 @@ mod testy {
     #[test]
     fn okno_ktore_nie_pokrywa_monitora_nie_chowa_widgetu() {
         assert!(!pelny_ekran_na_monitorze(&pierwszy_plan(DRUGI, false, false), &DRUGI));
+    }
+
+    #[test]
+    fn nazwa_procesu_nie_rozroznia_wielkosci_liter_ale_wymaga_calej_nazwy() {
+        assert!(nazwa_procesu_pasuje("obs64.exe", PROCES_OBS));
+        assert!(nazwa_procesu_pasuje("OBS64.EXE", PROCES_OBS));
+        assert!(!nazwa_procesu_pasuje("obs64.exe.bak", PROCES_OBS));
+        assert!(!nazwa_procesu_pasuje("notobs64.exe", PROCES_OBS));
+        assert!(!nazwa_procesu_pasuje("obs.exe", PROCES_OBS));
     }
 
     #[test]

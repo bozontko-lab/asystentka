@@ -26,6 +26,9 @@ pub struct WpisSesji {
     pub minuty: u32,
     /// `true` po „Zrobione”, `false` po „Przerwij” i po końcu dnia („w toku”).
     pub zrobione: bool,
+    /// Dźwięk skupienia grał przez większość sesji: linia kończy się „· 40 Hz” (B3, B7).
+    #[serde(default)]
+    pub dzwiek: bool,
 }
 
 /// Sekcja „Podsumowanie dnia”, dopisywana przy końcu pracy.
@@ -91,16 +94,17 @@ impl DzienPracy {
     }
 }
 
-/// `- [x] 09:12–10:05 · Scenariusz: intro · 47 min (szac. 60) · Film #1 · FIFA`
+/// `- [x] 09:12–10:05 · Scenariusz: intro · 47 min (szac. 60) · Film #1 · FIFA · 40 Hz`
 pub fn linia(s: &WpisSesji) -> String {
     let godziny = format!("{}–{}", czas::godzina_minuta(s.start), czas::godzina_minuta(s.koniec));
     let projekt =
         if s.projekt.is_empty() || s.projekt == BEZ_PROJEKTU { String::new() } else { format!(" · {}", s.projekt) };
+    let dzwiek = if s.dzwiek { " · 40 Hz" } else { "" };
     if s.zrobione {
         let szacunek = s.szac_min.map(|m| format!(" (szac. {m})")).unwrap_or_default();
-        format!("- [x] {godziny} · {} · {} min{szacunek}{projekt}", s.zadanie, s.minuty)
+        format!("- [x] {godziny} · {} · {} min{szacunek}{projekt}{dzwiek}", s.zadanie, s.minuty)
     } else {
-        format!("- [ ] {godziny} · {} · {} min · w toku{projekt}", s.zadanie, s.minuty)
+        format!("- [ ] {godziny} · {} · {} min · w toku{projekt}{dzwiek}", s.zadanie, s.minuty)
     }
 }
 
@@ -246,6 +250,7 @@ Na jutro: Montaż: plansze 1–5, Odpisać na maila od montażysty
             sekundy: i64::from(minuty) * 60,
             minuty,
             zrobione,
+            dzwiek: false,
         }
     }
 
@@ -338,5 +343,25 @@ Na jutro: Montaż: plansze 1–5, Odpisać na maila od montażysty
         let brak = vault.path().join("brak").join("Dziennik pracy");
         assert!(zapisz(&brak, &dzien_z_przykladu()).is_err());
         assert!(!brak.exists());
+    }
+
+    #[test]
+    fn linia_z_dzwiekiem_konczy_sie_znacznikiem_40_hz() {
+        let mut w = wpis("Scenariusz: intro", 60, "2026-10-30T09:12:00+01:00", "2026-10-30T10:05:00+01:00", 47, true);
+        assert_eq!(linia(&w), "- [x] 09:12–10:05 · Scenariusz: intro · 47 min (szac. 60) · Film #1 · FIFA");
+        w.dzwiek = true;
+        assert_eq!(linia(&w), "- [x] 09:12–10:05 · Scenariusz: intro · 47 min (szac. 60) · Film #1 · FIFA · 40 Hz");
+        let mut w =
+            wpis("Montaż: plansze 1–5", 120, "2026-10-30T10:20:00+01:00", "2026-10-30T11:05:00+01:00", 45, false);
+        w.dzwiek = true;
+        assert_eq!(linia(&w), "- [ ] 10:20–11:05 · Montaż: plansze 1–5 · 45 min · w toku · Film #1 · FIFA · 40 Hz");
+        w.projekt = String::new();
+        assert_eq!(linia(&w), "- [ ] 10:20–11:05 · Montaż: plansze 1–5 · 45 min · w toku · 40 Hz");
+    }
+
+    #[test]
+    fn wpis_sesji_z_dziennika_wersji_2_nie_ma_znacznika() {
+        let json = r#"{"projekt":"P","zadanie":"Z","szac_min":null,"start":"2026-10-30T09:12:00+01:00","koniec":"2026-10-30T10:05:00+01:00","sekundy":60,"minuty":1,"zrobione":true}"#;
+        assert!(!serde_json::from_str::<WpisSesji>(json).unwrap().dzwiek);
     }
 }

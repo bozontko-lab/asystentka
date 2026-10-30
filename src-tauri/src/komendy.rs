@@ -247,6 +247,24 @@ pub async fn dalej_po_wczoraju(apl: Apl<'_>) -> Result<(), String> {
     Ok(())
 }
 
+// ---- dźwięk skupienia -------------------------------------------------------------
+
+/// Etykieta „♪ 40 Hz” w panelu Pracy: włącza i wyłącza dźwięk.
+#[tauri::command]
+pub async fn przelacz_dzwiek(apl: Apl<'_>) -> Result<(), String> {
+    apl.inner().przelacz_dzwiek();
+    Ok(())
+}
+
+/// „Odsłuchaj” w ustawieniach: 5 s na poziomie z suwaka (0 do 100). Odrzuca komunikatem,
+/// gdy nie ma urządzenia audio albo działa OBS.
+#[tauri::command]
+pub async fn dzwiek_odsluch(apl: Apl<'_>, poziom: u8) -> Result<(), String> {
+    let apl = std::sync::Arc::clone(apl.inner());
+    // Otwarcie urządzenia audio może chwilę potrwać, więc poza wątkami obsługi komend.
+    tauri::async_runtime::spawn_blocking(move || apl.odsluchaj_dzwiek(poziom)).await.map_err(|e| e.to_string())?
+}
+
 /// Prawy przycisk na postaci albo panelu.
 #[tauri::command]
 pub async fn menu_kontekstowe(apl: Apl<'_>) -> Result<(), String> {

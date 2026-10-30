@@ -19,6 +19,7 @@ use tauri_plugin_global_shortcut::GlobalShortcutExt;
 use tauri_plugin_opener::OpenerExt;
 
 use crate::czas::{self, Chwila};
+use crate::dzwiek::Silnik;
 use crate::magazyn::Magazyn;
 use crate::obsidian;
 use crate::okno::{self, Ekran, Obszar, Prostokat};
@@ -85,6 +86,10 @@ pub struct Aplikacja {
     ochrona: Mutex<Option<bool>>,
     obserwator: Mutex<Option<(PathBuf, notify::RecommendedWatcher)>>,
     plik_zmieniony: Mutex<Option<Instant>>,
+    /// Wątek dźwięku skupienia (B7); powstaje po zbudowaniu `Aplikacja`, bo zgłasza stan z powrotem.
+    dzwiek: OnceLock<Silnik>,
+    /// Czy przy ostatnim sprawdzeniu działał OBS.
+    obs: AtomicBool,
 }
 
 fn zablokuj<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -92,7 +97,7 @@ fn zablokuj<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 }
 
 fn stan_menu(r: &Rdzen) -> StanMenu {
-    StanMenu::z(&r.mozliwosci(), r.ust.ukryj_przed_nagrywaniem, r.ust.postac())
+    StanMenu::z(&r.mozliwosci(), r.ust.ukryj_przed_nagrywaniem, r.ust.dzwiek_skupienia, r.ust.postac())
 }
 
 /// `%APPDATA%\Asystentka`, albo katalog z `ASYSTENTKA_KATALOG` (piaskownica do testów).
@@ -122,6 +127,7 @@ pub fn uruchom(app: &mut tauri::App) -> Result<(), Box<dyn Error>> {
     };
     let ust = wynik.ustawienia().clone();
 
+    let katalog_dzwieku = magazyn.katalog.clone();
     let teraz = czas::teraz();
     let mut rdzen = Rdzen::nowy(magazyn, ust.clone(), teraz);
     if kreator {
@@ -152,8 +158,25 @@ pub fn uruchom(app: &mut tauri::App) -> Result<(), Box<dyn Error>> {
         ochrona: Mutex::new(None),
         obserwator: Mutex::new(None),
         plik_zmieniony: Mutex::new(None),
+        dzwiek: OnceLock::new(),
+        obs: AtomicBool::new(false),
     });
     app.manage(Arc::clone(&apl));
+
+    let slaby = Arc::downgrade(&apl);
+    match Silnik::uruchom(Some(katalog_dzwieku), move |dostepne| {
+        if let Some(apl) = slaby.upgrade() {
+            apl.wykonaj(|r, _| r.ustaw_dzwiek_niedostepny(!dostepne));
+        }
+    }) {
+        Ok(silnik) => {
+            let _ = apl.dzwiek.set(silnik);
+        }
+        Err(e) => {
+            log::warn!("nie mogę uruchomić wątku dźwięku: {e}");
+            zablokuj(&apl.rdzen).ustaw_dzwiek_niedostepny(true);
+        }
+    }
 
     if let Some(okno) = handle.get_webview_window(OKNO) {
         apl.hwnd.store(system::uchwyt(&okno).unwrap_or(0), Ordering::SeqCst);
@@ -218,13 +241,18 @@ impl Aplikacja {
     /// migawkę i dymki do frontendu, widoczność okna, menu zasobnika.
     pub fn wykonaj<T>(self: &Arc<Self>, dzialanie: impl FnOnce(&mut Rdzen, Chwila) -> T) -> T {
         let teraz = czas::teraz();
-        let (wynik, migawka, zdarzenia, menu, ochrona) = {
+        let (wynik, migawka, zdarzenia, menu, ochrona, dzwiek) = {
             let mut r = zablokuj(&self.rdzen);
             let wynik = dzialanie(&mut r, teraz);
+            // Czas z dźwiękiem do dziennika (znacznik „· 40 Hz”) liczy się po każdej zmianie stanu.
+            r.synchronizuj_dzwiek(teraz);
             r.zapisz_stan(teraz);
             let zdarzenia = if self.gotowy.load(Ordering::SeqCst) { r.wez_zdarzenia() } else { Vec::new() };
-            (wynik, r.migawka(), zdarzenia, stan_menu(&r), r.ust.ukryj_przed_nagrywaniem)
+            (wynik, r.migawka(), zdarzenia, stan_menu(&r), r.ust.ukryj_przed_nagrywaniem, r.dzwiek_cel())
         };
+        if let Some(silnik) = self.dzwiek.get() {
+            silnik.cel(dzwiek);
+        }
         self.rozeslij(&migawka, zdarzenia);
         if self.gotowy.load(Ordering::SeqCst) {
             self.zastosuj_widocznosc(migawka.widoczna);
@@ -716,6 +744,7 @@ impl Aplikacja {
             }),
             zasobnik::PRZYWROC => self.przywroc_pozycje(),
             zasobnik::NAGRYWANIE => self.przelacz_ukrycie_przed_nagrywaniem(),
+            zasobnik::DZWIEK => self.przelacz_dzwiek(),
             zasobnik::USTAWIENIA => self.otworz_okno_ustawien(),
             zasobnik::ZAMKNIJ => self.zakoncz(),
             _ => {}
@@ -724,14 +753,14 @@ impl Aplikacja {
 
     /// Prawy przycisk na postaci albo panelu: menu z poleceniami (B6).
     pub fn menu_kontekstowe(self: &Arc<Self>) {
-        let (mozliwosci, postac) = {
+        let (mozliwosci, postac, dzwiek) = {
             let r = zablokuj(&self.rdzen);
-            (r.mozliwosci(), r.ust.postac().to_string())
+            (r.mozliwosci(), r.ust.postac().to_string(), r.ust.dzwiek_skupienia)
         };
         let app = self.app.clone();
         let _ = self.app.run_on_main_thread(move || {
             let Some(okno) = app.get_webview_window(OKNO) else { return };
-            match zasobnik::menu_kontekstowe(&app, &mozliwosci, &postac) {
+            match zasobnik::menu_kontekstowe(&app, &mozliwosci, &postac, dzwiek) {
                 Ok(menu) => {
                     if let Err(e) = okno.popup_menu(&menu) {
                         log::warn!("nie mogę pokazać menu pod prawym przyciskiem: {e}");
@@ -761,6 +790,7 @@ impl Aplikacja {
             zasobnik::CTX_PAUZA => self.wykonaj(|r, t| r.przelacz_pauze(t)),
             zasobnik::CTX_UKRYJ => self.wykonaj(|r, _| r.przelacz_widocznosc()),
             zasobnik::CTX_PRZYWROC => self.przywroc_pozycje(),
+            zasobnik::CTX_DZWIEK => self.przelacz_dzwiek(),
             zasobnik::CTX_USTAWIENIA => self.otworz_okno_ustawien(),
             zasobnik::CTX_ZAMKNIJ => self.zakoncz(),
             _ => {}
@@ -781,6 +811,54 @@ impl Aplikacja {
             let zmienione = Ustawienia { ukryj_przed_nagrywaniem: nowe, ..r.ust.clone() };
             r.zmien_ustawienia(zmienione, t);
         });
+    }
+
+    // ---- dźwięk skupienia (B7) -------------------------------------------------
+
+    /// Czy działa OBS. Sprawdzamy tylko przy włączonej „Ciszy przy nagrywaniu”; zmiana
+    /// stanu wycisza dźwięk albo go przywraca.
+    fn sprawdz_obs(self: &Arc<Self>) {
+        let sledz = zablokuj(&self.rdzen).ust.cisza_przy_nagrywaniu;
+        let dziala = sledz && system::proces_dziala(system::PROCES_OBS);
+        if self.obs.swap(dziala, Ordering::SeqCst) != dziala {
+            log::info!("{}", if dziala { "OBS działa: dźwięk skupienia milknie" } else { "OBS zamknięty" });
+            self.wykonaj(|r, _| r.ustaw_obs(dziala));
+        }
+    }
+
+    /// Przełącznik „Dźwięk 40 Hz” w menu i etykieta w panelu Pracy: zapisuje pole w pliku
+    /// ustawień i stosuje je od razu.
+    pub fn przelacz_dzwiek(self: &Arc<Self>) {
+        let (sciezka, nowe) = {
+            let r = zablokuj(&self.rdzen);
+            (r.ustawienia_sciezka(), !r.ust.dzwiek_skupienia)
+        };
+        if let Err(e) = ustawienia::zapisz_pole(&sciezka, "dzwiek_skupienia", serde_json::Value::Bool(nowe)) {
+            log::warn!("nie mogę zapisać ustawienia: {e}");
+        }
+        *zablokuj(&self.ustawienia_zmienione) = fs::metadata(&sciezka).and_then(|m| m.modified()).ok();
+        log::info!("dźwięk 40 Hz: {}", if nowe { "włączony" } else { "wyłączony" });
+        self.wykonaj(|r, t| r.ustaw_dzwiek_skupienia(nowe, t));
+        // Kliknięcie przełączyło ptaszka w menu zasobnika samo; zostaje stan z ustawień.
+        if let Some(zasobnik) = self.zasobnik.get() {
+            zasobnik.ustaw_dzwiek(nowe);
+        }
+    }
+
+    /// „Odsłuchaj” w ustawieniach: 5 s na poziomie z suwaka (0 do 100), jeszcze przed zapisem.
+    pub fn odsluchaj_dzwiek(&self, poziom: u8) -> Result<(), String> {
+        if zablokuj(&self.rdzen).dzwiek_wyciszony() {
+            return Err("Działa OBS, a „Cisza przy nagrywaniu” jest włączona, więc nie gram.".into());
+        }
+        let silnik = self.dzwiek.get().ok_or("Dźwięk nie jest dostępny.")?;
+        silnik.odsluchaj(f32::from(poziom.min(100)) / 100.0)
+    }
+
+    /// Przed wyjściem dźwięk cichnie w 150 ms, a urządzenie jest zwalniane bez trzasku.
+    fn zatrzymaj_dzwiek(&self) {
+        if let Some(silnik) = self.dzwiek.get() {
+            silnik.zatrzymaj();
+        }
     }
 
     // ---- kreator i okno ustawień -----------------------------------------------
@@ -848,6 +926,7 @@ impl Aplikacja {
             }
         });
         self.uruchom_obserwatora();
+        self.sprawdz_obs();
         Ok(())
     }
 
@@ -929,14 +1008,16 @@ impl Aplikacja {
     pub fn zakoncz(self: &Arc<Self>) {
         log::info!("zamykanie");
         self.wykonaj(|r, t| r.zamknij_asystentke(t));
+        self.zatrzymaj_dzwiek();
         self.app.exit(0);
     }
 
     /// Ostatni zapis przy wyjściu, bez rozsyłania czegokolwiek.
     pub fn zapisz_przy_wyjsciu(&self) {
         let teraz = czas::teraz();
-        let mut r = zablokuj(&self.rdzen);
-        r.pauza_automatyczna(PowodPauzy::Zamkniecie, teraz);
+        zablokuj(&self.rdzen).pauza_automatyczna(PowodPauzy::Zamkniecie, teraz);
+        // Bez blokady rdzenia: wątek dźwięku może w tej chwili czekać na nią ze swoim zgłoszeniem.
+        self.zatrzymaj_dzwiek();
     }
 
     fn zdarzenie_systemowe(self: &Arc<Self>, zdarzenie: ZdarzenieSystemowe) {
@@ -989,6 +1070,7 @@ impl Aplikacja {
             if chwila >= pelny_ekran {
                 self.sprawdz_monitory();
                 self.sprawdz_pelny_ekran();
+                self.sprawdz_obs();
                 pelny_ekran = chwila + CO_ILE_PELNY_EKRAN;
             }
             if chwila >= cykl {

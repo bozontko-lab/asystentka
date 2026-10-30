@@ -233,6 +233,17 @@ pub struct DzienWidok {
     pub cel_min: u32,
 }
 
+/// Dźwięk skupienia dla etykiety „♪ 40 Hz” w panelu Pracy (B7).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct DzwiekWidok {
+    /// Przełącznik z menu i z ustawień.
+    pub wlaczony: bool,
+    /// Gra naprawdę: włączony, nie wyciszony przez OBS i jest urządzenie audio.
+    pub gra: bool,
+    /// OBS wycisza dźwięk (ustawienie „Cisza przy nagrywaniu” i działający OBS).
+    pub wyciszony_przez_obs: bool,
+}
+
 /// Wszystko, czego frontend potrzebuje do narysowania bieżącego stanu.
 #[derive(Debug, Clone, Serialize)]
 pub struct Migawka {
@@ -249,6 +260,7 @@ pub struct Migawka {
     pub gratulacje: Option<GratulacjeInfo>,
     pub koniec: Option<KoniecWidok>,
     pub dzien: DzienWidok,
+    pub dzwiek: DzwiekWidok,
     /// Problem z plikiem zadań (brak ścieżki, nieczytelny plik).
     pub blad_pliku: Option<String>,
     /// Projekty do wyboru w „Dodaj zadanie”: nagłówki z pliku i Inbox.
@@ -293,6 +305,10 @@ pub struct Rdzen {
     skrot_zajety: Option<(String, Chwila)>,
     /// Początek przerwy, dla której dymek `pauza_gra` już padł (albo jest spóźniony).
     pauza_gra: Option<Chwila>,
+    /// Działa OBS (proces `obs64.exe`): przy `cisza_przy_nagrywaniu` dźwięk milknie (B7).
+    obs_dziala: bool,
+    /// Silnik dźwięku nie otworzył urządzenia (brak słuchawek, głośników): dźwięk nie gra.
+    dzwiek_niedostepny: bool,
 }
 
 impl Rdzen {
@@ -321,6 +337,8 @@ impl Rdzen {
             proby_zapisu: 0,
             skrot_zajety: None,
             pauza_gra: None,
+            obs_dziala: false,
+            dzwiek_niedostepny: false,
         }
     }
 
@@ -483,6 +501,57 @@ impl Rdzen {
         if teraz - od <= Duration::seconds(PAUZA_GRA_NAJPOZNIEJ_S) {
             self.dymek("pauza_gra", &[]);
         }
+    }
+
+    // ---- dźwięk skupienia (B7) ------------------------------------------------------------
+
+    /// OBS wycisza dźwięk tylko przy włączonym „Cisza przy nagrywaniu”.
+    pub fn dzwiek_wyciszony(&self) -> bool {
+        self.ust.cisza_przy_nagrywaniu && self.obs_dziala
+    }
+
+    /// Cel dla silnika dźwięku: głośność od 0 do 1, gdy ma grać, a inaczej `None`.
+    /// Gra tylko wtedy, gdy licznik liczy czas zadania, czyli w stanie Praca: przy
+    /// Pauzie, Przerwij, Zrobione, końcu dnia, blokadzie, uśpieniu i w „Jesteś?” cichnie.
+    /// Suwak na 0 to cisza, więc sesja nie dostaje znacznika „· 40 Hz”.
+    pub fn dzwiek_cel(&self) -> Option<f32> {
+        let ma_grac = self.ust.dzwiek_skupienia && self.stan() == Stan::Praca && !self.dzwiek_wyciszony();
+        ma_grac.then(|| self.ust.glosnosc_dzwieku()).filter(|g| *g > 0.0)
+    }
+
+    /// Czy dźwięk słychać: ma grać i silnik ma urządzenie.
+    pub fn dzwiek_slychac(&self) -> bool {
+        self.dzwiek_cel().is_some() && !self.dzwiek_niedostepny
+    }
+
+    /// Aplikacja mówi rdzeniowi, że OBS się włączył albo zamknął.
+    pub fn ustaw_obs(&mut self, dziala: bool) {
+        self.obs_dziala = dziala;
+    }
+
+    /// Silnik dźwięku zgłasza, czy ma urządzenie audio.
+    pub fn ustaw_dzwiek_niedostepny(&mut self, niedostepny: bool) {
+        self.dzwiek_niedostepny = niedostepny;
+    }
+
+    /// Liczy czas, w którym dźwięk gra w bieżącej sesji (znacznik „· 40 Hz” w dzienniku).
+    /// Aplikacja woła to po każdej zmianie stanu; sesja zamykana w trakcie zmiany sama
+    /// kończy swój odcinek dźwięku.
+    pub fn synchronizuj_dzwiek(&mut self, teraz: Chwila) {
+        let gra = self.dzwiek_slychac();
+        if let Some(s) = self.dz.sesja.as_mut() {
+            let przed = (s.dzwiek_od, s.dzwiek_s);
+            s.dzwiek_ustaw(gra, teraz);
+            if (s.dzwiek_od, s.dzwiek_s) != przed {
+                self.brudny = true;
+            }
+        }
+    }
+
+    /// Przełącznik „Dźwięk 40 Hz” w menu i etykieta w panelu Pracy.
+    pub fn ustaw_dzwiek_skupienia(&mut self, wlaczony: bool, teraz: Chwila) {
+        self.ust.dzwiek_skupienia = wlaczony;
+        self.synchronizuj_dzwiek(teraz);
     }
 
     /// Dymek o skrócie nie przerywa kreatora ani powitania.
@@ -1463,6 +1532,7 @@ impl Rdzen {
             sekundy,
             minuty,
             zrobione,
+            dzwiek: s.dzwiek_wiekszosc(teraz),
         };
         self.dz.sesje.push(wpis.clone());
         self.dz.oczekujace.push(Edycja {
@@ -1595,6 +1665,14 @@ impl Rdzen {
             gratulacje,
             koniec,
             dzien: DzienWidok { minuty: self.dz.minuty_sesji() + w_toku_minuty, cel_min: self.ust.cel_dzienny_min },
+            dzwiek: DzwiekWidok {
+                wlaczony: self.ust.dzwiek_skupienia,
+                gra: self.ust.dzwiek_skupienia
+                    && self.ust.glosnosc_dzwieku() > 0.0
+                    && !self.dzwiek_wyciszony()
+                    && !self.dzwiek_niedostepny,
+                wyciszony_przez_obs: self.dzwiek_wyciszony(),
+            },
             blad_pliku: self.blad_pliku.clone(),
             projekty_do_dopisania: self.zadania.projekty_do_dopisania(),
         }
@@ -3063,5 +3141,142 @@ mod testy {
         r.skrot_zajety("Ctrl+Shift+F9", t("09:02:00"));
         r.tick(t("09:02:10"));
         assert_eq!(wstawki(&r.wez_zdarzenia(), "skrot_zajety")["postac"], "才ちゃん");
+    }
+
+    // ---- dźwięk skupienia (2.1) -------------------------------------------------------------
+
+    #[test]
+    fn dzwiek_gra_tylko_gdy_licznik_liczy_czas_zadania() {
+        let sr = Srodowisko::nowe();
+        let mut r = sr.rdzen(t("09:00:00"));
+        assert_eq!(r.dzwiek_cel(), None, "powitanie");
+        r.tick(t("09:00:06"));
+        assert_eq!(r.dzwiek_cel(), None, "wybór zadań");
+        r.przelacz_wybor(&miniatura());
+        r.zatwierdz_wybor(t("09:00:30"));
+        assert_eq!(r.dzwiek_cel(), None, "lista");
+        r.rozpocznij(&miniatura(), t("11:30:00")).unwrap();
+        assert_eq!(r.stan(), Stan::Praca);
+        assert_eq!(r.dzwiek_cel(), Some(0.25), "praca: domyślna głośność 25");
+        r.pauza(t("11:40:00"));
+        assert_eq!(r.dzwiek_cel(), None, "pauza");
+        r.wznow(t("11:45:00"));
+        assert_eq!(r.dzwiek_cel(), Some(0.25), "wznowienie");
+        r.bezczynnosc(15 * 60, t("12:00:00"));
+        assert_eq!(r.stan(), Stan::Jestes);
+        assert_eq!(r.dzwiek_cel(), None, "„Jesteś?”");
+        r.odpowiedz_jestes(false, t("12:01:00"));
+        assert_eq!(r.dzwiek_cel(), Some(0.25));
+        r.pauza_automatyczna(PowodPauzy::Blokada, t("12:05:00"));
+        assert_eq!(r.dzwiek_cel(), None, "blokada ekranu");
+        r.powrot(t("12:20:00"));
+        r.wznow(t("12:20:05"));
+        assert_eq!(r.dzwiek_cel(), Some(0.25));
+        r.pauza_automatyczna(PowodPauzy::Uspienie, t("12:30:00"));
+        assert_eq!(r.dzwiek_cel(), None, "uśpienie");
+        r.wznow(t("12:40:00"));
+        r.zrobione(t("12:50:00"));
+        assert_eq!(r.stan(), Stan::Gratulacje);
+        assert_eq!(r.dzwiek_cel(), None, "Zrobione");
+        r.tick(t("12:50:10"));
+        r.rozpocznij(&montaz(), t("13:00:00")).unwrap();
+        r.przerwij(t("13:30:00"));
+        assert_eq!(r.dzwiek_cel(), None, "Przerwij");
+        r.rozpocznij(&montaz(), t("13:35:00")).unwrap();
+        r.koniec_pracy(t("13:50:00"));
+        assert_eq!(r.dzwiek_cel(), None, "koniec dnia");
+    }
+
+    #[test]
+    fn dzwiek_wylaczony_w_ustawieniach_albo_wyciszony_przez_obs_nie_gra() {
+        let sr = Srodowisko::nowe();
+        let mut r = zaczynamy_miniature(&sr);
+        assert_eq!(r.dzwiek_cel(), Some(0.25));
+        let ust = r.ust.clone();
+        r.zmien_ustawienia(Ustawienia { dzwiek_skupienia: false, ..ust.clone() }, t("11:31:00"));
+        assert_eq!(r.dzwiek_cel(), None, "wyłączony przełącznikiem");
+        assert!(!r.migawka().dzwiek.wlaczony);
+        r.zmien_ustawienia(Ustawienia { dzwiek_skupienia_glosnosc: 60, ..ust.clone() }, t("11:32:00"));
+        assert_eq!(r.dzwiek_cel(), Some(0.6));
+        r.ustaw_obs(true);
+        assert_eq!(r.dzwiek_cel(), None, "OBS i cisza przy nagrywaniu");
+        let w = r.migawka().dzwiek;
+        assert!(w.wlaczony && !w.gra && w.wyciszony_przez_obs, "etykieta jest przygaszona");
+        r.zmien_ustawienia(Ustawienia { cisza_przy_nagrywaniu: false, ..ust }, t("11:33:00"));
+        assert_eq!(r.dzwiek_cel(), Some(0.25), "bez „Cisza przy nagrywaniu” OBS nie przeszkadza");
+        assert!(r.migawka().dzwiek.gra);
+        r.ustaw_obs(false);
+        r.ustaw_dzwiek_niedostepny(true);
+        assert!(!r.migawka().dzwiek.gra, "brak urządzenia audio: etykieta przygaszona");
+        assert!(!r.dzwiek_slychac());
+    }
+
+    #[test]
+    fn suwak_na_zero_to_cisza_bez_znacznika_i_bez_zielonej_etykiety() {
+        let sr = Srodowisko::nowe();
+        let mut r = zaczynamy_miniature(&sr);
+        let ust = r.ust.clone();
+        r.zmien_ustawienia(Ustawienia { dzwiek_skupienia_glosnosc: 0, ..ust }, t("11:31:00"));
+        assert_eq!(r.dzwiek_cel(), None);
+        assert!(!r.dzwiek_slychac());
+        let w = r.migawka().dzwiek;
+        assert!(w.wlaczony && !w.gra, "przełącznik zaznaczony, ale nic nie gra");
+    }
+
+    #[test]
+    fn sesja_z_dzwiekiem_przez_wiekszosc_czasu_ma_znacznik_40_hz_w_dzienniku() {
+        let sr = Srodowisko::nowe();
+        let mut r = zaczynamy_miniature(&sr);
+        r.synchronizuj_dzwiek(t("11:30:00"));
+        r.pauza(t("11:50:00"));
+        r.synchronizuj_dzwiek(t("11:50:00"));
+        r.wznow(t("11:55:00"));
+        r.synchronizuj_dzwiek(t("11:55:00"));
+        r.zrobione(t("12:15:00"));
+        let dziennik = sr.dziennik("2026-10-30");
+        assert!(
+            dziennik.contains("- [x] 11:30–12:15 · Miniatura · 40 min (szac. 30) · Film #1 · FIFA · 40 Hz\n"),
+            "{dziennik}"
+        );
+        assert!(r.dz.sesje.last().unwrap().dzwiek);
+    }
+
+    #[test]
+    fn sesja_bez_dzwieku_albo_z_dzwiekiem_przez_mniej_niz_polowe_nie_ma_znacznika() {
+        let sr = Srodowisko::nowe();
+        let mut r = zaczynamy_miniature(&sr);
+        // dźwięk wyłączony w ustawieniach przez całą sesję
+        let ust = r.ust.clone();
+        r.zmien_ustawienia(Ustawienia { dzwiek_skupienia: false, ..ust.clone() }, t("11:30:00"));
+        r.synchronizuj_dzwiek(t("11:30:00"));
+        r.przerwij(t("12:10:00"));
+        assert!(!sr.dziennik("2026-10-30").contains("40 Hz"));
+        // druga sesja: dźwięk włączony dopiero na ostatnie 10 z 40 minut
+        r.zmien_ustawienia(ust, t("12:15:00"));
+        r.tick(t("12:15:10"));
+        r.rozpocznij(&miniatura(), t("12:20:00")).unwrap();
+        r.zmien_ustawienia(Ustawienia { dzwiek_skupienia: false, ..r.ust.clone() }, t("12:20:00"));
+        r.synchronizuj_dzwiek(t("12:20:00"));
+        r.zmien_ustawienia(Ustawienia { dzwiek_skupienia: true, ..r.ust.clone() }, t("12:50:00"));
+        r.synchronizuj_dzwiek(t("12:50:00"));
+        r.przerwij(t("13:00:00"));
+        assert!(!sr.dziennik("2026-10-30").contains("40 Hz"), "10 z 40 minut to nie większość");
+    }
+
+    #[test]
+    fn licznik_dzwieku_przezywa_restart_i_obs_przerywa_odcinek_dzwieku() {
+        let sr = Srodowisko::nowe();
+        let mut r = zaczynamy_miniature(&sr);
+        r.synchronizuj_dzwiek(t("11:30:00"));
+        r.ustaw_obs(true); // OBS startuje po 10 minutach i wycisza dźwięk
+        r.synchronizuj_dzwiek(t("11:40:00"));
+        assert_eq!(r.dz.sesja.as_ref().unwrap().dzwiek_s, 600);
+        r.ustaw_obs(false);
+        r.synchronizuj_dzwiek(t("11:50:00"));
+        r.zapisz_stan(t("11:55:00"));
+        let r2 = sr.rdzen(t("12:30:00"));
+        let s = r2.dz.sesja.as_ref().unwrap();
+        assert_eq!(s.dzwiek_s, 600 + 5 * 60, "10 min przed OBS i 5 min po, do ostatniego zapisu");
+        assert_eq!(s.dzwiek_od, None, "po awarii dźwięk nie gra");
     }
 }

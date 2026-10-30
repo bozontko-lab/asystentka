@@ -3,7 +3,7 @@
 
 import { el } from "./dom";
 import { licznik, minutyTekst, naMinuty, szacunekTekst, terminTekst, zadanTekst } from "./format";
-import type { Gratulacje, KoniecWidok, ListaWidok, Migawka, SesjaWidok, WyborWidok, ZadanieWidok } from "./typy";
+import type { DzwiekWidok, Gratulacje, KoniecWidok, ListaWidok, Migawka, SesjaWidok, WyborWidok, ZadanieWidok } from "./typy";
 
 const BEZ_PROJEKTU = "Bez projektu";
 
@@ -137,7 +137,30 @@ function panelListy(l: ListaWidok, blad: string | null): HTMLElement {
 
 // ---- praca, pauza, pytanie, gratulacje -----------------------------------------------------------
 
-function panelPracy(s: SesjaWidok, pauza: boolean): HTMLElement {
+/** Podpowiedź etykiety „♪ 40 Hz”: co się dzieje z dźwiękiem i co zrobi kliknięcie. */
+export function opisDzwieku(d: DzwiekWidok): string {
+  if (!d.wlaczony) return "Dźwięk 40 Hz jest wyłączony. Kliknij, żeby włączyć.";
+  if (d.wyciszony_przez_obs) return "Dźwięk 40 Hz milczy, bo działa OBS. Kliknij, żeby go wyłączyć.";
+  if (!d.gra) return "Dźwięk 40 Hz jest włączony, ale nic nie gra: brak urządzenia audio albo głośność 0.";
+  return "Dźwięk 40 Hz gra. Kliknij, żeby wyłączyć.";
+}
+
+/** Etykieta „♪ 40 Hz”: zielona, gdy dźwięk gra; przygaszona, gdy wyłączony albo wyciszony; kliknięcie przełącza. */
+function etykietaDzwieku(d: DzwiekWidok): HTMLElement {
+  return el(
+    "button",
+    {
+      class: d.gra ? "dzwiek gra" : "dzwiek",
+      type: "button",
+      "data-akcja": "przelacz_dzwiek",
+      "aria-pressed": String(d.wlaczony),
+      title: opisDzwieku(d),
+    },
+    "♪ 40 Hz",
+  );
+}
+
+function panelPracy(s: SesjaWidok, pauza: boolean, dzwiek: DzwiekWidok): HTMLElement {
   return el(
     "section",
     { class: pauza ? "panel panel-praca pauza" : "panel panel-praca" },
@@ -149,7 +172,7 @@ function panelPracy(s: SesjaWidok, pauza: boolean): HTMLElement {
       el("span", { class: "szacunek", "data-szacunek": true }),
     ),
     el("div", { class: "pasek" }, el("div", { class: "pasek-wypelnienie", "data-pasek": true })),
-    pauza && el("div", { class: "czas-pauzy" }, "Pauza ", el("span", { "data-pauza": true })),
+    pauza ? el("div", { class: "czas-pauzy" }, "Pauza ", el("span", { "data-pauza": true })) : el("div", { class: "wiersz-dzwieku" }, etykietaDzwieku(dzwiek)),
     el(
       "div",
       { class: "przyciski" },
@@ -259,7 +282,7 @@ export function panel(m: Migawka): HTMLElement | null {
       return m.lista ? panelListy(m.lista, m.blad_pliku) : null;
     case "praca":
     case "pauza":
-      return m.sesja ? panelPracy(m.sesja, m.stan === "pauza") : null;
+      return m.sesja ? panelPracy(m.sesja, m.stan === "pauza", m.dzwiek) : null;
     case "jestes":
       return m.sesja ? panelJestes(m.sesja) : null;
     case "gratulacje":

@@ -21,6 +21,9 @@ export const PODPOWIEDZ: PodpowiedzKreatora = {
     przypomnienie_przerwy_min: 50,
     ukryj_przed_nagrywaniem: true,
     chowaj_przy_pelnym_ekranie: true,
+    dzwiek_skupienia: true,
+    dzwiek_skupienia_glosnosc: 25,
+    cisza_przy_nagrywaniu: true,
     skrot_pokaz_ukryj: "Ctrl+Alt+Shift+Space",
   } satisfies Ustawienia,
   plik_istnieje: false,
@@ -117,6 +120,12 @@ function przyklad(stan: NazwaStanu, strona: "prawa" | "lewa", pion: "dol" | "gor
           }
         : null,
     dzien: { minuty: 132, cel_min: 240 },
+    // ?dzwiek=wylaczony albo ?dzwiek=obs pokazuje przygaszoną etykietę.
+    dzwiek: {
+      wlaczony: parametry.get("dzwiek") !== "wylaczony",
+      gra: parametry.get("dzwiek") === null,
+      wyciszony_przez_obs: parametry.get("dzwiek") === "obs",
+    },
     blad_pliku: null,
     projekty_do_dopisania: ["Film #1 · FIFA", "Inbox"],
   };
@@ -198,6 +207,10 @@ export function mostPodglad(): Most {
       return skrot;
     },
     skrotWstrzymaj: async () => undefined,
+    dzwiekOdsluch: async (poziom) => {
+      if (poziom <= 0) throw "Głośność jest ustawiona na 0, więc nic nie usłyszysz.";
+      console.info("odsłuch", poziom);
+    },
     ustawieniaPobierz: async () => PODPOWIEDZ.ustawienia,
     ustawieniaZapisz: async (ustawienia) => console.info("zapisano", ustawienia),
     otworzUstawienia: async () => undefined,
