@@ -73,7 +73,7 @@ fn zablokuj<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 }
 
 fn stan_menu(r: &Rdzen) -> StanMenu {
-    StanMenu { widoczna: r.widoczna(), pauza: r.sesja_pauza(), ukryj_przed_nagrywaniem: r.ust.ukryj_przed_nagrywaniem }
+    StanMenu::z(&r.mozliwosci(), r.ust.ukryj_przed_nagrywaniem)
 }
 
 /// `%APPDATA%\Asystentka`, albo katalog z `ASYSTENTKA_KATALOG` (piaskownica do testów).
@@ -509,13 +509,63 @@ impl Aplikacja {
 
     // ---- zasobnik i zdarzenia systemowe ---------------------------------------
 
+    /// Menu zasobnika.
     fn menu(self: &Arc<Self>, zdarzenie: MenuEvent) {
-        match zdarzenie.id().as_ref() {
+        let id = zdarzenie.id().as_ref();
+        if id.starts_with(zasobnik::PREFIKS_KONTEKSTOWEGO) {
+            return;
+        }
+        match id {
             zasobnik::POKAZ => self.wykonaj(|r, _| r.przelacz_widocznosc()),
             zasobnik::PAUZA => self.wykonaj(|r, t| r.przelacz_pauze(t)),
+            zasobnik::KONIEC => self.wykonaj(|r, t| {
+                r.pokaz();
+                r.koniec_pracy(t);
+            }),
             zasobnik::NAGRYWANIE => self.przelacz_ukrycie_przed_nagrywaniem(),
             zasobnik::USTAWIENIA => self.otworz_okno_ustawien(),
-            zasobnik::ZAKONCZ => self.zakoncz(),
+            zasobnik::ZAMKNIJ => self.zakoncz(),
+            _ => {}
+        }
+    }
+
+    /// Prawy przycisk na postaci albo panelu: menu z poleceniami (B6).
+    pub fn menu_kontekstowe(self: &Arc<Self>) {
+        let mozliwosci = zablokuj(&self.rdzen).mozliwosci();
+        let app = self.app.clone();
+        let _ = self.app.run_on_main_thread(move || {
+            let Some(okno) = app.get_webview_window(OKNO) else { return };
+            match zasobnik::menu_kontekstowe(&app, &mozliwosci) {
+                Ok(menu) => {
+                    if let Err(e) = okno.popup_menu(&menu) {
+                        log::warn!("nie mogę pokazać menu pod prawym przyciskiem: {e}");
+                    }
+                }
+                Err(e) => log::warn!("nie mogę zbudować menu pod prawym przyciskiem: {e}"),
+            }
+        });
+    }
+
+    /// Wybór pozycji z menu pod prawym przyciskiem.
+    pub fn wybor_z_menu_kontekstowego(self: &Arc<Self>, zdarzenie: &MenuEvent) {
+        match zdarzenie.id().as_ref() {
+            zasobnik::CTX_KONIEC => self.wykonaj(|r, t| {
+                r.pokaz();
+                r.koniec_pracy(t);
+            }),
+            zasobnik::CTX_PLAN => self.wykonaj(|r, _| {
+                r.pokaz();
+                r.otworz_wybor();
+            }),
+            zasobnik::CTX_DODAJ => {
+                self.wykonaj(|r, _| r.pokaz());
+                // Formularz to część widoku, więc prosimy o niego frontend.
+                let _ = self.app.emit("akcja", "dodaj_zadanie");
+            }
+            zasobnik::CTX_PAUZA => self.wykonaj(|r, t| r.przelacz_pauze(t)),
+            zasobnik::CTX_UKRYJ => self.wykonaj(|r, _| r.przelacz_widocznosc()),
+            zasobnik::CTX_USTAWIENIA => self.otworz_okno_ustawien(),
+            zasobnik::CTX_ZAMKNIJ => self.zakoncz(),
             _ => {}
         }
     }
@@ -661,9 +711,11 @@ impl Aplikacja {
         });
     }
 
+    /// „Zamknij asystentkę”: trwająca sesja zapisuje się jak Przerwij, stan
+    /// dnia trafia na dysk i proces się kończy. Dzień zostaje otwarty.
     pub fn zakoncz(self: &Arc<Self>) {
         log::info!("zamykanie");
-        self.wykonaj(|r, t| r.pauza_automatyczna(PowodPauzy::Zamkniecie, t));
+        self.wykonaj(|r, t| r.zamknij_asystentke(t));
         self.app.exit(0);
     }
 

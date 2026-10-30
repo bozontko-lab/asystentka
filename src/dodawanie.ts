@@ -22,13 +22,23 @@ export class Dodawanie {
   readonly korzen = el("section", { class: "panel panel-dodawanie" });
   private blad = "";
   private zajety = false;
+  private readonly naKlawisz = (e: KeyboardEvent) => {
+    if (e.key === "Escape") this.zamknij();
+  };
 
   constructor(
     private readonly most: Most,
     private readonly projekty: string[],
     private readonly opcje: OpcjeDodawania,
   ) {
+    document.addEventListener("keydown", this.naKlawisz);
     this.render();
+  }
+
+  /** Zamyka formularz: Anuluj, Escape i udane dopisanie. */
+  private zamknij(): void {
+    document.removeEventListener("keydown", this.naKlawisz);
+    this.opcje.poZamknieciu();
   }
 
   private render(): void {
@@ -44,13 +54,12 @@ export class Dodawanie {
     for (const w of [nazwa, szac]) {
       w.addEventListener("keydown", (e) => {
         if (e.key === "Enter") wyslij();
-        if (e.key === "Escape") this.opcje.poZamknieciu();
       });
     }
     const dodaj = el("button", { class: "przycisk glowny", type: "button", disabled: this.zajety }, "Dodaj");
     dodaj.addEventListener("click", wyslij);
     const anuluj = el("button", { class: "przycisk cichy", type: "button" }, "Anuluj");
-    anuluj.addEventListener("click", () => this.opcje.poZamknieciu());
+    anuluj.addEventListener("click", () => this.zamknij());
     this.korzen.replaceChildren(
       el("header", { class: "naglowek" }, "Dodaj zadanie"),
       el("div", { class: "pole" }, el("label", { for: "dodaj-nazwa" }, "Nazwa"), nazwa),
@@ -76,7 +85,7 @@ export class Dodawanie {
     this.zajety = true;
     try {
       await this.most.dodajZadanie(nazwa.trim(), szacunek, projekt);
-      this.opcje.poZamknieciu();
+      this.zamknij();
     } catch (e) {
       this.zajety = false;
       this.pokazBlad(typeof e === "string" ? e : e instanceof Error ? e.message : "Nie udało się dopisać zadania.");

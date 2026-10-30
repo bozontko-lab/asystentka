@@ -210,3 +210,10 @@ pub async fn dalej_po_wczoraju(apl: Apl<'_>) -> Result<(), String> {
     apl.inner().wykonaj(|r, _| r.dalej_po_wczoraju());
     Ok(())
 }
+
+/// Prawy przycisk na postaci albo panelu.
+#[tauri::command]
+pub async fn menu_kontekstowe(apl: Apl<'_>) -> Result<(), String> {
+    apl.inner().menu_kontekstowe();
+    Ok(())
+}

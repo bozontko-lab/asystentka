@@ -35,6 +35,10 @@ export interface Most {
   naMigawke(obsluga: (m: Migawka) => void): Promise<unknown>;
   naZdarzenie(obsluga: (z: Zdarzenie) => void): Promise<unknown>;
   naKursor(obsluga: (blisko: boolean) => void): Promise<unknown>;
+  /** Polecenia z menu pod prawym przyciskiem, które wymagają widoku (np. „dodaj_zadanie”). */
+  naAkcja(obsluga: (nazwa: string) => void): Promise<unknown>;
+  /** Prawy przycisk na postaci albo panelu: menu z poleceniami. */
+  menuKontekstowe(): Promise<void>;
   przeciagnij(): void;
   /** Błąd frontendu do pliku logu (na Windows konsoli WebView2 nie widać). */
   zglosBlad(tekst: string): void;
@@ -68,6 +72,8 @@ export function mostTauri(): Most {
     naMigawke: (obsluga) => listen<Migawka>("migawka", (e) => obsluga(e.payload)),
     naZdarzenie: (obsluga) => listen<Zdarzenie>("zdarzenie", (e) => obsluga(e.payload)),
     naKursor: (obsluga) => listen<boolean>("kursor", (e) => obsluga(e.payload)),
+    naAkcja: (obsluga) => listen<string>("akcja", (e) => obsluga(e.payload)),
+    menuKontekstowe: () => invoke("menu_kontekstowe"),
     przeciagnij: () => {
       void getCurrentWindow().startDragging();
     },

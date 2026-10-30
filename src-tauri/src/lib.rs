@@ -91,6 +91,7 @@ pub fn run() {
             komendy::do_jutra,
             komendy::wroc_do_pracy,
             komendy::dalej_po_wczoraju,
+            komendy::menu_kontekstowe,
             komendy::kreator_dane,
             komendy::kreator_zakoncz,
             komendy::ustawienia_pobierz,
@@ -101,6 +102,14 @@ pub fn run() {
             komendy::wybierz_plik,
             komendy::wybierz_folder,
         ])
+        // Zdarzenia menu są globalne: menu pod prawym przyciskiem rozpoznajemy po prefiksie.
+        .on_menu_event(|app, zdarzenie| {
+            if zdarzenie.id().as_ref().starts_with(zasobnik::PREFIKS_KONTEKSTOWEGO) {
+                if let Some(apl) = apl(app) {
+                    apl.wybor_z_menu_kontekstowego(&zdarzenie);
+                }
+            }
+        })
         .setup(|app| aplikacja::uruchom(app))
         .on_window_event(|okno, zdarzenie| match zdarzenie {
             WindowEvent::Moved(pozycja) if okno.label() == aplikacja::OKNO => {

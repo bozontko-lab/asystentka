@@ -239,6 +239,17 @@ pub struct Migawka {
     pub projekty_do_dopisania: Vec<String>,
 }
 
+/// Co wolno z menu pod prawym przyciskiem i z zasobnika (B6) w bieżącym stanie.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Mozliwosci {
+    pub koniec_pracy: bool,
+    pub zmien_plan: bool,
+    pub dodaj_zadanie: bool,
+    /// `None`: brak sesji; `Some(true)`: sesja zapauzowana.
+    pub pauza: Option<bool>,
+    pub widoczna: bool,
+}
+
 pub struct Rdzen {
     pub ust: Ustawienia,
     magazyn: Magazyn,
@@ -318,6 +329,19 @@ impl Rdzen {
     /// `None`: brak sesji; `Some(true)`: sesja zapauzowana.
     pub fn sesja_pauza(&self) -> Option<bool> {
         self.dz.sesja.as_ref().map(|s| s.pauza.is_some())
+    }
+
+    pub fn mozliwosci(&self) -> Mozliwosci {
+        let stan = self.stan();
+        let otwarty = !self.dz.zamkniety && !self.kreator && stan != Stan::Konfiguracja;
+        Mozliwosci {
+            koniec_pracy: otwarty,
+            zmien_plan: otwarty && matches!(stan, Stan::Lista | Stan::Gratulacje),
+            dodaj_zadanie: otwarty
+                && matches!(stan, Stan::WyborZadan | Stan::Lista | Stan::Praca | Stan::Pauza | Stan::Gratulacje),
+            pauza: self.sesja_pauza(),
+            widoczna: self.widoczna(),
+        }
     }
 
     pub fn kotwica(&self) -> KotwicaOkna {
@@ -1131,6 +1155,17 @@ impl Rdzen {
         self.wczytaj_zadania();
         if matches!(self.faza, Faza::Wybor) {
             self.wybor_przekroczony = self.przekroczony();
+        }
+        self.brudny = true;
+        self.zapisz_stan(teraz);
+    }
+
+    /// „Zamknij asystentkę”: trwająca sesja zapisuje się jak Przerwij, a stan
+    /// dnia na dysk. Dzień zostaje otwarty, więc kolejne uruchomienie tego
+    /// samego dnia wraca do Listy (B6).
+    pub fn zamknij_asystentke(&mut self, teraz: Chwila) {
+        if self.dz.sesja.is_some() {
+            self.zakoncz_sesje(false, teraz);
         }
         self.brudny = true;
         self.zapisz_stan(teraz);
@@ -2309,6 +2344,75 @@ mod testy {
         r.koniec_pracy(t("23:00:10"));
         r.tick(t("23:30:00"));
         assert_eq!(r.stan(), Stan::Konfiguracja);
+    }
+
+    // ---- krok 6: menu i zamykanie ---------------------------------------------------------------
+
+    #[test]
+    fn menu_zalezy_od_stanu() {
+        let sr = Srodowisko::nowe();
+        let mut r = sr.rdzen(t("09:00:00"));
+        r.tick(t("09:00:06"));
+        let wybor = r.mozliwosci();
+        assert_eq!((wybor.koniec_pracy, wybor.zmien_plan, wybor.dodaj_zadanie, wybor.pauza), (true, false, true, None));
+        r.zatwierdz_wybor(t("09:00:10"));
+        let lista = r.mozliwosci();
+        assert_eq!((lista.koniec_pracy, lista.zmien_plan, lista.dodaj_zadanie), (true, true, true));
+        r.rozpocznij(&montaz(), t("09:01:00")).unwrap();
+        let praca = r.mozliwosci();
+        assert_eq!(
+            (praca.koniec_pracy, praca.zmien_plan, praca.dodaj_zadanie, praca.pauza),
+            (true, false, true, Some(false))
+        );
+        r.pauza(t("09:02:00"));
+        assert_eq!(r.mozliwosci().pauza, Some(true));
+        r.koniec_pracy(t("09:03:00"));
+        let koniec = r.mozliwosci();
+        assert_eq!((koniec.koniec_pracy, koniec.zmien_plan, koniec.dodaj_zadanie), (false, false, false));
+        assert!(koniec.widoczna);
+    }
+
+    #[test]
+    fn kreator_nie_ma_menu_dnia() {
+        let sr = Srodowisko::nowe();
+        let mut r = Rdzen::nowy(Magazyn::new(sr.lokalny.clone()), Ustawienia::default(), t("09:00:00"));
+        r.wymus_kreator();
+        r.start(t("09:00:00"));
+        let m = r.mozliwosci();
+        assert_eq!((m.koniec_pracy, m.zmien_plan, m.dodaj_zadanie), (false, false, false));
+    }
+
+    #[test]
+    fn zamknij_asystentke_zapisuje_sesje_i_zostawia_dzien_otwarty() {
+        let sr = Srodowisko::nowe();
+        let mut r = sr.rdzen(t("09:00:00"));
+        r.tick(t("09:00:06"));
+        r.zatwierdz_wybor(t("09:00:10"));
+        r.rozpocznij(&montaz(), t("09:10:00")).unwrap();
+        r.zamknij_asystentke(t("09:40:00"));
+        assert!(r.dz.sesja.is_none());
+        assert!(sr.zadania().contains("[czas:: 75]"), "30 min dopisane do 45");
+        assert!(!sr.zadania().contains("[x] Montaż"), "bez ptaszka");
+        assert!(sr.dziennik("2026-10-30").contains("- [ ] 09:10–09:40 · Montaż: plansze 1–5 · 30 min · w toku"));
+        assert!(!sr.dziennik("2026-10-30").contains("Podsumowanie dnia"));
+        drop(r);
+        // Kolejne uruchomienie tego samego dnia wraca do Listy z tym samym planem.
+        let mut r2 = sr.rdzen(t("10:00:00"));
+        assert_eq!(r2.stan(), Stan::Lista);
+        assert_eq!(dymki(&mut r2), vec!["powrot"]);
+        assert!(r2.dz.sesja.is_none());
+        assert_eq!(r2.migawka().lista.unwrap().razem, 1);
+    }
+
+    #[test]
+    fn zamknij_asystentke_bez_sesji_tylko_zapisuje_stan() {
+        let sr = Srodowisko::nowe();
+        let mut r = sr.rdzen(t("09:00:00"));
+        r.tick(t("09:00:06"));
+        r.zatwierdz_wybor(t("09:00:10"));
+        r.zamknij_asystentke(t("09:05:00"));
+        assert!(sr.lokalny.join("dzien.json").exists());
+        assert!(!sr.vault.join("Dziennik pracy").exists());
     }
 
     // ---- bezczynność, pauza automatyczna, pełny ekran (z wersji 1) -------------------------------

@@ -252,6 +252,14 @@ async function start(): Promise<void> {
     }
   });
 
+  // Prawy przycisk na postaci i panelu: menu z poleceniami (B6). Pola tekstowe zostawiamy
+  // z systemowym menu (wytnij, wklej), żeby nie psuć wpisywania.
+  document.addEventListener("contextmenu", (e) => {
+    if ((e.target as HTMLElement).closest("input, textarea")) return;
+    e.preventDefault();
+    most.menuKontekstowe().catch(blad);
+  });
+
   // Okno przeciąga się za postać; pozycja zapamiętuje się w backendzie.
   element("postac").addEventListener("mousedown", (e) => {
     if (e.button === 0 && e.detail === 1) most.przeciagnij();
@@ -260,6 +268,9 @@ async function start(): Promise<void> {
   await most.naMigawke(rysuj);
   await most.naZdarzenie(obsluzZdarzenie);
   await most.naKursor((blisko) => postac.kursor(blisko));
+  await most.naAkcja((nazwa) => {
+    if (nazwa === "dodaj_zadanie") otworzDodawanie();
+  });
   rysuj(await most.migawka());
   await Promise.race([document.fonts.ready, new Promise((r) => window.setTimeout(r, 500))]);
   const [szer, wys] = rozmiar();

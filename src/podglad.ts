@@ -174,6 +174,8 @@ export function mostPodglad(): Most {
       naZdarzenie = obsluga;
     },
     naKursor: async () => undefined,
+    naAkcja: async () => undefined,
+    menuKontekstowe: async () => console.info("menu pod prawym przyciskiem"),
     przeciagnij: () => undefined,
     zglosBlad: (tekst) => console.error(tekst),
     kreatorDane: async () => PODPOWIEDZ,
