@@ -50,7 +50,9 @@ function przyklad(stan: NazwaStanu, strona: "prawa" | "lewa", pion: "dol" | "gor
     szac_min: 120,
     sekundy_zamkniete: 45 * 60 + 41 * 60,
     odcinek_od_ms: stan === "praca" || stan === "jestes" ? teraz - 6 * MINUTA - 12_000 : null,
-    pauza_od_ms: stan === "pauza" ? teraz - 3 * MINUTA - 4000 : null,
+    // ?pauza_s=2 pokazuje przeciąganie, 60 konsolkę, 1000 drzemkę.
+    pauza_od_ms:
+      stan === "pauza" ? teraz - Number.parseFloat(new URLSearchParams(location.search).get("pauza_s") ?? "184") * 1000 : null,
     powod_pauzy: stan === "pauza" ? ("reczna" as const) : null,
     bezczynna_od_ms: stan === "jestes" ? teraz - 16 * MINUTA : null,
   };

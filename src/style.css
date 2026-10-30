@@ -246,6 +246,22 @@ body {
   }
 }
 
+/* Początek przerwy: jedno mocniejsze przeciągnięcie, skala w pionie do 1,03 i z powrotem w 1,2 s (B7). */
+.skok.przeciaganie-mocne {
+  transform-origin: 50% 100%;
+  animation: przeciagniecie 1.2s ease-in-out 0.25s 1;
+}
+
+@keyframes przeciagniecie {
+  0%,
+  100% {
+    transform: scaleY(1);
+  }
+  50% {
+    transform: scaleY(1.03);
+  }
+}
+
 /* ---- konfetti ---------------------------------------------------------- */
 
 .konfetti {

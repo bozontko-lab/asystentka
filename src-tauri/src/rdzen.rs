@@ -29,6 +29,10 @@ const GRATULACJE_S: i64 = 10;
 const PONOWIENIA_ZAPISU_S: [i64; 6] = [1, 1, 2, 3, 5, 10];
 /// Krótszej sesji przerwanej przez „Przerwij” nie zapisujemy.
 const MIN_SESJA_S: i64 = 60;
+/// Po 5 s ręcznej przerwy postać przestaje się przeciągać, gra na konsolce i mówi o tym (B4, B7).
+const PAUZA_GRA_PO_S: i64 = 5;
+/// Dymek o graniu ma sens tylko tuż po wciśnięciu Pauzy, a nie po spóźnionym ticku.
+const PAUZA_GRA_NAJPOZNIEJ_S: i64 = 30;
 /// Wybór zadań liczy co najmniej tyle minut na zadanie (B4).
 const MIN_NA_ZADANIE_MIN: u32 = 10;
 /// Wybór przekracza cel, gdy suma jest większa o ponad 20% (B4).
@@ -287,6 +291,8 @@ pub struct Rdzen {
     proby_zapisu: usize,
     /// Skrót pokaż/ukryj nie zarejestrował się: dymek o tym czeka na swoją chwilę (raz).
     skrot_zajety: Option<(String, Chwila)>,
+    /// Początek przerwy, dla której dymek `pauza_gra` już padł (albo jest spóźniony).
+    pauza_gra: Option<Chwila>,
 }
 
 impl Rdzen {
@@ -314,6 +320,7 @@ impl Rdzen {
             zapis_ponow: None,
             proby_zapisu: 0,
             skrot_zajety: None,
+            pauza_gra: None,
         }
     }
 
@@ -411,6 +418,9 @@ impl Rdzen {
         if let (Some((_, t)), true) = (&self.skrot_zajety, self.mozna_mowic_o_skrocie()) {
             wez(*t);
         }
+        if let Some((_, t)) = self.pauza_gra_termin() {
+            wez(t);
+        }
         let co = self.ust.przypomnienie_przerwy_min;
         if let (Some(s), Stan::Praca, true) = (&self.dz.sesja, self.stan(), co > 0) {
             if let Some(od) = s.otwarty_od() {
@@ -451,6 +461,28 @@ impl Rdzen {
     /// nie wcześniej niż `najwczesniej`, żeby nie zagłuszyć powitania.
     pub fn skrot_zajety(&mut self, skrot: &str, najwczesniej: Chwila) {
         self.skrot_zajety = Some((skrot.to_string(), najwczesniej));
+    }
+
+    /// Początek ręcznej przerwy i chwila, w której pojawi się dymek `pauza_gra`.
+    /// Przerwa z blokady ekranu albo uśpienia nie dostaje dymku: nikt na nią nie patrzy.
+    fn pauza_gra_termin(&self) -> Option<(Chwila, Chwila)> {
+        let p = self.dz.sesja.as_ref()?.pauza.as_ref()?;
+        if p.powod != PowodPauzy::Reczna || self.pauza_gra == Some(p.od) {
+            return None;
+        }
+        Some((p.od, p.od + Duration::seconds(PAUZA_GRA_PO_S)))
+    }
+
+    /// „To ja w tym czasie pogram!”: raz, 5 s po wciśnięciu Pauzy.
+    fn dymek_pauza_gra(&mut self, teraz: Chwila) {
+        let Some((od, termin)) = self.pauza_gra_termin() else { return };
+        if teraz < termin {
+            return;
+        }
+        self.pauza_gra = Some(od);
+        if teraz - od <= Duration::seconds(PAUZA_GRA_NAJPOZNIEJ_S) {
+            self.dymek("pauza_gra", &[]);
+        }
     }
 
     /// Dymek o skrócie nie przerywa kreatora ani powitania.
@@ -615,6 +647,7 @@ impl Rdzen {
         }
         self.przypomnienie_o_przerwie(teraz);
         self.dymek_o_zajetym_skrocie(teraz);
+        self.dymek_pauza_gra(teraz);
         if self.zapis_ponow.is_some_and(|t| teraz >= t) {
             self.zastosuj_edycje(teraz);
             self.zapisz_stan(teraz);
@@ -2951,5 +2984,55 @@ mod testy {
         r.skrot_zajety("Ctrl+Shift+F9", t("11:00:00"));
         r.tick(t("11:00:00"));
         assert_eq!(wstawki(&r.wez_zdarzenia(), "skrot_zajety")["skrot"], "Ctrl+Shift+F9");
+    }
+
+    // ---- sekwencja przerwy (2.1) ------------------------------------------------------------
+
+    #[test]
+    fn piec_sekund_po_pauzie_postac_mowi_ze_gra_ale_tylko_raz() {
+        let sr = Srodowisko::nowe();
+        let mut r = zaczynamy_miniature(&sr);
+        r.pauza(t("11:40:00"));
+        assert_eq!(dymki(&mut r), vec!["pauza"]);
+        assert_eq!(r.najblizszy_termin(t("11:40:00")), t("11:40:05"));
+        r.tick(t("11:40:04"));
+        assert!(dymki(&mut r).is_empty(), "przez pierwsze 5 s postać się przeciąga");
+        r.tick(t("11:40:05"));
+        assert_eq!(dymki(&mut r), vec!["pauza_gra"]);
+        r.tick(t("11:40:30"));
+        assert!(dymki(&mut r).is_empty(), "dymek tylko raz");
+        assert!(r.najblizszy_termin(t("11:40:30")) > t("11:41:30"), "nic już nie budzi wątku");
+    }
+
+    #[test]
+    fn kolejna_przerwa_znowu_dostaje_dymek_o_graniu() {
+        let sr = Srodowisko::nowe();
+        let mut r = zaczynamy_miniature(&sr);
+        r.pauza(t("11:40:00"));
+        r.tick(t("11:40:05"));
+        r.wez_zdarzenia();
+        r.wznow(t("11:45:00"));
+        r.pauza(t("11:50:00"));
+        r.wez_zdarzenia();
+        r.tick(t("11:50:05"));
+        assert_eq!(dymki(&mut r), vec!["pauza_gra"]);
+    }
+
+    #[test]
+    fn przerwa_z_blokady_ekranu_i_spozniony_tick_nie_daja_dymku_o_graniu() {
+        let sr = Srodowisko::nowe();
+        let mut r = zaczynamy_miniature(&sr);
+        r.pauza_automatyczna(PowodPauzy::Blokada, t("11:40:00"));
+        r.wez_zdarzenia();
+        r.tick(t("11:40:05"));
+        r.tick(t("11:55:00"));
+        assert!(dymki(&mut r).is_empty(), "blokada ekranu: nikt nie patrzy");
+        // ręczna przerwa, a wątek obudził się dopiero po minucie (np. po uśpieniu)
+        r.wznow(t("12:00:00"));
+        r.pauza(t("12:10:00"));
+        r.wez_zdarzenia();
+        r.tick(t("12:11:00"));
+        assert!(dymki(&mut r).is_empty(), "spóźniony dymek byłby bez sensu");
+        assert!(r.najblizszy_termin(t("12:11:00")) > t("12:12:00"));
     }
 }

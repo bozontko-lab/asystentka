@@ -10,6 +10,7 @@
   "lista": ["Od czego zaczynamy?"],
   "start": ["{zadanie}? Dobra, pilnuję czasu.", "Siadam obok. Działaj!"],
   "pauza": ["Przerwa? Jasne, czekam."],
+  "pauza_gra": ["To ja w tym czasie pogram!", "Runda albo dwie, zanim wrócisz!"],
   "wznowienie": ["Wracamy!"],
   "po_blokadzie": ["Wracamy?"],
   "jestes": ["Halo? Przerwa czy praca?"],
