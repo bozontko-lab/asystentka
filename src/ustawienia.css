@@ -1,12 +1,6 @@
-/* Okno ustawień: zwykłe okno z polami z kreatora i pozostałymi ustawieniami (B6). */
+/* Okno ustawień: zwykłe okno z polami z kreatora i pozostałymi ustawieniami (B6).
+   Kolory ze zmiennych z kolory.css (B7). */
 :root {
-  --lawenda: #b9a6ff;
-  --brzoskwinia: #ffb59a;
-  --zolty: #ffd84d;
-  --cyjan: #2edbe8;
-  --granat: #1e2140;
-  --tekst: #f3f1ff;
-  --tekst-cichy: #b8b4dc;
   color-scheme: dark;
   font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Yu Gothic UI", "Meiryo", sans-serif;
   font-size: 13.5px;
@@ -17,7 +11,7 @@ html,
 body {
   margin: 0;
   min-height: 100%;
-  background: var(--granat);
+  background: var(--tlo);
   color: var(--tekst);
 }
 
@@ -36,8 +30,8 @@ body {
 #ustawienia h2 {
   margin: 18px 0 9px;
   padding-bottom: 4px;
-  border-bottom: 1px solid rgba(185, 166, 255, 0.3);
-  color: var(--lawenda);
+  border-bottom: 1px solid var(--ramka);
+  color: var(--fiolet-jasny);
   font-size: 11.5px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -53,9 +47,9 @@ body {
 
 .przycisk {
   padding: 8px 16px;
-  border: 1.5px solid rgba(185, 166, 255, 0.55);
+  border: 1.5px solid var(--ramka);
   border-radius: 9px;
-  background: rgba(185, 166, 255, 0.12);
+  background: transparent;
   color: var(--tekst);
   font: inherit;
   font-weight: 600;
@@ -63,17 +57,29 @@ body {
 }
 
 .przycisk:hover {
-  background: rgba(185, 166, 255, 0.25);
+  background: var(--tlo-2);
 }
 
+.przycisk:focus-visible {
+  outline: 2px solid var(--fiolet-jasny);
+  outline-offset: 2px;
+}
+
+/* Zapisz i inne główne działanie: miedź z ciemnym tekstem, po wciśnięciu --miedz-ciemna (B7). */
 .przycisk.glowny {
-  border-color: var(--zolty);
-  background: var(--zolty);
-  color: var(--granat);
+  border-color: var(--miedz);
+  background: var(--miedz);
+  color: var(--tlo);
 }
 
 .przycisk.glowny:hover {
-  background: #ffe27a;
+  background: color-mix(in srgb, var(--miedz) 85%, var(--tekst));
+}
+
+.przycisk.glowny:active {
+  border-color: var(--miedz-ciemna);
+  background: var(--miedz-ciemna);
+  color: var(--tekst);
 }
 
 .przycisk:disabled {
@@ -91,9 +97,9 @@ body {
   box-sizing: border-box;
   width: 100%;
   padding: 7px 9px;
-  border: 1.5px solid rgba(185, 166, 255, 0.45);
+  border: 1.5px solid var(--ramka);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--tlo-2);
   color: var(--tekst);
   font: inherit;
   font-weight: 600;
@@ -103,15 +109,15 @@ body {
 
 .pole-skrotu:focus-visible,
 .pole-skrotu.nagrywa {
-  outline: none;
-  border-color: var(--cyjan);
-  background: rgba(46, 219, 232, 0.08);
+  outline: 2px solid var(--fiolet-jasny);
+  outline-offset: 0;
+  border-color: var(--fiolet-jasny);
 }
 
 .pole-skrotu[aria-invalid="true"] {
-  border-color: var(--brzoskwinia);
+  border-color: var(--koral);
 }
 
 .blad-skrotu {
-  color: var(--brzoskwinia);
+  color: var(--koral);
 }

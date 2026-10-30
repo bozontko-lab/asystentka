@@ -1,4 +1,4 @@
-/* Pola formularzy: kreator w widgecie i okno ustawień. Kolory z paleta/style. */
+/* Pola formularzy: kreator w widgecie i okno ustawień. Kolory ze zmiennych z kolory.css (B7). */
 
 .pole {
   display: flex;
@@ -11,11 +11,11 @@
 .pole > .etykieta {
   font-size: 12px;
   font-weight: 600;
-  color: var(--tekst, #f3f1ff);
+  color: var(--tekst);
 }
 
 .pole .podpowiedz {
-  color: var(--tekst-cichy, #b8b4dc);
+  color: var(--tekst-2);
   font-size: 11.5px;
   line-height: 1.35;
 }
@@ -26,22 +26,23 @@
   box-sizing: border-box;
   width: 100%;
   padding: 7px 9px;
-  border: 1.5px solid rgba(185, 166, 255, 0.45);
+  border: 1.5px solid var(--ramka);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--tekst, #f3f1ff);
+  background: var(--tlo-2);
+  color: var(--tekst);
   font: inherit;
   user-select: text;
 }
 
+/* Fokus klawiatury: obwódka 2 px w --fiolet-jasny (B7). */
 .pole input:focus {
-  outline: none;
-  border-color: var(--cyjan, #2edbe8);
-  background: rgba(46, 219, 232, 0.08);
+  outline: 2px solid var(--fiolet-jasny);
+  outline-offset: 0;
+  border-color: var(--fiolet-jasny);
 }
 
 .pole input[aria-invalid="true"] {
-  border-color: var(--brzoskwinia, #ffb59a);
+  border-color: var(--koral);
 }
 
 .wiersz-sciezki {
@@ -62,7 +63,7 @@
 
 .pole-przelacznik input {
   margin-top: 2px;
-  accent-color: var(--cyjan, #2edbe8);
+  accent-color: var(--miedz);
 }
 
 .pole-przelacznik label {
@@ -83,18 +84,18 @@
   align-items: center;
   gap: 7px;
   padding: 6px 9px;
-  border: 1px solid rgba(185, 166, 255, 0.3);
+  border: 1px solid var(--ramka);
   border-radius: 8px;
   cursor: pointer;
 }
 
 .wybor-trybu label:has(input:checked) {
-  border-color: var(--cyjan, #2edbe8);
-  background: rgba(46, 219, 232, 0.09);
+  border-color: var(--fiolet);
+  background: var(--tlo-2);
 }
 
 .wybor-trybu input {
-  accent-color: var(--cyjan, #2edbe8);
+  accent-color: var(--miedz);
 }
 
 .vaulty {
@@ -105,25 +106,30 @@
 
 .mala {
   padding: 3px 8px;
-  border: 1px solid rgba(185, 166, 255, 0.45);
+  border: 1px solid var(--ramka);
   border-radius: 999px;
   background: transparent;
-  color: var(--tekst, #f3f1ff);
+  color: var(--tekst);
   font: inherit;
   font-size: 11.5px;
   cursor: pointer;
 }
 
 .mala:hover {
-  background: rgba(185, 166, 255, 0.2);
+  background: var(--tlo-2);
+}
+
+.mala:focus-visible {
+  outline: 2px solid var(--fiolet-jasny);
+  outline-offset: 2px;
 }
 
 .blad-formularza {
   margin: 0 0 9px;
   padding: 7px 9px;
   border-radius: 8px;
-  background: rgba(255, 181, 154, 0.14);
-  color: var(--brzoskwinia, #ffb59a);
+  background: color-mix(in srgb, var(--koral) 14%, transparent);
+  color: var(--koral);
   font-size: 12px;
   line-height: 1.35;
   white-space: pre-line;
@@ -131,7 +137,7 @@
 
 .krok {
   margin: 0 0 3px;
-  color: var(--tekst-cichy, #b8b4dc);
+  color: var(--tekst-2);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.06em;

@@ -1,6 +1,7 @@
 // Widget: rysuje migawki z backendu, pokazuje dymki i efekty, zgłasza
 // rozmiar treści, żeby okno było dopasowane do stanu (B6).
 
+import "./kolory.css";
 import "./formularz.css";
 import "./style.css";
 

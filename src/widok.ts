@@ -97,6 +97,8 @@ function wierszListy(z: ZadanieWidok): HTMLElement {
         ? `${z.szac_min} min`
         : "";
   const klasy = ["zadanie", z.zrobione && "zrobione", z.w_toku && "w-toku"].filter(Boolean).join(" ");
+  // Po przekroczeniu szacunku czas jest koralowy, bez komunikatów o winie (B5, B7).
+  const ponad = !z.zrobione && z.szac_min != null && z.czas_min > z.szac_min;
   return el(
     "li",
     {},
@@ -110,7 +112,7 @@ function wierszListy(z: ZadanieWidok): HTMLElement {
         z.w_toku && el("span", { class: "znacznik" }, `w toku · ${minutyTekst(z.czas_min)}`),
         z.projekt !== BEZ_PROJEKTU && !z.w_toku && el("span", { class: "znacznik cichy" }, z.projekt),
       ),
-      el("span", { class: "czas" }, czas),
+      el("span", { class: ponad ? "czas ponad" : "czas" }, czas),
     ),
   );
 }

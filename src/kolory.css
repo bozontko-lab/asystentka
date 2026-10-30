@@ -1,0 +1,19 @@
+/* Kolory interfejsu (SPEC.md, B7): z palety postaci, czyli zieleni włosów, miedzi maski,
+   fioletu oczu i kremowego konturu. To jedyne miejsce z kolorami: komponenty biorą je ze
+   zmiennych, więc paletę zmienia się tutaj i nigdzie indziej. Półprzezroczystości liczy
+   `color-mix()` z tych samych zmiennych. */
+:root {
+  --tlo: #101B17;
+  --tlo-2: #1A2B24;
+  --ramka: #41725F;
+  --tekst: #FCF0DF;
+  --tekst-2: #B3C2B8;
+  --miedz: #C7773F;
+  --miedz-ciemna: #893E25;
+  --fiolet: #A778C8;
+  --fiolet-jasny: #CDB4EE;
+  --zielen: #7CC49E;
+  --koral: #FD8F72;
+  --dymek: #FCF0DF;
+  --dymek-tekst: #101B17;
+}

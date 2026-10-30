@@ -1,6 +1,7 @@
 // Okno ustawień (SPEC.md, B6): pola z kreatora i pozostałe ustawienia z B7.
 // Zapisz stosuje zmiany od razu, bez restartu.
 
+import "./kolory.css";
 import "./formularz.css";
 import "./ustawienia.css";
 
