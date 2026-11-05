@@ -3,6 +3,7 @@
 
 mod aplikacja;
 mod dzwiek;
+mod kolejnosc;
 mod komendy;
 mod obsidian;
 mod okno;

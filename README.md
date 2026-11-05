@@ -300,6 +300,8 @@ asystentka/
   żeby każdy dymek z backendu miał tam wariant.
 - **Postać:** rozmiar, linie stóp i siedziska z `src/assets/postac/postac.json`;
   `concerned.png` służy reakcji „zmartwiona”.
+  Schowany widget nie ma żadnych zegarów animacji; po pokazaniu postać od razu ma pozę
+  właściwą dla czasu (np. drzemkę po 15 min przerwy), a zegary układają się od nowa.
 - **Spojrzenie na kursor** (B7 tego nie rozstrzyga, decyzja właściciela): w Pracy
   `sit_watch_front` zastępuje tylko patrzenie (`sit_watch`). Gdy postać gra na
   konsolce albo pije z kubka, zbliżenie kursora jej nie przerywa.

@@ -2,6 +2,7 @@
 // (oddech, klatki machania) robi CSS; JS tylko przełącza klasy i obrazki
 // w rzadkich chwilach: mrugnięcie co 3–7 s, zmiana pozy co 3–6 min,
 // druga klatka konsolki na 3 s co 2 min, fazy przerwy po 5 s i po 15 min.
+// Schowane okno nie ma żadnych zegarów: pokazanie układa je od nowa z czasu.
 
 import type { Grafiki, Poza } from "./grafiki";
 import { doZmianyFazyPrzerwy, doZmianyKonsolki, fazaPrzerwy, konsolkaDwa, ROZCIAGANIE_MS } from "./przerwa";
@@ -51,6 +52,9 @@ export class Postac {
   private zegarStanu: number | undefined;
   private zegarFazy: number | undefined;
   private zegarKonsoli: number | undefined;
+  private zegarPrzeciagania: number | undefined;
+  private zegarZaniku: number | undefined;
+  private zegarKoncaMrugniecia: number | undefined;
   private obecne = "";
   private readonly skok: HTMLElement;
 
@@ -87,15 +91,43 @@ export class Postac {
     this.odswiez(true);
   }
 
+  /**
+   * Schowane okno (pełny ekran, skrót) nie budzi JS: wszystkie zegary stają. Pokazanie
+   * rysuje pozę właściwą dla bieżącego czasu i układa zegary od nowa.
+   */
   widocznosc(widoczna: boolean): void {
     if (this.widoczna === widoczna) return;
     this.widoczna = widoczna;
     if (widoczna) {
-      this.zaplanujMrugniecie();
+      if (this.stan === "praca") this.zaplanujZmianePozy();
+      this.zaplanujFazePrzerwy();
+      this.odswiez(false);
     } else {
-      window.clearTimeout(this.zegarMrugania);
-      this.cialo.classList.remove("mrug");
+      this.zatrzymajZegary();
+      this.cialo.classList.remove("mrug", "zanik");
+      // Pokazanie narysuje pozę od nowa, bez zanikania.
+      this.obecne = "";
+      this.wskazuje = false;
+      this.przeciaga = false;
     }
+  }
+
+  private zatrzymajZegary(): void {
+    for (const zegar of [
+      this.zegarMrugania,
+      this.zegarKoncaMrugniecia,
+      this.zegarWariantu,
+      this.zegarStanu,
+      this.zegarFazy,
+      this.zegarKonsoli,
+      this.zegarPrzeciagania,
+      this.zegarZaniku,
+    ]) {
+      window.clearTimeout(zegar);
+    }
+    this.zegarFazy = undefined;
+    this.zegarKonsoli = undefined;
+    this.konsolaOd = null;
   }
 
   kursor(blisko: boolean): void {
@@ -106,10 +138,11 @@ export class Postac {
 
   /** Przypomnienie o przerwie: chwilę się przeciąga. */
   przeciagnijSie(): void {
-    if (this.stan !== "praca") return;
+    if (this.stan !== "praca" || !this.widoczna) return;
     this.przeciaga = true;
     this.odswiez(true);
-    window.setTimeout(() => {
+    window.clearTimeout(this.zegarPrzeciagania);
+    this.zegarPrzeciagania = window.setTimeout(() => {
       this.przeciaga = false;
       this.odswiez(true);
     }, PRZECIAGANIE_MS);
@@ -128,9 +161,11 @@ export class Postac {
     window.clearTimeout(this.zegarStanu);
     window.clearTimeout(this.zegarWariantu);
     window.clearTimeout(this.zegarFazy);
+    window.clearTimeout(this.zegarPrzeciagania);
     this.zegarFazy = undefined;
     this.przeciaga = false;
     this.wskazuje = false;
+    if (!this.widoczna) return;
     if (stan === "wybor_zadan" && this.grafiki.ma("point") && poprzedni !== "wybor_zadan") {
       this.wskazuje = true;
       this.zegarStanu = window.setTimeout(() => {
@@ -153,6 +188,7 @@ export class Postac {
   /** Losowo co 3–6 min jedna z póz siedzących (B7). */
   private zaplanujZmianePozy(): void {
     window.clearTimeout(this.zegarWariantu);
+    if (!this.widoczna) return;
     this.zegarWariantu = window.setTimeout(
       () => {
         const inne = this.dostepneWarianty().filter((w) => w !== this.wariant);
@@ -173,7 +209,7 @@ export class Postac {
   private zaplanujFazePrzerwy(): void {
     window.clearTimeout(this.zegarFazy);
     this.zegarFazy = undefined;
-    if (this.stan !== "pauza" || this.pauzaOd == null) return;
+    if (this.stan !== "pauza" || this.pauzaOd == null || !this.widoczna) return;
     const za = doZmianyFazyPrzerwy(this.czasPrzerwyMs());
     if (za === null) return;
     this.zegarFazy = window.setTimeout(() => {
@@ -277,6 +313,8 @@ export class Postac {
   }
 
   private odswiez(zanik: boolean): void {
+    // Schowanej postaci się nie rysuje; pokazanie odświeży ją z bieżącego stanu.
+    if (!this.widoczna) return;
     this.zaplanujKonsole();
     const k = this.klatki();
     const adresA = this.grafiki.adres(k.a);
@@ -311,11 +349,12 @@ export class Postac {
       this.zaplanujMrugniecie();
     };
     // Zmiana pozy w Pracy przechodzi przez zanikanie 150 ms (B7).
+    // Nowsza zmiana zawsze sama zdejmie `.zanik`, więc przestarzały zegar nie rozjaśnia starej pozy.
+    window.clearTimeout(this.zegarZaniku);
     if (zanik && !pierwszy) {
       this.cialo.classList.add("zanik");
-      window.setTimeout(() => {
+      this.zegarZaniku = window.setTimeout(() => {
         if (numer === this.numerZmiany) zastosuj();
-        else this.cialo.classList.remove("zanik");
       }, ZANIK_MS);
     } else {
       zastosuj();
@@ -328,7 +367,7 @@ export class Postac {
     if (!this.widoczna || !this.obecne.endsWith("|mrug")) return;
     this.zegarMrugania = window.setTimeout(() => {
       this.cialo.classList.add("mrug");
-      window.setTimeout(() => {
+      this.zegarKoncaMrugniecia = window.setTimeout(() => {
         this.cialo.classList.remove("mrug");
         this.zaplanujMrugniecie();
       }, MRUGNIECIE_MS);
