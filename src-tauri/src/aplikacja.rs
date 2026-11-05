@@ -7,7 +7,7 @@
 use std::error::Error;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use std::thread;
@@ -20,10 +20,11 @@ use tauri_plugin_opener::OpenerExt;
 
 use crate::czas::{self, Chwila};
 use crate::dzwiek::Silnik;
+use crate::kolejnosc::{self, Najnowsze, ZmianaPliku};
 use crate::magazyn::Magazyn;
 use crate::obsidian;
 use crate::okno::{self, Ekran, Obszar, Prostokat};
-use crate::rdzen::{Migawka, Rdzen, Stan, Zdarzenie};
+use crate::rdzen::{Migawka, Rdzen, Stan};
 use crate::sesja::PowodPauzy;
 use crate::skrot;
 use crate::system::{self, ZdarzenieSystemowe};
@@ -46,6 +47,15 @@ const GLITCH_WYJSCIA: Duration = Duration::from_millis(420);
 const BLISKO_PX: f64 = 300.0;
 /// Po starcie dymek o zajętym skrócie czeka, aż skończy się powitanie i następny dymek.
 const SKROT_ZAJETY_PO_STARCIE_S: i64 = 13;
+
+/// Skutki jednego stanu rdzenia, rozsyłane poza jego blokadą.
+#[derive(Clone)]
+struct Skutki {
+    migawka: Migawka,
+    menu: StanMenu,
+    ochrona: bool,
+    dzwiek: Option<f32>,
+}
 
 #[derive(Default)]
 struct StanOkna {
@@ -74,6 +84,9 @@ pub struct Aplikacja {
     hwnd: AtomicIsize,
     zasobnik: OnceLock<Zasobnik>,
     ostatnia_migawka: Mutex<String>,
+    /// Numer stanu rdzenia nadawany pod jego blokadą: kolejność skutków między wątkami.
+    wersja: AtomicU64,
+    skutki: Najnowsze<Skutki>,
     /// Skrót zarejestrowany w systemie w tej chwili.
     skrot: Mutex<Option<String>>,
     /// Skrót z ustawień, który widget chce mieć zarejestrowany.
@@ -150,6 +163,8 @@ pub fn uruchom(app: &mut tauri::App) -> Result<(), Box<dyn Error>> {
         hwnd: AtomicIsize::new(0),
         zasobnik: OnceLock::new(),
         ostatnia_migawka: Mutex::new(String::new()),
+        wersja: AtomicU64::new(0),
+        skutki: Najnowsze::new(),
         skrot: Mutex::new(None),
         skrot_docelowy: Mutex::new(String::new()),
         skrot_wstrzymany: AtomicBool::new(false),
@@ -243,31 +258,47 @@ impl Aplikacja {
     /// migawkę i dymki do frontendu, widoczność okna, menu zasobnika.
     pub fn wykonaj<T>(self: &Arc<Self>, dzialanie: impl FnOnce(&mut Rdzen, Chwila) -> T) -> T {
         let teraz = czas::teraz();
-        let (wynik, migawka, zdarzenia, menu, ochrona, dzwiek) = {
+        let (wynik, wersja, skutki, zdarzenia) = {
             let mut r = zablokuj(&self.rdzen);
             let wynik = dzialanie(&mut r, teraz);
             // Czas z dźwiękiem do dziennika (znacznik „· 40 Hz”) liczy się po każdej zmianie stanu.
             r.synchronizuj_dzwiek(teraz);
             r.zapisz_stan(teraz);
             let zdarzenia = if self.gotowy.load(Ordering::SeqCst) { r.wez_zdarzenia() } else { Vec::new() };
-            (wynik, r.migawka(), zdarzenia, stan_menu(&r), r.ust.ukryj_przed_nagrywaniem, r.dzwiek_cel())
+            let skutki = Skutki {
+                migawka: r.migawka(),
+                menu: stan_menu(&r),
+                ochrona: r.ust.ukryj_przed_nagrywaniem,
+                dzwiek: r.dzwiek_cel(),
+            };
+            (wynik, self.wersja.fetch_add(1, Ordering::SeqCst) + 1, skutki, zdarzenia)
         };
-        if let Some(silnik) = self.dzwiek.get() {
-            silnik.cel(dzwiek);
+        // Poza blokadą rdzenia inny wątek może rozesłać swój stan wcześniej; wygrywa
+        // zawsze nowszy, więc starsza migawka nie cofa interfejsu, dźwięku ani menu.
+        self.skutki.zglos(wersja, skutki);
+        self.skutki.zastosuj(|s| self.zastosuj_skutki(s));
+        for zdarzenie in zdarzenia {
+            let _ = self.app.emit("zdarzenie", &zdarzenie);
         }
-        self.rozeslij(&migawka, zdarzenia);
-        if self.gotowy.load(Ordering::SeqCst) {
-            self.zastosuj_widocznosc(migawka.widoczna);
-        }
-        if let Some(zasobnik) = self.zasobnik.get() {
-            zasobnik.odswiez(&menu);
-        }
-        self.zastosuj_ochrone(ochrona);
         self.obudz();
         wynik
     }
 
-    fn rozeslij(&self, migawka: &Migawka, zdarzenia: Vec<Zdarzenie>) {
+    fn zastosuj_skutki(self: &Arc<Self>, s: &Skutki) {
+        if let Some(silnik) = self.dzwiek.get() {
+            silnik.cel(s.dzwiek);
+        }
+        self.rozeslij(&s.migawka);
+        if self.gotowy.load(Ordering::SeqCst) {
+            self.zastosuj_widocznosc(s.migawka.widoczna);
+        }
+        if let Some(zasobnik) = self.zasobnik.get() {
+            zasobnik.odswiez(&s.menu);
+        }
+        self.zastosuj_ochrone(s.ochrona);
+    }
+
+    fn rozeslij(&self, migawka: &Migawka) {
         if let Ok(json) = serde_json::to_string(migawka) {
             let mut ostatnia = zablokuj(&self.ostatnia_migawka);
             if *ostatnia != json {
@@ -275,9 +306,6 @@ impl Aplikacja {
                 drop(ostatnia);
                 let _ = self.app.emit("migawka", migawka);
             }
-        }
-        for zdarzenie in zdarzenia {
-            let _ = self.app.emit("zdarzenie", &zdarzenie);
         }
     }
 
@@ -1097,16 +1125,12 @@ impl Aplikacja {
 
             let mut nastepny = pelny_ekran.min(cykl);
             // Zapisy pliku zadań często przychodzą seriami, więc odświeżamy po 300 ms spokoju.
-            let zmiana_pliku = *zablokuj(&self.plik_zmieniony);
-            if let Some(od) = zmiana_pliku {
-                if od.elapsed() >= ODSTEP_PO_ZAPISIE {
-                    *zablokuj(&self.plik_zmieniony) = None;
-                    self.wykonaj(|r, _| {
-                        r.odswiez_zadania();
-                    });
-                } else {
-                    nastepny = nastepny.min(od + ODSTEP_PO_ZAPISIE);
-                }
+            match kolejnosc::odbierz_zmiane_pliku(&self.plik_zmieniony, Instant::now(), ODSTEP_PO_ZAPISIE) {
+                ZmianaPliku::Odswiez => self.wykonaj(|r, _| {
+                    r.odswiez_zadania();
+                }),
+                ZmianaPliku::Czekaj(kiedy) => nastepny = nastepny.min(kiedy),
+                ZmianaPliku::Brak => {}
             }
             if sledz {
                 nastepny = nastepny.min(kursor);
