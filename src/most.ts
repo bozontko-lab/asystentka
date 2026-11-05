@@ -85,7 +85,9 @@ export function mostTauri(): Most {
     menuKontekstowe: () => invoke("menu_kontekstowe"),
     // Przeciąganie zaczyna backend: dopiero od tej chwili przesunięcie okna zmienia zapisaną pozycję.
     przeciagnij: () => {
-      void invoke("przeciagnij");
+      void invoke("przeciagnij").catch((e: unknown) => {
+        void logBlad(`frontend: przeciąganie: ${String(e)}`).catch(() => undefined);
+      });
     },
     kreatorDane: () => invoke<PodpowiedzKreatora>("kreator_dane"),
     kreatorZakoncz: (ustawienia, utworzPlik) => invoke("kreator_zakoncz", { ustawienia, utworzPlik }),

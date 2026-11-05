@@ -68,7 +68,7 @@ export function skrotDlaCzlowieka(skrot: string): string {
 
 const PODPOWIEDZ = "Kliknij pole i naciśnij nową kombinację. Esc anuluje.";
 
-type PrzyciskiMostu = Pick<Most, "skrotSprawdz" | "skrotWstrzymaj">;
+type PrzyciskiMostu = Pick<Most, "skrotSprawdz" | "skrotWstrzymaj" | "zglosBlad">;
 
 /** Pole skrótu w ustawieniach: nagrywa kombinację i od razu ją sprawdza. */
 export class PoleSkrotu {
@@ -125,7 +125,7 @@ export class PoleSkrotu {
     this.nagrywa = true;
     this.pole.focus();
     // Własny skrót widgetu nie może przechwycić naciśnięcia, które pole ma nagrać.
-    void this.most.skrotWstrzymaj(true);
+    void this.most.skrotWstrzymaj(true).catch((e: unknown) => this.most.zglosBlad(`skrót: ${String(e)}`));
     document.addEventListener("keydown", this.poNacisnieciu, true);
     this.odswiez("Naciśnij kombinację z Ctrl, Alt, Shift albo Win. Esc anuluje.");
   }
@@ -134,7 +134,7 @@ export class PoleSkrotu {
     if (!this.nagrywa) return;
     this.nagrywa = false;
     document.removeEventListener("keydown", this.poNacisnieciu, true);
-    void this.most.skrotWstrzymaj(false);
+    void this.most.skrotWstrzymaj(false).catch((e: unknown) => this.most.zglosBlad(`skrót: ${String(e)}`));
     this.odswiez(komunikat, blad);
   }
 

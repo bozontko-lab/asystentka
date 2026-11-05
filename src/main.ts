@@ -99,7 +99,7 @@ async function start(): Promise<void> {
     const klucz = `${szer}x${wys}`;
     if (klucz === ostatniRozmiar) return;
     ostatniRozmiar = klucz;
-    void most.dopasuj(szer, wys);
+    void most.dopasuj(szer, wys).catch((e: unknown) => most.zglosBlad(opisBledu(e)));
   };
 
   // Rozmiar mierzymy synchronicznie: w ukrytym oknie requestAnimationFrame
