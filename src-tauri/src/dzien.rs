@@ -15,7 +15,8 @@ pub struct Edycja {
     #[serde(flatten)]
     pub klucz: Klucz,
     pub minuty: u32,
-    /// Data ✅, gdy sesja zakończyła się przyciskiem „Zrobione”.
+    /// Data ✅ wpisana przez „Zrobione” (przy `odznacz`: data zadania do odznaczenia).
+    #[serde(default)]
     pub zrobione: Option<NaiveDate>,
     /// Cofnij z dymka gratulacji: zdjąć ptaszka i datę, czas zostaje.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]

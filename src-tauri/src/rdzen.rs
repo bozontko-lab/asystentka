@@ -1244,10 +1244,16 @@ impl Rdzen {
             return;
         };
         wpis.zrobione = false;
+        let data = czas::dzien(wpis.start);
         // Ptaszek, który jeszcze czeka w kolejce (plik był zajęty), po prostu nie trafi do pliku.
-        match self.dz.oczekujace.iter().rposition(|e| e.klucz == klucz && e.zrobione.is_some()) {
+        match self.dz.oczekujace.iter().rposition(|e| e.klucz == klucz && !e.odznacz && e.zrobione.is_some()) {
             Some(i) => self.dz.oczekujace[i].zrobione = None,
-            None => self.dz.oczekujace.push(Edycja { klucz: klucz.clone(), minuty: 0, zrobione: None, odznacz: true }),
+            None => self.dz.oczekujace.push(Edycja {
+                klucz: klucz.clone(),
+                minuty: 0,
+                zrobione: Some(data),
+                odznacz: true,
+            }),
         }
         self.zastosuj_edycje(teraz);
         self.zapisz_dziennik();
@@ -1407,7 +1413,7 @@ impl Rdzen {
         while let Some(e) = self.dz.oczekujace.first().cloned() {
             let wynik = plik_zadan::zmien(&sciezka, |t| {
                 let nowy = if e.odznacz {
-                    plik_zadan::odznacz_zrobione(t, &e.klucz)?
+                    plik_zadan::odznacz_zrobione(t, &e.klucz, e.zrobione)?
                 } else {
                     plik_zadan::dopisz_czas(t, &e.klucz, e.minuty, e.zrobione)?
                 };
@@ -1419,7 +1425,7 @@ impl Rdzen {
                         "plik zadań: {} · {}{} ({} ms)",
                         e.klucz.zadanie,
                         if e.odznacz { "ptaszek zdjęty".to_string() } else { format!("+{} min", e.minuty) },
-                        if e.zrobione.is_some() { " · ✅" } else { "" },
+                        if !e.odznacz && e.zrobione.is_some() { " · ✅" } else { "" },
                         poczatek.elapsed().as_millis()
                     );
                     self.dz.oczekujace.remove(0);
@@ -2945,6 +2951,21 @@ mod testy {
         let dziennik = sr.dziennik("2026-10-30");
         assert!(dziennik.contains("- [ ] 11:30–12:10 · Miniatura · 40 min · w toku"), "{dziennik}");
         assert!(dziennik.contains("- [x] 12:10–12:25 · Miniatura · 15 min (szac. 30)"), "{dziennik}");
+    }
+
+    #[test]
+    fn cofnij_przy_duplikacie_nad_starym_zadaniem_przywraca_plik_sprzed_zrobione() {
+        let sr = Srodowisko::nowe();
+        let przed = "## P\n- [ ] Przegląd maili [czas:: 10]\n- [x] Przegląd maili [czas:: 10] ✅ 2026-10-01\n";
+        fs::write(sr.plik(), przed).unwrap();
+        let mut r = sr.rdzen(t("09:00:00"));
+        r.tick(t("09:00:06"));
+        r.zatwierdz_wybor(t("09:00:10"));
+        r.rozpocznij(&k("P", "Przegląd maili"), t("10:00:00")).unwrap();
+        r.zrobione(t("10:00:10"));
+        assert!(sr.zadania().contains("✅ 2026-10-30"));
+        r.cofnij(t("10:00:15"));
+        assert_eq!(sr.zadania(), przed);
     }
 
     #[test]

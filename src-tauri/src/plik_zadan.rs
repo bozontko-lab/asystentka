@@ -111,7 +111,12 @@ fn re_data() -> &'static Regex {
 
 fn re_zrobiono() -> &'static Regex {
     static R: OnceLock<Regex> = OnceLock::new();
-    R.get_or_init(|| Regex::new("✅\u{fe0f}?\\s*\\d{4}-\\d{2}-\\d{2}").expect("poprawny wzorzec"))
+    R.get_or_init(|| Regex::new("✅\u{fe0f}?\\s*(\\d{4}-\\d{2}-\\d{2})").expect("poprawny wzorzec"))
+}
+
+fn data_zrobienia(linia: &str) -> Option<NaiveDate> {
+    let c = re_zrobiono().captures(linia)?;
+    NaiveDate::parse_from_str(&c[1], "%Y-%m-%d").ok()
 }
 
 /// `✅ RRRR-MM-DD` razem ze spacjami przed nim.
@@ -295,16 +300,24 @@ pub fn dopisz_czas(
 /// Cofa „Zrobione”: zmienia `[x]` z powrotem na `[ ]` i usuwa `✅ RRRR-MM-DD`.
 /// Czas zostaje. Zadanie, które jest już otwarte (np. odznaczone w Obsidianie),
 /// zostaje takie, jakie jest.
-pub fn odznacz_zrobione(tekst: &str, klucz: &Klucz) -> Result<String, BladEdycji> {
+///
+/// Gdy podano `data`, szuka zamkniętego zadania z tą datą `✅`. Jeśli kilka
+/// zamkniętych zadań o tym samym kluczu ma tę samą datę, wybiera ostatnie z nich
+/// (znane ograniczenie: duplikaty zamknięte tego samego dnia nie mają osobnego id).
+/// Gdy daty brak albo żadne zadanie jej nie pasuje, odznacza pierwsze zamknięte od góry.
+pub fn odznacz_zrobione(tekst: &str, klucz: &Klucz, data: Option<NaiveDate>) -> Result<String, BladEdycji> {
     let plik = parsuj(tekst);
-    let cel = plik
-        .zadania
-        .iter()
-        .find(|z| &z.klucz == klucz && z.zrobione)
+    let mut linie: Vec<String> = tekst.split_inclusive('\n').map(str::to_string).collect();
+    let cel = data
+        .and_then(|d| {
+            plik.zadania
+                .iter()
+                .rfind(|z| &z.klucz == klucz && z.zrobione && data_zrobienia(&linie[z.linia]) == Some(d))
+        })
+        .or_else(|| plik.zadania.iter().find(|z| &z.klucz == klucz && z.zrobione))
         .or_else(|| plik.zadania.iter().find(|z| &z.klucz == klucz))
         .ok_or(BladEdycji::NieZnaleziono)?
         .linia;
-    let mut linie: Vec<String> = tekst.split_inclusive('\n').map(str::to_string).collect();
     let stara = linie[cel].clone();
     let tresc = bez_konca_linii(&stara);
     let koniec = &stara[tresc.len()..];
@@ -655,23 +668,56 @@ mod testy {
         let przed = "# Z\n\n## P\n- [ ] Miniatura [szac:: 30] [czas:: 40]\n- [ ] Inne [szac:: 5]\n";
         let po_zrobione = dopisz_czas(przed, &Klucz::new("P", "Miniatura"), 0, Some(data("2026-10-30"))).unwrap();
         assert!(po_zrobione.contains("- [x] Miniatura [szac:: 30] [czas:: 40] ✅ 2026-10-30\n"));
-        assert_eq!(odznacz_zrobione(&po_zrobione, &Klucz::new("P", "Miniatura")).unwrap(), przed);
+        assert_eq!(
+            odznacz_zrobione(&po_zrobione, &Klucz::new("P", "Miniatura"), Some(data("2026-10-30"))).unwrap(),
+            przed
+        );
     }
 
     #[test]
     fn odznacz_zrobione_zachowuje_crlf_i_zadanie_juz_otwarte() {
         let tekst = "## P\r\n- [x] A [szac:: 3] [czas:: 3] ✅ 2026-10-30\r\n- [ ] B\r\n";
-        let nowy = odznacz_zrobione(tekst, &Klucz::new("P", "A")).unwrap();
+        let nowy = odznacz_zrobione(tekst, &Klucz::new("P", "A"), None).unwrap();
         assert_eq!(nowy, "## P\r\n- [ ] A [szac:: 3] [czas:: 3]\r\n- [ ] B\r\n");
         // odznaczone wcześniej w Obsidianie: nic się nie zmienia
-        assert_eq!(odznacz_zrobione(&nowy, &Klucz::new("P", "A")).unwrap(), nowy);
-        assert!(matches!(odznacz_zrobione(&nowy, &Klucz::new("P", "Nie ma")), Err(BladEdycji::NieZnaleziono)));
+        assert_eq!(odznacz_zrobione(&nowy, &Klucz::new("P", "A"), None).unwrap(), nowy);
+        assert!(matches!(odznacz_zrobione(&nowy, &Klucz::new("P", "Nie ma"), None), Err(BladEdycji::NieZnaleziono)));
     }
 
     #[test]
     fn odznacz_zrobione_nie_rusza_innych_linii_ani_tekstu_po_dacie() {
         let tekst = "## P\n- [x] A ✅ 2026-10-29 [szac:: 3]\n- [x] B [czas:: 4] ✅ 2026-10-30\n";
-        let nowy = odznacz_zrobione(tekst, &Klucz::new("P", "B")).unwrap();
+        let nowy = odznacz_zrobione(tekst, &Klucz::new("P", "B"), None).unwrap();
         assert_eq!(nowy, "## P\n- [x] A ✅ 2026-10-29 [szac:: 3]\n- [ ] B [czas:: 4]\n");
+    }
+
+    #[test]
+    fn odznacz_zrobione_przy_duplikatach_odznacza_nowe_zadanie() {
+        let przed = "## P\n- [x] Powtarzalne [czas:: 10] ✅ 2026-10-01\n- [ ] Powtarzalne [szac:: 20] [czas:: 4]\n";
+        let klucz = Klucz::new("P", "Powtarzalne");
+        let po_zrobione = dopisz_czas(przed, &klucz, 0, Some(data("2026-10-30"))).unwrap();
+        let po_cofnij = odznacz_zrobione(&po_zrobione, &klucz, Some(data("2026-10-30"))).unwrap();
+        assert_eq!(po_cofnij, przed);
+    }
+
+    #[test]
+    fn odznacz_zrobione_przy_duplikacie_nad_starym_zadaniem_i_bez_daty() {
+        let przed = "## P\n- [ ] Przegląd maili [czas:: 5]\n- [x] Przegląd maili [czas:: 10] ✅ 2026-10-01\n";
+        let klucz = Klucz::new("P", "Przegląd maili");
+        let po_zrobione = dopisz_czas(przed, &klucz, 0, Some(data("2026-10-30"))).unwrap();
+        assert!(po_zrobione.starts_with("## P\n- [x] Przegląd maili [czas:: 5] ✅ 2026-10-30\n"));
+        let po_cofnij = odznacz_zrobione(&po_zrobione, &klucz, Some(data("2026-10-30"))).unwrap();
+        assert_eq!(po_cofnij, przed);
+
+        // Odznaczanie bez daty (albo z niepasującą datą) działa jak dotąd: pierwsze zamknięte od góry.
+        assert_eq!(odznacz_zrobione(&po_zrobione, &klucz, None).unwrap(), przed);
+        assert_eq!(
+            odznacz_zrobione(przed, &klucz, None).unwrap(),
+            "## P\n- [ ] Przegląd maili [czas:: 5]\n- [ ] Przegląd maili [czas:: 10]\n"
+        );
+        assert_eq!(
+            odznacz_zrobione(przed, &klucz, Some(data("2026-10-15"))).unwrap(),
+            "## P\n- [ ] Przegląd maili [czas:: 5]\n- [ ] Przegląd maili [czas:: 10]\n"
+        );
     }
 }
