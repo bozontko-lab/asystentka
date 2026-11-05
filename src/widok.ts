@@ -270,6 +270,14 @@ function panelKonca(k: KoniecWidok): HTMLElement {
   );
 }
 
+/**
+ * Okno widgetu nie kradnie fokusu (B6): przyjmuje go tylko na czas kreatora albo
+ * formularza i nigdy, gdy jest schowane (np. Alt+F4 przy otwartym formularzu).
+ */
+export function oknoPrzyjmujeFokus(widoczna: boolean, stan: Migawka["stan"], formularz: boolean): boolean {
+  return widoczna && (stan === "konfiguracja" || formularz);
+}
+
 /** Panel dla stanu; Konfiguracja ma kreator, a Powitanie sam dymek. */
 export function panel(m: Migawka): HTMLElement | null {
   switch (m.stan) {

@@ -131,7 +131,7 @@ pub fn run() {
             WindowEvent::CloseRequested { api, .. } if okno.label() == aplikacja::OKNO => {
                 api.prevent_close();
                 if let Some(apl) = apl(okno.app_handle()) {
-                    apl.wykonaj(|r, _| r.przelacz_widocznosc());
+                    apl.wykonaj(|r, _| r.ukryj_recznie());
                 }
             }
             _ => {}
