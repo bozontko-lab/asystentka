@@ -126,6 +126,7 @@ function przyklad(stan: NazwaStanu, strona: "prawa" | "lewa", pion: "dol" | "gor
       gra: parametry.get("dzwiek") === null,
       wyciszony_przez_obs: parametry.get("dzwiek") === "obs",
     },
+    monitor_wys: null,
     blad_pliku: null,
     projekty_do_dopisania: ["Film #1 · FIFA", "Inbox"],
   };

@@ -170,6 +170,12 @@ pub struct Obszar {
 }
 
 impl Obszar {
+    /// Wysokość obszaru roboczego w pikselach logicznych: od niej frontend liczy
+    /// najwyższy panel (60% monitora widgetu, B6).
+    pub fn wysokosc_logiczna(&self) -> u32 {
+        (f64::from(self.wys) / self.skala.max(0.1)).round() as u32
+    }
+
     fn prostokat(&self) -> Prostokat {
         Prostokat { x: self.x, y: self.y, szer: self.szer, wys: self.wys }
     }
@@ -576,6 +582,14 @@ mod testy {
         assert_eq!(k, KotwicaOkna { monitor: None, kotwica: Naroznik::LewyDolny, odstep_x: 30.0, odstep_y: 20.0 });
         let domyslna: KotwicaOkna = serde_json::from_str("{}").unwrap();
         assert_eq!(domyslna, KotwicaOkna::default());
+    }
+
+    #[test]
+    fn wysokosc_obszaru_w_pikselach_logicznych() {
+        let obszar = Obszar { x: 1600, y: 0, szer: 1920, wys: 1040, skala: 1.5 };
+        assert_eq!(obszar.wysokosc_logiczna(), 693);
+        let obszar = Obszar { x: 0, y: 0, szer: 1080, wys: 1880, skala: 1.0 };
+        assert_eq!(obszar.wysokosc_logiczna(), 1880, "pionowy monitor");
     }
 
     #[test]

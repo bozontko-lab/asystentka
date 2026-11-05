@@ -8,6 +8,7 @@ import "./style.css";
 import { Dodawanie } from "./dodawanie";
 import { CZAS_DYMKU_COFNIJ_MS, Dymek, kwestia } from "./dymki";
 import { KONFETTI_DLUGIE_MS, KONFETTI_MS, konfetti } from "./efekty";
+import { maksWysokoscPanelu } from "./format";
 import { type Geometria, Grafiki } from "./grafiki";
 import { Kreator } from "./kreator";
 import { type Akcja, type Most, mostTauri, wTauri } from "./most";
@@ -48,12 +49,13 @@ function ustawGeometrie(g: Geometria): void {
   styl.setProperty("--pod-siedziskiem", `${g.podSiedziskiem}px`);
   styl.setProperty("--pod-stopami", `${g.podStopami}px`);
   styl.setProperty("--oddech-max", String(g.oddech));
-  ustawMaksWysokosc();
+  ustawMaksWysokosc(null);
 }
 
 /** Panele z przewijaniem mają do 60% wysokości monitora, na którym stoi widget (B6). */
-function ustawMaksWysokosc(): void {
-  document.documentElement.style.setProperty("--panel-max-h", `${Math.round(window.screen.availHeight * 0.6)}px`);
+function ustawMaksWysokosc(monitorWys: number | null): void {
+  const px = maksWysokoscPanelu(monitorWys, window.screen.availHeight);
+  document.documentElement.style.setProperty("--panel-max-h", `${px}px`);
 }
 
 const most: Most = wTauri() ? mostTauri() : mostPodglad();
@@ -156,7 +158,7 @@ async function start(): Promise<void> {
     scena.dataset.uklad = UKLADY[m.stan];
     scena.dataset.strona = m.strona;
     scena.dataset.pion = m.pion;
-    ustawMaksWysokosc();
+    ustawMaksWysokosc(m.monitor_wys);
     if (dodawanie && !Z_DODAWANIEM.has(m.stan)) dodawanie = null;
     if (m.stan === "konfiguracja") {
       // Kreator trzyma swój stan, więc nie przebudowujemy go przy każdej migawce.

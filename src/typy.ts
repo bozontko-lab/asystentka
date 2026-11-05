@@ -122,6 +122,8 @@ export interface Migawka {
   koniec: KoniecWidok | null;
   dzien: { minuty: number; cel_min: number };
   dzwiek: DzwiekWidok;
+  /** Wysokość obszaru roboczego monitora widgetu w pikselach logicznych (null przed ustawieniem okna). */
+  monitor_wys: number | null;
   blad_pliku: string | null;
   /** Projekty do wyboru w „Dodaj zadanie”: nagłówki z pliku i Inbox. */
   projekty_do_dopisania: string[];

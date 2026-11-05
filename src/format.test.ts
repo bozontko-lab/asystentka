@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { godzinaBezZera, licznik, minutyTekst, naMinuty, szacunekTekst } from "./format";
+import { godzinaBezZera, licznik, maksWysokoscPanelu, minutyTekst, naMinuty, szacunekTekst } from "./format";
 
 describe("licznik", () => {
   it("pokazuje mm:ss, a od godziny h:mm:ss", () => {
@@ -56,5 +56,13 @@ describe("zadania z rzeczownikiem", () => {
       "22 zadania",
       "112 zadań",
     ]);
+  });
+});
+
+describe("maksWysokoscPanelu", () => {
+  it("to 60% wysokości monitora widgetu, a przed ustawieniem okna 60% ekranu", () => {
+    expect(maksWysokoscPanelu(1000, 1400)).toBe(600);
+    expect(maksWysokoscPanelu(693, 1400), "mniejszy monitor ze skalowaniem 150%").toBe(416);
+    expect(maksWysokoscPanelu(null, 1400)).toBe(840);
   });
 });

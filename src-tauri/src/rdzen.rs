@@ -261,6 +261,9 @@ pub struct Migawka {
     pub koniec: Option<KoniecWidok>,
     pub dzien: DzienWidok,
     pub dzwiek: DzwiekWidok,
+    /// Wysokość obszaru roboczego monitora widgetu w pikselach logicznych; `None`, zanim
+    /// aplikacja ustawi okno.
+    pub monitor_wys: Option<u32>,
     /// Problem z plikiem zadań (brak ścieżki, nieczytelny plik).
     pub blad_pliku: Option<String>,
     /// Projekty do wyboru w „Dodaj zadanie”: nagłówki z pliku i Inbox.
@@ -288,6 +291,7 @@ pub struct Rdzen {
     okno: KotwicaOkna,
     /// Róg, który naprawdę obowiązuje: inny niż zapisany, gdy monitor widgetu zniknął.
     naroznik: Naroznik,
+    monitor_wys: Option<u32>,
     faza: Faza,
     wybor: BTreeSet<Klucz>,
     wybor_przekroczony: bool,
@@ -325,6 +329,7 @@ impl Rdzen {
             blad_pliku: None,
             okno,
             naroznik,
+            monitor_wys: None,
             faza: Faza::Lista,
             wybor: BTreeSet::new(),
             wybor_przekroczony: false,
@@ -403,6 +408,10 @@ impl Rdzen {
 
     pub fn naroznik(&self) -> Naroznik {
         self.naroznik
+    }
+
+    pub fn monitor_wys(&self) -> Option<u32> {
+        self.monitor_wys
     }
 
     pub fn wez_zdarzenia(&mut self) -> Vec<Zdarzenie> {
@@ -1379,6 +1388,11 @@ impl Rdzen {
 
     /// Róg, który naprawdę obowiązuje po rozwiązaniu monitora (zapis zostaje,
     /// gdy monitor chwilowo zniknął).
+    /// Okno stanęło na monitorze o tej wysokości obszaru roboczego (piksele logiczne).
+    pub fn ustaw_monitor_wys(&mut self, wysokosc: Option<u32>) {
+        self.monitor_wys = wysokosc;
+    }
+
     pub fn ustaw_naroznik(&mut self, naroznik: Naroznik) {
         self.naroznik = naroznik;
     }
@@ -1686,6 +1700,7 @@ impl Rdzen {
             gratulacje,
             koniec,
             dzien: DzienWidok { minuty: self.dz.minuty_sesji() + w_toku_minuty, cel_min: self.ust.cel_dzienny_min },
+            monitor_wys: self.monitor_wys,
             dzwiek: DzwiekWidok {
                 wlaczony: self.ust.dzwiek_skupienia,
                 gra: self.ust.dzwiek_skupienia
@@ -2805,6 +2820,17 @@ mod testy {
         assert!(r.widoczna(), "chowanie wyłączone w ustawieniach");
         r.bezczynnosc(20 * 60, t("09:30:00"));
         assert_eq!(r.stan(), Stan::Praca);
+    }
+
+    #[test]
+    fn migawka_niesie_wysokosc_monitora_widgetu() {
+        let sr = Srodowisko::nowe();
+        let mut r = w_pracy(&sr);
+        assert_eq!(r.migawka().monitor_wys, None, "przed ustawieniem okna frontend bierze ekran");
+        r.ustaw_monitor_wys(Some(693));
+        assert_eq!(r.migawka().monitor_wys, Some(693));
+        r.ustaw_monitor_wys(Some(1880));
+        assert_eq!(r.migawka().monitor_wys, Some(1880), "przeciągnięcie na pionowy monitor");
     }
 
     #[test]
