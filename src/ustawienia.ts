@@ -10,25 +10,15 @@ import { PoleGlosnosci } from "./dzwiek";
 import { godzinyNaMinuty, minutyNaGodziny } from "./kreator";
 import { type Most, mostTauri, wTauri } from "./most";
 import { mostPodglad } from "./podglad";
+import { opisBledu, pole, poleSciezki, przelacznik } from "./pola";
 import { PoleSkrotu } from "./skrot";
 import type { Ustawienia } from "./typy";
 
 const most: Most = wTauri() ? mostTauri() : mostPodglad();
-const opisBledu = (e: unknown) => (typeof e === "string" ? e : e instanceof Error ? e.message : "Nieznany błąd.");
 // Błędy okienka ustawień trafiają do pliku logu, jak w oknie widgetu.
 window.addEventListener("error", (e) => most.zglosBlad(`ustawienia: ${e.message} (${e.filename}:${e.lineno})`));
 window.addEventListener("unhandledrejection", (e) => most.zglosBlad(`ustawienia: ${opisBledu(e.reason)}`));
 const zamknij = () => void most.zamknijOkno().catch((e: unknown) => most.zglosBlad(`ustawienia: ${opisBledu(e)}`));
-
-function pole(id: string, etykieta: string, wejscie: HTMLElement, podpowiedz?: string): HTMLElement {
-  return el(
-    "div",
-    { class: "pole" },
-    el("label", { for: id }, etykieta),
-    wejscie,
-    podpowiedz && el("span", { class: "podpowiedz" }, podpowiedz),
-  );
-}
 
 function tekst(id: string, wartosc: string): HTMLInputElement {
   const w = el("input", { id, type: "text", spellcheck: "false" });
@@ -42,20 +32,7 @@ function liczba(id: string, wartosc: number, min: number, max: number): HTMLInpu
   return w;
 }
 
-function przelacznik(id: string, etykieta: string, opis: string, wlaczony: boolean): [HTMLElement, HTMLInputElement] {
-  const w = el("input", { id, type: "checkbox" });
-  w.checked = wlaczony;
-  return [
-    el(
-      "div",
-      { class: "pole pole-przelacznik" },
-      w,
-      el("label", { for: id }, etykieta, el("span", { class: "podpowiedz" }, opis)),
-    ),
-    w,
-  ];
-}
-
+/** Pole ścieżki w ustawieniach; błąd okna wyboru trafia do logu. */
 function sciezka(
   id: string,
   etykieta: string,
@@ -64,16 +41,9 @@ function sciezka(
   wybor: (obecny: string) => Promise<string | null>,
   podpowiedz?: string,
 ): [HTMLElement, HTMLInputElement] {
-  const w = tekst(id, wartosc);
-  const b = el("button", { class: "przycisk", type: "button" }, przycisk);
-  b.addEventListener("click", () => {
-    void wybor(w.value)
-      .then((wybrane) => {
-        if (wybrane) w.value = wybrane;
-      })
-      .catch((e: unknown) => most.zglosBlad(`ustawienia: wybór ścieżki: ${opisBledu(e)}`));
-  });
-  return [pole(id, etykieta, el("div", { class: "wiersz-sciezki" }, w, b), podpowiedz), w];
+  const wejscie = tekst(id, wartosc);
+  const naBlad = (e: unknown) => most.zglosBlad(`ustawienia: wybór ścieżki: ${opisBledu(e)}`);
+  return [poleSciezki({ id, etykieta, wejscie, przycisk, wybor, naBlad, podpowiedz }), wejscie];
 }
 
 async function start(): Promise<void> {

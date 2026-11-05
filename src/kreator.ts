@@ -3,6 +3,7 @@
 
 import { type Dziecko, el } from "./dom";
 import type { Most } from "./most";
+import { opisBledu, poleSciezki, przelacznik } from "./pola";
 import type { PodpowiedzKreatora, Ustawienia } from "./typy";
 
 const KROKI = 5;
@@ -212,22 +213,8 @@ export class Kreator {
     podpowiedz?: string,
   ): Node {
     const id = `pole-${etykieta.replace(/\W+/g, "-")}`;
-    const wej = this.wejscie(id, wartosc);
-    wej.addEventListener("input", () => poZmianie(wej.value));
-    const b = this.przyciskWyboru(przycisk, async () => {
-      const wybrane = await wybor(wej.value);
-      if (wybrane) {
-        wej.value = wybrane;
-        poZmianie(wybrane);
-      }
-    });
-    return el(
-      "div",
-      { class: "pole" },
-      el("label", { for: id }, etykieta),
-      el("div", { class: "wiersz-sciezki" }, wej, b),
-      podpowiedz && el("span", { class: "podpowiedz" }, podpowiedz),
-    );
+    const naBlad = (e: unknown) => this.most.zglosBlad(`kreator: ${String(e)}`);
+    return poleSciezki({ id, etykieta, wejscie: this.wejscie(id, wartosc), przycisk, wybor, poZmianie, naBlad, podpowiedz });
   }
 
   private krokDziennik(): Node[] {
@@ -271,22 +258,16 @@ export class Kreator {
   }
 
   private krokAutostart(): Node[] {
-    const p = el("input", { id: "autostart", type: "checkbox" });
-    p.checked = this.u.autostart;
+    const [pole, p] = przelacznik(
+      "autostart",
+      "Tak, startuj po zalogowaniu",
+      "Co rano przywitam Cię i zapytam o plan dnia.",
+      this.u.autostart,
+    );
     p.addEventListener("change", () => (this.u.autostart = p.checked));
     return [
       el("p", { class: "pytanie" }, "Uruchamiać mnie razem z Windows?"),
-      el(
-        "div",
-        { class: "pole pole-przelacznik" },
-        p,
-        el(
-          "label",
-          { for: "autostart" },
-          "Tak, startuj po zalogowaniu",
-          el("span", { class: "podpowiedz" }, "Co rano przywitam Cię i zapytam o plan dnia."),
-        ),
-      ),
+      pole,
       el(
         "p",
         { class: "podpowiedz podsumowanie-sciezek" },
@@ -353,7 +334,7 @@ export class Kreator {
     try {
       await this.most.kreatorZakoncz(ustawienia, utworz);
     } catch (e) {
-      this.blad = typeof e === "string" ? e : e instanceof Error ? e.message : "Nie udało się zapisać ustawień.";
+      this.blad = opisBledu(e, "Nie udało się zapisać ustawień.");
       this.zajety = false;
       this.render();
     }

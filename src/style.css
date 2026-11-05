@@ -520,10 +520,6 @@ body {
   font-weight: 700;
 }
 
-.zapasowe .zadanie {
-  border-style: dashed;
-}
-
 /* ---- praca, pauza, pytanie --------------------------------------------- */
 
 .tytul {
@@ -624,42 +620,11 @@ body {
   margin-top: 10px;
 }
 
+/* Wygląd przycisków (zwykły i główny) jest w formularz.css; tu rozmiar w panelu widgetu. */
 .przycisk {
   flex: 1;
   padding: 7px 8px;
-  border: 1.5px solid var(--ramka);
-  border-radius: 9px;
-  background: transparent;
-  color: var(--tekst);
-  font: inherit;
   font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.przycisk:hover {
-  background: var(--tlo-2);
-}
-
-.przycisk:focus-visible {
-  outline: 2px solid var(--fiolet-jasny);
-  outline-offset: 2px;
-}
-
-/* „Zaczynamy”, „Zrobione” i inne główne działanie: miedź z ciemnym tekstem, bo kremowy
-   tekst na miedzi ma kontrast tylko 3:1. Po wciśnięciu --miedz-ciemna z kremowym tekstem (B7). */
-.przycisk.glowny {
-  border-color: var(--miedz);
-  background: var(--miedz);
-  color: var(--tlo);
-}
-.przycisk.glowny:hover {
-  background: color-mix(in srgb, var(--miedz) 85%, var(--tekst));
-}
-.przycisk.glowny:active {
-  border-color: var(--miedz-ciemna);
-  background: var(--miedz-ciemna);
-  color: var(--tekst);
 }
 
 .przycisk.cichy {
@@ -678,26 +643,6 @@ body {
   color: var(--fiolet-jasny);
   font-size: 20px;
   font-weight: 700;
-}
-
-.zrobione-lista {
-  margin: 8px 0 0;
-  padding: 0;
-  list-style: none;
-  color: var(--tekst-2);
-  line-height: 1.5;
-}
-
-.link {
-  margin-top: 10px;
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--fiolet-jasny);
-  font: inherit;
-  font-size: 12px;
-  text-decoration: underline;
-  cursor: pointer;
 }
 
 /* ---- wejście i wyjście: glitch 400 ms ---------------------------------------- */
@@ -960,7 +905,9 @@ body.tryb-podgladu #scena {
   outline-offset: 1px;
 }
 
+/* Przycisk wyglądający jak odnośnik, np. „Ustawienia” w ostrzeżeniu. */
 .link {
+  margin-top: 10px;
   padding: 0;
   border: none;
   background: none;
