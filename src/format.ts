@@ -46,3 +46,8 @@ export function zadanTekst(n: number): string {
   const forma = n === 1 ? "zadanie" : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? "zadania" : "zadań";
   return `${n} ${forma}`;
 }
+
+/** Panele z przewijaniem mają do 60% wysokości monitora widgetu (B6); zanim backend ustawi okno, ekranu. */
+export function maksWysokoscPanelu(monitorWys: number | null, ekranWys: number): number {
+  return Math.round((monitorWys ?? ekranWys) * 0.6);
+}

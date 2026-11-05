@@ -368,10 +368,19 @@ impl Aplikacja {
                 true
             }
         };
-        // Róg w migawce (odbicie lustrzane, kierunek rozwijania) wynika z monitora widgetu.
+        // Róg w migawce (odbicie lustrzane, kierunek rozwijania) i wysokość panelu (60%
+        // obszaru roboczego) wynikają z monitora widgetu, także po przeciągnięciu na inny.
         let naroznik = polozenie.kotwica.kotwica;
-        if zablokuj(&self.rdzen).naroznik() != naroznik {
-            self.wykonaj(|r, _| r.ustaw_naroznik(naroznik));
+        let wysokosc = Some(polozenie.ekran.obszar.wysokosc_logiczna());
+        let inne = {
+            let r = zablokuj(&self.rdzen);
+            r.naroznik() != naroznik || r.monitor_wys() != wysokosc
+        };
+        if inne {
+            self.wykonaj(|r, _| {
+                r.ustaw_naroznik(naroznik);
+                r.ustaw_monitor_wys(wysokosc);
+            });
         }
         if !zmienione {
             return;

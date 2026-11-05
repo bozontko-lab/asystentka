@@ -301,7 +301,9 @@ asystentka/
 - **Monitory:** widget pamięta monitor (nazwa, a gdy nazwy brak, położenie i rozmiar),
   jeden z czterech rogów obszaru roboczego i odstępy w pikselach logicznych. Okno
   rośnie od rogu w stronę środka monitora, odbicie lustrzane zależy od połowy
-  monitora, a rozmiar liczy się ze skalowaniem tego monitora. Przesunięcia okna bez
+  monitora, a rozmiar liczy się ze skalowaniem tego monitora. Najwyższy panel (60%
+  wysokości) liczy się z obszaru roboczego monitora widgetu, który backend podaje w
+  migawce, także po przeciągnięciu na inny monitor. Przesunięcia okna bez
   kliknięcia w postać (system po zmianie monitorów lub skalowania) nie zmieniają
   zapisanej pozycji. Pełny ekran chowa widget tylko wtedy, gdy okno na pierwszym
   planie pokrywa monitor widgetu.
