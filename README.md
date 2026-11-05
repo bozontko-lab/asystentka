@@ -254,12 +254,15 @@ asystentka/
     kreator.ts             kreator pierwszego uruchomienia
     dodawanie.ts           formularz „Dodaj zadanie”
     ustawienia.ts/.html    okienko ustawień
+    pola.ts                wspólne kontrolki formularzy kreatora i ustawień
     postac.ts, grafiki.ts  pozy, reakcje, mrugnięcia
+    pozy.ts                wybór pozy dla stanu, bez DOM (testowany)
     przerwa.ts             czasy sekwencji przerwy i konsolki
     skrot.ts               pole nagrywania skrótu w ustawieniach
     dzwiek.ts              suwak głośności i „Odsłuchaj” w ustawieniach
   src-tauri/               backend: Rust
     src/rdzen.rs           stany i przejścia (B4, B5), bez zależności od Tauri
+    src/rdzen/testy.rs     testy rdzenia (przebieg dnia, północ, terminy wątku)
     src/plik_zadan.rs      parser i zapis Zadania.md
     src/sesja.rs           sesja: odcinki pracy, pauzy, bezczynność, odtworzenie po awarii
     src/dzien.rs           dzien.json, reakcje końca dnia
@@ -270,6 +273,7 @@ asystentka/
     src/okno.rs            monitory, kotwica okna, skalowanie, odbicie lustrzane
     src/skrot.rs           analiza i zapis kanoniczny skrótu, reguły (AltGr)
     src/dzwiek.rs          dźwięk skupienia: sterownik, urządzenie, rampa, wątek
+    src/dzwiek/testy.rs    testy dźwięku (atrapa urządzenia, plik WAV, pętla)
     src/zasobnik.rs        menu zasobnika i menu pod prawym przyciskiem
     src/system/win.rs      Windows: WTS, zasilanie, GetLastInputInfo, pełny ekran, WDA_EXCLUDEFROMCAPTURE, lista procesów (OBS)
 ```

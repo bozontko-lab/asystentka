@@ -3,6 +3,7 @@
 
 import { el } from "./dom";
 import type { Most } from "./most";
+import { opisBledu } from "./pola";
 
 export interface OpcjeDodawania {
   /** Dopisane albo anulowane: formularz znika. */
@@ -88,7 +89,7 @@ export class Dodawanie {
       this.zamknij();
     } catch (e) {
       this.zajety = false;
-      this.pokazBlad(typeof e === "string" ? e : e instanceof Error ? e.message : "Nie udało się dopisać zadania.");
+      this.pokazBlad(opisBledu(e, "Nie udało się dopisać zadania."));
     }
   }
 

@@ -45,41 +45,9 @@ body {
   margin-top: 18px;
 }
 
+/* Wygląd przycisków jest w formularz.css; tu rozmiar w okienku ustawień. */
 .przycisk {
   padding: 8px 16px;
-  border: 1.5px solid var(--ramka);
-  border-radius: 9px;
-  background: transparent;
-  color: var(--tekst);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.przycisk:hover {
-  background: var(--tlo-2);
-}
-
-.przycisk:focus-visible {
-  outline: 2px solid var(--fiolet-jasny);
-  outline-offset: 2px;
-}
-
-/* Zapisz i inne główne działanie: miedź z ciemnym tekstem, po wciśnięciu --miedz-ciemna (B7). */
-.przycisk.glowny {
-  border-color: var(--miedz);
-  background: var(--miedz);
-  color: var(--tlo);
-}
-
-.przycisk.glowny:hover {
-  background: color-mix(in srgb, var(--miedz) 85%, var(--tekst));
-}
-
-.przycisk.glowny:active {
-  border-color: var(--miedz-ciemna);
-  background: var(--miedz-ciemna);
-  color: var(--tekst);
 }
 
 .przycisk:disabled {

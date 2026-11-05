@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { godzinaBezZera, licznik, maksWysokoscPanelu, minutyTekst, naMinuty, szacunekTekst } from "./format";
+import { licznik, maksWysokoscPanelu, minutyTekst, naMinuty, szacunekTekst } from "./format";
 
 describe("licznik", () => {
   it("pokazuje mm:ss, a od godziny h:mm:ss", () => {
@@ -26,11 +26,6 @@ describe("minuty jak w dzienniku", () => {
   it("szacunek obok licznika", () => {
     expect(szacunekTekst(47, 60)).toBe("47 / 60 min");
     expect(szacunekTekst(47, null)).toBe("47 min");
-  });
-
-  it("godzina planu bez zera wiodącego", () => {
-    expect(godzinaBezZera("07:40")).toBe("7:40");
-    expect(godzinaBezZera("22:00")).toBe("22:00");
   });
 });
 

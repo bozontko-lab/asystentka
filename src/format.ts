@@ -30,11 +30,6 @@ export function szacunekTekst(minuty: number, szac: number | null): string {
   return szac == null ? `${minuty} min` : `${minuty} / ${szac} min`;
 }
 
-/** `07:40` → `7:40`. */
-export function godzinaBezZera(tekst: string): string {
-  return tekst.replace(/^0(\d):/, "$1:");
-}
-
 /** `2026-11-05` → `5.11`. */
 export function terminTekst(iso: string): string {
   const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(iso);

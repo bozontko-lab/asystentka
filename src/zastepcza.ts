@@ -257,12 +257,6 @@ export function svgPozy(poza: Poza): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">${nogi}${ruchome}</svg>`;
 }
 
-/** Sama głowa ze słuchawkami, na ikonę. */
-export function svgIkony(): string {
-  const opis: Opis = { rece: "luzno", oczy: "otwarte", usta: "szeroki" };
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="22 4 160 140">${glowa(opis)}</svg>`;
-}
-
 export function adresZastepczy(poza: Poza): string {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgPozy(poza))}`;
 }

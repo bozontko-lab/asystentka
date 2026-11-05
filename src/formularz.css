@@ -1,4 +1,43 @@
-/* Pola formularzy: kreator w widgecie i okno ustawień. Kolory ze zmiennych z kolory.css (B7). */
+/* Pola formularzy i przyciski: kreator w widgecie i okno ustawień. Kolory ze zmiennych z
+   kolory.css (B7). Rozmiar przycisków ustawia style.css (widget) i ustawienia.css. */
+
+.przycisk {
+  border: 1.5px solid var(--ramka);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--tekst);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.przycisk:hover {
+  background: var(--tlo-2);
+}
+
+.przycisk:focus-visible {
+  outline: 2px solid var(--fiolet-jasny);
+  outline-offset: 2px;
+}
+
+/* „Zaczynamy”, „Zrobione”, „Zapisz” i inne główne działanie: miedź z ciemnym tekstem, bo
+   kremowy tekst na miedzi ma kontrast tylko 3:1. Po wciśnięciu --miedz-ciemna z kremowym
+   tekstem (B7). */
+.przycisk.glowny {
+  border-color: var(--miedz);
+  background: var(--miedz);
+  color: var(--tlo);
+}
+
+.przycisk.glowny:hover {
+  background: color-mix(in srgb, var(--miedz) 85%, var(--tekst));
+}
+
+.przycisk.glowny:active {
+  border-color: var(--miedz-ciemna);
+  background: var(--miedz-ciemna);
+  color: var(--tekst);
+}
 
 .pole {
   display: flex;
