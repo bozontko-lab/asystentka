@@ -14,7 +14,7 @@ import { type Akcja, type Most, mostTauri, wTauri } from "./most";
 import { mostPodglad } from "./podglad";
 import { Postac } from "./postac";
 import type { Migawka, NazwaStanu, Zdarzenie } from "./typy";
-import { aktualizuj, panel } from "./widok";
+import { aktualizuj, oknoPrzyjmujeFokus, panel } from "./widok";
 
 /** obok: panel z lewej, postać stoi z prawej; nad: postać siedzi na panelu. */
 const UKLADY: Record<NazwaStanu, "obok" | "nad" | "sama"> = {
@@ -186,7 +186,7 @@ async function start(): Promise<void> {
     }
     // Cofnij działa przez 10 s po Zrobione; gdy backend już nie pozwala, przycisk znika.
     if (!m.gratulacje?.mozna_cofnac) dymek.usunPrzycisk();
-    ustawFokus(m.stan === "konfiguracja" || dodawanie !== null);
+    ustawFokus(oknoPrzyjmujeFokus(m.widoczna, m.stan, dodawanie !== null));
     aktualizuj(miejscePanelu, m, Date.now());
     postac.ustaw(m);
     ustawWidocznosc(m.widoczna);

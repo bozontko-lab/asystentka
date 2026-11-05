@@ -601,6 +601,7 @@ impl Aplikacja {
                     }
                 });
                 self.uruchom_obserwatora();
+                self.odswiez_tytul_ustawien();
             }
             Err(e) => {
                 log::warn!("{e}; zostają poprzednie ustawienia");
@@ -935,6 +936,7 @@ impl Aplikacja {
         });
         self.uruchom_obserwatora();
         self.sprawdz_obs();
+        self.odswiez_tytul_ustawien();
         Ok(())
     }
 
@@ -984,12 +986,24 @@ impl Aplikacja {
         });
     }
 
+    /// Otwarte okienko ustawień dostaje nowe imię postaci w tytule od razu (B6).
+    fn odswiez_tytul_ustawien(&self) {
+        let tytul = zasobnik::tytul_ustawien(zablokuj(&self.rdzen).ust.postac());
+        let app = self.app.clone();
+        let _ = self.app.run_on_main_thread(move || {
+            if let Some(okno) = app.get_webview_window(OKNO_USTAWIEN) {
+                let _ = okno.set_title(&tytul);
+            }
+        });
+    }
+
     pub fn otworz_okno_ustawien(self: &Arc<Self>) {
         let app = self.app.clone();
-        let tytul = format!("{} · ustawienia", zablokuj(&self.rdzen).ust.postac());
+        let tytul = zasobnik::tytul_ustawien(zablokuj(&self.rdzen).ust.postac());
         // Budowanie okna z wątku zdarzeń blokuje się na Windows, więc osobny wątek.
         thread::spawn(move || {
             if let Some(okno) = app.get_webview_window(OKNO_USTAWIEN) {
+                let _ = okno.set_title(&tytul);
                 let _ = okno.show();
                 let _ = okno.unminimize();
                 let _ = okno.set_focus();

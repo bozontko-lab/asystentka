@@ -69,6 +69,11 @@ pub fn etykieta_zamkniecia(postac: &str) -> String {
     format!("Zamknij {postac}")
 }
 
+/// Tytuł okienka ustawień.
+pub fn tytul_ustawien(postac: &str) -> String {
+    format!("{postac} · ustawienia")
+}
+
 /// Pozycja przełączająca dźwięk skupienia w obu menu.
 pub const ETYKIETA_DZWIEKU: &str = "Dźwięk 40 Hz";
 
@@ -225,6 +230,12 @@ pub fn menu_kontekstowe(app: &AppHandle, m: &Mozliwosci, postac: &str, dzwiek: b
 #[cfg(test)]
 mod testy {
     use super::*;
+
+    #[test]
+    fn tytul_okna_ustawien_nosi_imie_postaci() {
+        assert_eq!(tytul_ustawien("Sai"), "Sai · ustawienia");
+        assert_eq!(tytul_ustawien("才ちゃん"), "才ちゃん · ustawienia");
+    }
 
     #[test]
     fn zamkniecie_nosi_imie_postaci() {

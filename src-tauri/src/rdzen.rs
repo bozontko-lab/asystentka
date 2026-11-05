@@ -1350,6 +1350,11 @@ impl Rdzen {
         self.pelny_ekran_gdziekolwiek = pelny;
     }
 
+    /// Zamknięcie okna widgetu (np. Alt+F4): zawsze chowa, nigdy nie pokazuje.
+    pub fn ukryj_recznie(&mut self) {
+        self.ukrycie.recznie = true;
+    }
+
     /// Pokaż / Ukryj z zasobnika i skrót globalny.
     pub fn przelacz_widocznosc(&mut self) {
         if self.widoczna() {
@@ -2836,6 +2841,21 @@ mod testy {
         assert!(zd.contains(&Zdarzenie::Efekt { nazwa: "przeciaganie".into() }));
         r.tick(t("09:55:00"));
         assert!(r.wez_zdarzenia().is_empty());
+    }
+
+    #[test]
+    fn zamkniecie_okna_chowa_i_nie_pokazuje_schowanego() {
+        let sr = Srodowisko::nowe();
+        let mut r = sr.rdzen(t("09:00:00"));
+        r.ukryj_recznie();
+        assert!(!r.widoczna(), "Alt+F4 chowa widget");
+        r.ukryj_recznie();
+        assert!(!r.widoczna(), "drugie zamknięcie schowanego okna go nie pokazuje");
+        r.ustaw_pelny_ekran(true);
+        r.pokaz();
+        assert!(r.widoczna());
+        r.ukryj_recznie();
+        assert!(!r.widoczna(), "pokazany mimo pełnego ekranu też się chowa");
     }
 
     #[test]
