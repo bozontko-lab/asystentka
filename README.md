@@ -197,7 +197,8 @@ w okienku Ustawienia (działa od razu).
 3. **Odłączenie monitora:** widget staje w domyślnym miejscu na głównym; „Przywróć
    pozycję” (menu pod prawym przyciskiem i zasobnik) robi to na żądanie.
 4. **Pełny ekran na jednym monitorze:** gra na drugim monitorze nie chowa widgetu,
-   gra na monitorze widgetu go chowa.
+   gra na monitorze widgetu go chowa. Film na pełnym ekranie na drugim monitorze
+   dłużej niż próg bezczynności nie wywołuje „Jesteś?”.
 5. **Obsidian:** przy otwartym `Zadania.md` ptaszek i data pojawiają się w ciągu 2 s od
    kliknięcia Zrobione. Gdy nie, sprawdź w logu czas zapisu („plik zadań: … (N ms)”).
 6. **Skrót:** Ctrl+Alt+Spacja dalej otwiera okno Claude, Ctrl+Alt+Shift+Spacja
@@ -276,7 +277,8 @@ asystentka/
 ## Decyzje i doprecyzowania względem SPEC.md
 
 - **Pliki obsługuje Rust**, a nie wtyczka file-system. Zapis atomowy (plik tymczasowy
-  i zmiana nazwy), świeży odczyt tuż przed zapisem, zachowanie BOM i CRLF, zmiana
+  z numerem zapisu i zmiana nazwy), świeży odczyt tuż przed zapisem, zachowanie BOM i
+  CRLF (także w dzienniku), jedna blokada dla zapisów `ustawienia.json`, zmiana
   jednej linii, kolejka ponowień co 30 s, gdy plik jest zajęty. Obserwację zmian robi
   crate `notify` (opóźnienie 300 ms).
 - **Klucz zadania** to projekt (nagłówek `##`) i tekst bez pól `[…:: …]`.
@@ -298,6 +300,8 @@ asystentka/
   żeby każdy dymek z backendu miał tam wariant.
 - **Postać:** rozmiar, linie stóp i siedziska z `src/assets/postac/postac.json`;
   `concerned.png` służy reakcji „zmartwiona”.
+  Schowany widget nie ma żadnych zegarów animacji; po pokazaniu postać od razu ma pozę
+  właściwą dla czasu (np. drzemkę po 15 min przerwy), a zegary układają się od nowa.
 - **Monitory:** widget pamięta monitor (nazwa, a gdy nazwy brak, położenie i rozmiar),
   jeden z czterech rogów obszaru roboczego i odstępy w pikselach logicznych. Okno
   rośnie od rogu w stronę środka monitora, odbicie lustrzane zależy od połowy
@@ -306,7 +310,8 @@ asystentka/
   migawce, także po przeciągnięciu na inny monitor. Przesunięcia okna bez
   kliknięcia w postać (system po zmianie monitorów lub skalowania) nie zmieniają
   zapisanej pozycji. Pełny ekran chowa widget tylko wtedy, gdy okno na pierwszym
-  planie pokrywa monitor widgetu.
+  planie pokrywa monitor widgetu, ale pytanie „Jesteś?” blokuje pełny ekran na
+  którymkolwiek monitorze (B5), także przy wyłączonym chowaniu.
 - **Skrót:** domyślnie Ctrl+Alt+Shift+Spacja; stary Ctrl+Alt+Spacja jest zamieniany
   w pliku ustawień raz. Ctrl+Alt z literą jest odrzucany, bo to AltGr (ą, ć, ę…).
   Na czas nagrywania skrótu w ustawieniach własny skrót widgetu jest zwolniony.
