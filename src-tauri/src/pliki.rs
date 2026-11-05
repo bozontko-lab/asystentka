@@ -3,6 +3,7 @@
 use std::fs;
 use std::io::{self, Write};
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread;
 use std::time::Duration;
 
@@ -21,7 +22,10 @@ pub fn zapisz_atomowo(sciezka: &Path, tresc: &[u8]) -> io::Result<()> {
         .file_name()
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "ścieżka bez nazwy pliku"))?
         .to_string_lossy();
-    let tymczasowy = folder.join(format!(".{nazwa}.{}.tmp", std::process::id()));
+    // Każdy zapis ma własny plik tymczasowy, także dwa naraz w jednym procesie.
+    static NUMER: AtomicU64 = AtomicU64::new(0);
+    let numer = NUMER.fetch_add(1, Ordering::Relaxed);
+    let tymczasowy = folder.join(format!(".{nazwa}.{}.{numer}.tmp", std::process::id()));
     {
         let mut plik = fs::File::create(&tymczasowy)?;
         plik.write_all(tresc)?;
@@ -104,6 +108,29 @@ pub fn napraw_ukosniki(json: &str) -> String {
 #[cfg(test)]
 mod testy {
     use super::*;
+
+    #[test]
+    fn rownolegle_zapisy_tego_samego_pliku_sie_nie_zderzaja() {
+        let katalog = tempfile::tempdir().unwrap();
+        let plik = std::sync::Arc::new(katalog.path().join("ustawienia.json"));
+        let watki: Vec<_> = (0..8)
+            .map(|nr| {
+                let plik = std::sync::Arc::clone(&plik);
+                std::thread::spawn(move || {
+                    let tresc = format!("{{\"watek\": {nr}}}").repeat(2000);
+                    (0..40).map(|_| zapisz_atomowo(&plik, tresc.as_bytes()).is_ok()).filter(|ok| !ok).count()
+                })
+            })
+            .collect();
+        let bledy: usize = watki.into_iter().map(|w| w.join().unwrap()).sum();
+        assert_eq!(bledy, 0, "każdy zapis ma własny plik tymczasowy");
+        let tresc = fs::read_to_string(&*plik).unwrap();
+        assert!(
+            (0..8).any(|nr| tresc == format!("{{\"watek\": {nr}}}").repeat(2000)),
+            "plik jest cały z jednego zapisu"
+        );
+        assert_eq!(fs::read_dir(katalog.path()).unwrap().count(), 1, "bez pozostawionych plików tymczasowych");
+    }
 
     #[test]
     fn zapis_atomowy_podmienia_plik_i_sprzata() {

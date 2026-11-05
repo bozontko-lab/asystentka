@@ -276,7 +276,8 @@ asystentka/
 ## Decyzje i doprecyzowania względem SPEC.md
 
 - **Pliki obsługuje Rust**, a nie wtyczka file-system. Zapis atomowy (plik tymczasowy
-  i zmiana nazwy), świeży odczyt tuż przed zapisem, zachowanie BOM i CRLF, zmiana
+  z numerem zapisu i zmiana nazwy), świeży odczyt tuż przed zapisem, zachowanie BOM i
+  CRLF (także w dzienniku), jedna blokada dla zapisów `ustawienia.json`, zmiana
   jednej linii, kolejka ponowień co 30 s, gdy plik jest zajęty. Obserwację zmian robi
   crate `notify` (opóźnienie 300 ms).
 - **Klucz zadania** to projekt (nagłówek `##`) i tekst bez pól `[…:: …]`.

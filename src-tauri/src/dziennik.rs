@@ -200,7 +200,8 @@ pub fn zapisz(folder: &Path, dzien: &DzienPracy) -> Result<(), String> {
         }
     }
     let plik = sciezka_pliku(folder, dzien.data);
-    let stara = match pliki::czytaj_tekst(&plik) {
+    // Bez zdejmowania BOM: `aktualizuj_tresc` zostawia go w notatce.
+    let stara = match std::fs::read_to_string(&plik) {
         Ok(t) => Some(t),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
         Err(e) => return Err(format!("nie mogę przeczytać {}: {e}", plik.display())),
@@ -320,6 +321,37 @@ Na jutro: Montaż: plansze 1–5, Odpisać na maila od montażysty
         let stary = format!("\u{feff}{}", PRZYKLAD.replace('\n', "\r\n")).replace("2 h 12 min z celu", "1 min z celu");
         let nowy = aktualizuj_tresc(Some(&stary), &dzien_z_przykladu());
         assert_eq!(nowy, format!("\u{feff}{}", PRZYKLAD.replace('\n', "\r\n")));
+    }
+
+    #[test]
+    fn zapis_na_dysk_zachowuje_bom_i_crlf_notatki() {
+        let katalog = tempfile::tempdir().unwrap();
+        let dzien = dzien_z_przykladu();
+        let plik = sciezka_pliku(katalog.path(), dzien.data);
+        let stary = format!("\u{feff}{PRZYKLAD}\nMoje notatki\n")
+            .replace('\n', "\r\n")
+            .replace("2 h 12 min z celu", "1 min z celu");
+        std::fs::write(&plik, &stary).unwrap();
+        zapisz(katalog.path(), &dzien).unwrap();
+        let zapisany = std::fs::read_to_string(&plik).unwrap();
+        assert!(zapisany.starts_with("\u{feff}---\r\n"), "BOM zostaje: {:?}", &zapisany[..12]);
+        assert!(zapisany.ends_with("\r\nMoje notatki\r\n"), "notatka poza blokiem zostaje");
+        assert!(zapisany.contains("2 h 12 min z celu"));
+        assert!(!zapisany.replace("\r\n", "").contains('\n'), "same CRLF");
+    }
+
+    #[test]
+    fn zapis_bez_zmian_nie_dotyka_pliku_z_bom() {
+        let katalog = tempfile::tempdir().unwrap();
+        let dzien = dzien_z_przykladu();
+        let plik = sciezka_pliku(katalog.path(), dzien.data);
+        let tresc = format!("\u{feff}{PRZYKLAD}");
+        std::fs::write(&plik, &tresc).unwrap();
+        let przed = std::fs::metadata(&plik).unwrap().modified().unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        zapisz(katalog.path(), &dzien).unwrap();
+        assert_eq!(std::fs::read_to_string(&plik).unwrap(), tresc);
+        assert_eq!(std::fs::metadata(&plik).unwrap().modified().unwrap(), przed, "brak zmian: brak zapisu");
     }
 
     #[test]
