@@ -307,6 +307,8 @@ pub struct Rdzen {
     pauza_gra: Option<Chwila>,
     /// Działa OBS (proces `obs64.exe`): przy `cisza_przy_nagrywaniu` dźwięk milknie (B7).
     obs_dziala: bool,
+    /// Pełny ekran na którymkolwiek monitorze: blokuje pytanie o bezczynność (B5).
+    pelny_ekran_gdziekolwiek: bool,
     /// Silnik dźwięku nie otworzył urządzenia (brak słuchawek, głośników): dźwięk nie gra.
     dzwiek_niedostepny: bool,
 }
@@ -338,6 +340,7 @@ impl Rdzen {
             skrot_zajety: None,
             pauza_gra: None,
             obs_dziala: false,
+            pelny_ekran_gdziekolwiek: false,
             dzwiek_niedostepny: false,
         }
     }
@@ -1298,7 +1301,8 @@ impl Rdzen {
     /// Brak myszy i klawiatury od `sekundy` (GetLastInputInfo, co 30 s).
     pub fn bezczynnosc(&mut self, sekundy: u64, teraz: Chwila) {
         let prog = u64::from(self.ust.prog_bezczynnosci_min) * 60;
-        if prog == 0 || sekundy < prog || self.stan() != Stan::Praca || self.schowana_przez_pelny_ekran() {
+        let pelny_ekran = self.schowana_przez_pelny_ekran() || self.pelny_ekran_gdziekolwiek;
+        if prog == 0 || sekundy < prog || self.stan() != Stan::Praca || pelny_ekran {
             return;
         }
         let Some(s) = self.dz.sesja.as_mut() else { return };
@@ -1339,6 +1343,11 @@ impl Rdzen {
                 self.ukrycie.wymuszone = false;
             }
         }
+    }
+
+    /// Pełny ekran na dowolnym monitorze, także na innym niż monitor widgetu.
+    pub fn ustaw_pelny_ekran_gdziekolwiek(&mut self, pelny: bool) {
+        self.pelny_ekran_gdziekolwiek = pelny;
     }
 
     /// Pokaż / Ukryj z zasobnika i skrót globalny.
@@ -2768,6 +2777,34 @@ mod testy {
         r.bezczynnosc(20 * 60, t("09:31:00"));
         r.odpowiedz_jestes(false, t("09:32:00"));
         assert_eq!(r.dz.sesja.as_ref().unwrap().sekundy(t("09:40:00")), 40 * 60);
+    }
+
+    #[test]
+    fn pelny_ekran_na_innym_monitorze_nie_chowa_widgetu_ale_blokuje_pytanie() {
+        let sr = Srodowisko::nowe();
+        let mut r = w_pracy(&sr);
+        // Film na drugim monitorze: monitor widgetu bez pełnego ekranu.
+        r.ustaw_pelny_ekran(false);
+        r.ustaw_pelny_ekran_gdziekolwiek(true);
+        assert!(r.widoczna(), "chowanie liczy się tylko na monitorze widgetu (B6)");
+        r.bezczynnosc(20 * 60, t("09:30:00"));
+        assert_eq!(r.stan(), Stan::Praca, "pełny ekran na którymkolwiek monitorze: bez „Jesteś?” (B5)");
+        r.ustaw_pelny_ekran_gdziekolwiek(false);
+        r.bezczynnosc(20 * 60, t("09:31:00"));
+        assert_eq!(r.stan(), Stan::Jestes);
+    }
+
+    #[test]
+    fn pelny_ekran_bez_chowania_tez_blokuje_pytanie() {
+        let sr = Srodowisko::nowe();
+        let mut r = w_pracy(&sr);
+        let ust = r.ust.clone();
+        r.zmien_ustawienia(Ustawienia { chowaj_przy_pelnym_ekranie: false, ..ust }, t("09:10:00"));
+        r.ustaw_pelny_ekran(true);
+        r.ustaw_pelny_ekran_gdziekolwiek(true);
+        assert!(r.widoczna(), "chowanie wyłączone w ustawieniach");
+        r.bezczynnosc(20 * 60, t("09:30:00"));
+        assert_eq!(r.stan(), Stan::Praca);
     }
 
     #[test]
