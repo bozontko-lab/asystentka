@@ -298,6 +298,8 @@ asystentka/
   żeby każdy dymek z backendu miał tam wariant.
 - **Postać:** rozmiar, linie stóp i siedziska z `src/assets/postac/postac.json`;
   `concerned.png` służy reakcji „zmartwiona”.
+  Schowany widget nie ma żadnych zegarów animacji; po pokazaniu postać od razu ma pozę
+  właściwą dla czasu (np. drzemkę po 15 min przerwy), a zegary układają się od nowa.
 - **Monitory:** widget pamięta monitor (nazwa, a gdy nazwy brak, położenie i rozmiar),
   jeden z czterech rogów obszaru roboczego i odstępy w pikselach logicznych. Okno
   rośnie od rogu w stronę środka monitora, odbicie lustrzane zależy od połowy
