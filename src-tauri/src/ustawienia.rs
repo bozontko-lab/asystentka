@@ -130,8 +130,12 @@ impl Ustawienia {
         } else if self.nazwa_postaci.trim().chars().count() > NAJDLUZSZA_NAZWA_POSTACI {
             bledy.push(format!("Imię postaci może mieć najwyżej {NAJDLUZSZA_NAZWA_POSTACI} znaków."));
         }
-        if self.plik_zadan().is_none() {
-            bledy.push("Wskaż plik zadań.".to_string());
+        match self.plik_zadan() {
+            None => bledy.push("Wskaż plik zadań.".to_string()),
+            Some(plik) if !to_plik_markdown(&plik) => {
+                bledy.push("Plik zadań to plik Markdown z rozszerzeniem .md, np. Zadania.md.".to_string())
+            }
+            Some(_) => {}
         }
         if self.folder_dziennika().is_none() {
             bledy.push("Wskaż folder dziennika.".to_string());
@@ -161,12 +165,20 @@ impl Ustawienia {
 /// Ścieżka z ustawień albo `None`, gdy pole jest puste albo stoi w nim
 /// znacznik `<Dysk Google>` / `<vault>` z wartości domyślnych wersji 1.
 /// Zmienne w stylu `%USERPROFILE%` są rozwijane.
-fn sciezka(tekst: &str) -> Option<PathBuf> {
+pub fn sciezka(tekst: &str) -> Option<PathBuf> {
     let tekst = tekst.trim();
     if tekst.is_empty() || tekst.contains('<') || tekst.contains('>') {
         return None;
     }
     Some(PathBuf::from(rozwin_zmienne(tekst)))
+}
+
+/// Plik zadań i notatki to Markdown: `.md` albo `.markdown`, bez względu na wielkość liter.
+/// Widget nie tworzy ani nie otwiera w systemie plików z innym rozszerzeniem (np. `.bat`).
+pub fn to_plik_markdown(plik: &Path) -> bool {
+    plik.extension()
+        .and_then(|r| r.to_str())
+        .is_some_and(|r| r.eq_ignore_ascii_case("md") || r.eq_ignore_ascii_case("markdown"))
 }
 
 fn rozwin_zmienne(tekst: &str) -> String {
@@ -515,6 +527,21 @@ mod testy {
             ..Ustawienia::default()
         };
         assert_eq!(zle.waliduj().len(), 6);
+    }
+
+    #[test]
+    fn plik_zadan_musi_byc_plikiem_markdown() {
+        let z = |plik: &str| Ustawienia { imie: "Ola".into(), plik_zadan: plik.into(), ..Ustawienia::default() };
+        for dobry in ["/v/Zadania.md", "/v/Zadania.MD", "/v/Plan.markdown"] {
+            assert!(z(dobry).waliduj().is_empty(), "{dobry}");
+        }
+        for zly in ["/v/uruchom.bat", "/v/skrypt.cmd", "/v/Zadania", "/v/Zadania.md.exe"] {
+            let bledy = z(zly).waliduj();
+            assert_eq!(bledy.len(), 1, "{zly}: {bledy:?}");
+            assert!(bledy[0].contains(".md"), "{zly}: {bledy:?}");
+        }
+        assert!(to_plik_markdown(Path::new("C:/Vault/Zadania.md")));
+        assert!(!to_plik_markdown(Path::new("C:/Vault/zly.bat")));
     }
 
     #[test]

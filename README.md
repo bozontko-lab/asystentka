@@ -282,6 +282,11 @@ asystentka/
   jednej linii, kolejka ponowień co 30 s, gdy plik jest zajęty. Obserwację zmian robi
   crate `notify` (opóźnienie 300 ms).
 - **Klucz zadania** to projekt (nagłówek `##`) i tekst bez pól `[…:: …]`.
+- **Plik zadań to Markdown:** ustawienia przyjmują tylko `.md` albo `.markdown`, a widget
+  otwiera w systemie wyłącznie takie pliki. Ścieżki w kreatorze (sprawdzenie, czy plik
+  istnieje, i folder startowy okna wyboru) rozwijają `%ZMIENNE%` tak jak ustawienia.
+- **Uprawnienia okien:** widget ma tylko zdarzenia, komendy i log (przeciąganie robi
+  komenda w Rust); okienko ustawień dodatkowo może zamknąć samo siebie.
 - **Pozycję okna zapamiętuje widget**, a nie wtyczka window-state: okno zmienia
   rozmiar ze stanem i trzyma dolną krawędź. Po przeciągnięciu na lewą połowę ekranu
   postać odbija się lustrzanie.
