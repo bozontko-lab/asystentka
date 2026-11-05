@@ -58,6 +58,12 @@ fn nazwa_procesu_pasuje(proces: &str, szukany: &str) -> bool {
     proces.eq_ignore_ascii_case(szukany)
 }
 
+/// Pełny ekran na którymkolwiek monitorze (B5): wtedy widget nie pyta „Jesteś?”, bo możesz
+/// oglądać materiał albo grać. Chowanie okna dalej liczy tylko monitor widgetu.
+pub fn pelny_ekran_gdziekolwiek(stan: &StanPelnegoEkranu) -> bool {
+    stan.pierwszy_plan.is_some_and(|p| p.pokrywa_monitor && (!p.zwykle_okno || stan.sygnal_systemu))
+}
+
 #[cfg(windows)]
 mod win;
 #[cfg(windows)]
@@ -122,6 +128,17 @@ mod testy {
         assert!(!nazwa_procesu_pasuje("obs64.exe.bak", PROCES_OBS));
         assert!(!nazwa_procesu_pasuje("notobs64.exe", PROCES_OBS));
         assert!(!nazwa_procesu_pasuje("obs.exe", PROCES_OBS));
+    }
+
+    #[test]
+    fn pelny_ekran_gdziekolwiek_widzi_kazdy_monitor() {
+        assert!(pelny_ekran_gdziekolwiek(&pierwszy_plan(GLOWNY, true, false)));
+        assert!(pelny_ekran_gdziekolwiek(&pierwszy_plan(DRUGI, true, false)));
+        assert!(!pelny_ekran_gdziekolwiek(&pierwszy_plan(DRUGI, false, false)), "okno, które nie pokrywa monitora");
+        assert!(!pelny_ekran_gdziekolwiek(&pierwszy_plan(DRUGI, true, true)), "zmaksymalizowane okno to praca");
+        let stan = StanPelnegoEkranu { sygnal_systemu: true, ..pierwszy_plan(GLOWNY, true, true) };
+        assert!(pelny_ekran_gdziekolwiek(&stan), "chyba że system mówi „pełny ekran”");
+        assert!(!pelny_ekran_gdziekolwiek(&StanPelnegoEkranu::default()));
     }
 
     #[test]

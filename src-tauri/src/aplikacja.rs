@@ -82,6 +82,7 @@ pub struct Aplikacja {
     skrot_wstrzymany: AtomicBool,
     ustawienia_zmienione: Mutex<Option<SystemTime>>,
     pelny_ekran: AtomicBool,
+    pelny_ekran_gdziekolwiek: AtomicBool,
     kursor_blisko: AtomicBool,
     ochrona: Mutex<Option<bool>>,
     obserwator: Mutex<Option<(PathBuf, notify::RecommendedWatcher)>>,
@@ -154,6 +155,7 @@ pub fn uruchom(app: &mut tauri::App) -> Result<(), Box<dyn Error>> {
         skrot_wstrzymany: AtomicBool::new(false),
         ustawienia_zmienione: Mutex::new(fs::metadata(&sciezka_ustawien).and_then(|m| m.modified()).ok()),
         pelny_ekran: AtomicBool::new(false),
+        pelny_ekran_gdziekolwiek: AtomicBool::new(false),
         kursor_blisko: AtomicBool::new(false),
         ochrona: Mutex::new(None),
         obserwator: Mutex::new(None),
@@ -559,13 +561,19 @@ impl Aplikacja {
 
     fn sprawdz_pelny_ekran(self: &Arc<Self>) {
         let wlasne = Some(self.hwnd.load(Ordering::SeqCst)).filter(|h| *h != 0);
-        // Pełny ekran liczy się tylko na monitorze widgetu (B5, B6).
+        // Chowanie liczy tylko monitor widgetu (B6), a pytanie o bezczynność każdy monitor (B5).
         let monitor_widgetu = zablokuj(&self.okno).ekran.as_ref().map(|e| e.pelny);
         let stan = system::pelny_ekran(wlasne);
         let pelny = monitor_widgetu.is_some_and(|m| system::pelny_ekran_na_monitorze(&stan, &m));
-        if self.pelny_ekran.swap(pelny, Ordering::SeqCst) != pelny {
-            log::info!("pełny ekran: {pelny}");
-            self.wykonaj(|r, _| r.ustaw_pelny_ekran(pelny));
+        let gdziekolwiek = system::pelny_ekran_gdziekolwiek(&stan);
+        let zmiana = self.pelny_ekran.swap(pelny, Ordering::SeqCst) != pelny;
+        let zmiana_gdziekolwiek = self.pelny_ekran_gdziekolwiek.swap(gdziekolwiek, Ordering::SeqCst) != gdziekolwiek;
+        if zmiana || zmiana_gdziekolwiek {
+            log::info!("pełny ekran: na monitorze widgetu {pelny}, gdziekolwiek {gdziekolwiek}");
+            self.wykonaj(|r, _| {
+                r.ustaw_pelny_ekran(pelny);
+                r.ustaw_pelny_ekran_gdziekolwiek(gdziekolwiek);
+            });
         }
     }
 

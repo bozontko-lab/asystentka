@@ -197,7 +197,8 @@ w okienku Ustawienia (działa od razu).
 3. **Odłączenie monitora:** widget staje w domyślnym miejscu na głównym; „Przywróć
    pozycję” (menu pod prawym przyciskiem i zasobnik) robi to na żądanie.
 4. **Pełny ekran na jednym monitorze:** gra na drugim monitorze nie chowa widgetu,
-   gra na monitorze widgetu go chowa.
+   gra na monitorze widgetu go chowa. Film na pełnym ekranie na drugim monitorze
+   dłużej niż próg bezczynności nie wywołuje „Jesteś?”.
 5. **Obsidian:** przy otwartym `Zadania.md` ptaszek i data pojawiają się w ciągu 2 s od
    kliknięcia Zrobione. Gdy nie, sprawdź w logu czas zapisu („plik zadań: … (N ms)”).
 6. **Skrót:** Ctrl+Alt+Spacja dalej otwiera okno Claude, Ctrl+Alt+Shift+Spacja
@@ -304,7 +305,8 @@ asystentka/
   monitora, a rozmiar liczy się ze skalowaniem tego monitora. Przesunięcia okna bez
   kliknięcia w postać (system po zmianie monitorów lub skalowania) nie zmieniają
   zapisanej pozycji. Pełny ekran chowa widget tylko wtedy, gdy okno na pierwszym
-  planie pokrywa monitor widgetu.
+  planie pokrywa monitor widgetu, ale pytanie „Jesteś?” blokuje pełny ekran na
+  którymkolwiek monitorze (B5), także przy wyłączonym chowaniu.
 - **Skrót:** domyślnie Ctrl+Alt+Shift+Spacja; stary Ctrl+Alt+Spacja jest zamieniany
   w pliku ustawień raz. Ctrl+Alt z literą jest odrzucany, bo to AltGr (ą, ć, ę…).
   Na czas nagrywania skrótu w ustawieniach własny skrót widgetu jest zwolniony.
