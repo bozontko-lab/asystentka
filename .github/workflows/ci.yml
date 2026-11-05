@@ -4,6 +4,15 @@ on:
   push:
   pull_request:
 
+# Token CI tylko czyta repozytorium.
+permissions:
+  contents: read
+
+# Nowy commit w pull requeście anuluje przestarzały przebieg dla tego samego PR.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   testy:
     name: Testy (Linux)
@@ -31,10 +40,10 @@ jobs:
         run: cargo fmt --check
         working-directory: src-tauri
       - name: Clippy
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --locked --all-targets -- -D warnings
         working-directory: src-tauri
       - name: Testy Rusta
-        run: cargo test
+        run: cargo test --locked
         working-directory: src-tauri
 
   windows:
@@ -53,14 +62,15 @@ jobs:
         with:
           workspaces: src-tauri
       - run: npm ci
+      - run: npm test
       - name: Clippy (kod Windows)
-        run: cargo clippy -- -D warnings
+        run: cargo clippy --locked --all-targets -- -D warnings
         working-directory: src-tauri
       - name: Testy Rusta na Windows
-        run: cargo test
+        run: cargo test --locked
         working-directory: src-tauri
       - name: Instalator
-        run: npm run tauri build
+        run: npm run tauri -- build -- --locked
       - uses: actions/upload-artifact@v7
         with:
           name: asystentka-windows
