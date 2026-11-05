@@ -302,6 +302,9 @@ asystentka/
   `concerned.png` służy reakcji „zmartwiona”.
   Schowany widget nie ma żadnych zegarów animacji; po pokazaniu postać od razu ma pozę
   właściwą dla czasu (np. drzemkę po 15 min przerwy), a zegary układają się od nowa.
+- **Spojrzenie na kursor** (B7 tego nie rozstrzyga, decyzja właściciela): w Pracy
+  `sit_watch_front` zastępuje tylko patrzenie (`sit_watch`). Gdy postać gra na
+  konsolce albo pije z kubka, zbliżenie kursora jej nie przerywa.
 - **Monitory:** widget pamięta monitor (nazwa, a gdy nazwy brak, położenie i rozmiar),
   jeden z czterech rogów obszaru roboczego i odstępy w pikselach logicznych. Okno
   rośnie od rogu w stronę środka monitora, odbicie lustrzane zależy od połowy
