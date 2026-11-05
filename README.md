@@ -285,6 +285,12 @@ asystentka/
 - **Pozycję okna zapamiętuje widget**, a nie wtyczka window-state: okno zmienia
   rozmiar ze stanem i trzyma dolną krawędź. Po przeciągnięciu na lewą połowę ekranu
   postać odbija się lustrzanie.
+- **CSP:** frontend ustawia style tylko przez CSSOM (`element.style`), bez atrybutu
+  `style`, a test pilnuje tego w źródłach. `style-src` dalej ma `'unsafe-inline'`, bo
+  serwer Vite w trybie deweloperskim wstrzykuje CSS znacznikami `<style>`; zbudowane
+  strony nie mają żadnego stylu w HTML.
+- **Błędy frontendu:** oba okna (widget i ustawienia) wysyłają nieobsłużone błędy do
+  pliku logu, a żadna obietnica z mostu nie jest porzucona bez `.catch` (test w źródłach).
 - **Dodatkowe oficjalne wtyczki:** dialog (wybór pliku i folderu), opener, log.
 - **Okno nie kradnie fokusu** (`focusable: false`). Pola tekstowe (kreator, Dodaj
   zadanie) włączają fokus tylko na czas wpisywania.

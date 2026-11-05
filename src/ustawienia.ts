@@ -15,6 +15,10 @@ import type { Ustawienia } from "./typy";
 
 const most: Most = wTauri() ? mostTauri() : mostPodglad();
 const opisBledu = (e: unknown) => (typeof e === "string" ? e : e instanceof Error ? e.message : "Nieznany błąd.");
+// Błędy okienka ustawień trafiają do pliku logu, jak w oknie widgetu.
+window.addEventListener("error", (e) => most.zglosBlad(`ustawienia: ${e.message} (${e.filename}:${e.lineno})`));
+window.addEventListener("unhandledrejection", (e) => most.zglosBlad(`ustawienia: ${opisBledu(e.reason)}`));
+const zamknij = () => void most.zamknijOkno().catch((e: unknown) => most.zglosBlad(`ustawienia: ${opisBledu(e)}`));
 
 function pole(id: string, etykieta: string, wejscie: HTMLElement, podpowiedz?: string): HTMLElement {
   return el(
@@ -63,9 +67,11 @@ function sciezka(
   const w = tekst(id, wartosc);
   const b = el("button", { class: "przycisk", type: "button" }, przycisk);
   b.addEventListener("click", () => {
-    void wybor(w.value).then((wybrane) => {
-      if (wybrane) w.value = wybrane;
-    });
+    void wybor(w.value)
+      .then((wybrane) => {
+        if (wybrane) w.value = wybrane;
+      })
+      .catch((e: unknown) => most.zglosBlad(`ustawienia: wybór ścieżki: ${opisBledu(e)}`));
   });
   return [pole(id, etykieta, el("div", { class: "wiersz-sciezki" }, w, b), podpowiedz), w];
 }
@@ -180,9 +186,9 @@ async function start(): Promise<void> {
         zapisz.disabled = false;
       });
   });
-  anuluj.addEventListener("click", () => void most.zamknijOkno());
+  anuluj.addEventListener("click", zamknij);
   korzen.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") void most.zamknijOkno();
+    if (e.key === "Escape") zamknij();
   });
 
   korzen.replaceChildren(

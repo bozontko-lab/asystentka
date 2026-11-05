@@ -137,7 +137,8 @@ export class Kreator {
 
   private przyciskWyboru(tekst: string, akcja: () => Promise<void>): HTMLButtonElement {
     const b = el("button", { class: "przycisk", type: "button" }, tekst);
-    b.addEventListener("click", () => void akcja());
+    // Okno wyboru pliku może się nie otworzyć; błąd trafia do logu, a kreator działa dalej.
+    b.addEventListener("click", () => void akcja().catch((e: unknown) => this.most.zglosBlad(`kreator: ${String(e)}`)));
     return b;
   }
 

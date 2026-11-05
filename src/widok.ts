@@ -236,6 +236,13 @@ function wierszDnia(z: KoniecWidok["podsumowanie"]["zadania"][number]): HTMLElem
   );
 }
 
+/** Wypełnienie paska: styl przez CSSOM, a nie atrybut `style`, który blokuje CSP. */
+function wypelnienie(udzial: number): HTMLElement {
+  const pasek = el("div", { class: "pasek-wypelnienie" });
+  pasek.style.transform = `scaleX(${udzial.toFixed(3)})`;
+  return pasek;
+}
+
 /** Podsumowanie dnia: zrobione z zaplanowanych, czas dnia względem celu, czas zadań i lista na jutro (B4). */
 function panelKonca(k: KoniecWidok): HTMLElement {
   const p = k.podsumowanie;
@@ -247,7 +254,7 @@ function panelKonca(k: KoniecWidok): HTMLElement {
     el("header", { class: "naglowek" }, wczoraj ? "Podsumowanie wczorajszego dnia" : "Podsumowanie dnia"),
     el("div", { class: "suma" }, `Zrobione ${p.zrobione} z ${zadanTekst(p.zaplanowane)}`),
     el("div", { class: "czas-dnia" }, `${minutyTekst(p.czas_dnia_min)} z celu ${minutyTekst(p.cel_min)}`),
-    el("div", { class: "pasek" }, el("div", { class: "pasek-wypelnienie", style: `transform: scaleX(${udzial.toFixed(3)})` })),
+    el("div", { class: "pasek" }, wypelnienie(udzial)),
     el(
       "div",
       { class: "przewijany" },
