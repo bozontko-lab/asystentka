@@ -415,7 +415,9 @@ impl Rdzen {
     /// budził wątku w kółko.
     pub fn najblizszy_termin(&self, teraz: Chwila) -> Chwila {
         let polnoc = (self.dz.data + Duration::days(1)).and_time(NaiveTime::MIN);
-        let mut termin = lokalna(polnoc, teraz).unwrap_or(teraz + Duration::hours(1));
+        // Odroczona zmiana dnia nie jest terminem: czeka na koniec sesji albo gratulacji.
+        let polnoc = lokalna(polnoc, teraz).filter(|p| !(self.zmiana_dnia_odroczona() && *p <= teraz));
+        let mut termin = polnoc.unwrap_or(teraz + Duration::hours(1));
         let mut wez = |t: Chwila| {
             if t < termin {
                 termin = t;
@@ -710,6 +712,8 @@ impl Rdzen {
             }
             _ => {}
         }
+        // Zmiana dnia odroczona przez gratulacje przychodzi zaraz po nich.
+        self.zmiana_dnia(teraz);
         // O godzinie zamknięcia dzień kończy się sam (B4); po wyłączonym komputerze zaraz po starcie.
         if self.czas_automatycznego_zamkniecia(teraz).is_some_and(|t| teraz >= t) {
             self.koniec_pracy(teraz);
@@ -743,10 +747,15 @@ impl Rdzen {
         self.zapisz_stan(teraz);
     }
 
+    /// Trwająca sesja liczy się dalej i należy do dnia, w którym się zaczęła (B5), a po
+    /// „Zrobione” gratulacje z przyciskiem Cofnij trwają swoje 10 s także po północy.
+    fn zmiana_dnia_odroczona(&self) -> bool {
+        self.dz.sesja.is_some() || matches!(self.faza, Faza::Gratulacje { do_: Some(_), .. })
+    }
+
     fn zmiana_dnia(&mut self, teraz: Chwila) {
         let dzis = czas::dzien(teraz);
-        // Trwająca sesja liczy się dalej i należy do dnia, w którym się zaczęła (B5).
-        if dzis == self.dz.data || self.dz.sesja.is_some() {
+        if dzis == self.dz.data || self.zmiana_dnia_odroczona() {
             return;
         }
         log::info!("nowy dzień: {dzis}");
@@ -2215,6 +2224,42 @@ mod testy {
         assert!(sr.dziennik("2026-10-30").contains("Podsumowanie dnia"));
         r.dalej_po_wczoraju();
         assert_eq!(r.stan(), Stan::WyborZadan);
+    }
+
+    #[test]
+    fn zrobione_po_polnocy_zostawia_gratulacje_i_cofnij_na_10_s() {
+        let sr = Srodowisko::nowe();
+        let mut r = sr.rdzen(t("23:00:00"));
+        r.tick(t("23:00:06"));
+        r.zatwierdz_wybor(t("23:00:10"));
+        r.rozpocznij(&montaz(), t("23:30:00")).unwrap();
+        let zrobione = chwila("2026-10-31T00:30:00+01:00");
+        r.zrobione(zrobione);
+        // Wątek terminów nie może uznać północy za zaległy termin w trakcie gratulacji.
+        assert_eq!(r.najblizszy_termin(zrobione), chwila("2026-10-31T00:30:10+01:00"));
+        // Tyknięcie 20 ms później, jak po obudzeniu wątku przez `wykonaj`.
+        r.tick(zrobione + Duration::milliseconds(20));
+        assert_eq!(r.stan(), Stan::Gratulacje, "zmiana dnia czeka na koniec gratulacji");
+        assert!(r.migawka().gratulacje.unwrap().mozna_cofnac);
+        r.cofnij(chwila("2026-10-31T00:30:05+01:00"));
+        assert_eq!(r.stan(), Stan::Praca, "Cofnij działa także po północy");
+        assert_eq!(r.migawka().sesja.unwrap().zadanie, montaz().zadanie);
+        assert!(!sr.zadania().contains("✅ 2026-10-30"), "ptaszek zdjęty");
+    }
+
+    #[test]
+    fn po_gratulacjach_po_polnocy_dzien_sie_zmienia() {
+        let sr = Srodowisko::nowe();
+        let mut r = sr.rdzen(t("23:00:00"));
+        r.tick(t("23:00:06"));
+        r.zatwierdz_wybor(t("23:00:10"));
+        r.rozpocznij(&montaz(), t("23:30:00")).unwrap();
+        r.zrobione(chwila("2026-10-31T00:30:00+01:00"));
+        r.tick(chwila("2026-10-31T00:30:09+01:00"));
+        assert_eq!(r.stan(), Stan::Gratulacje);
+        r.tick(chwila("2026-10-31T00:30:10+01:00"));
+        assert_eq!(r.stan(), Stan::KoniecDnia, "po 10 s wczorajszy dzień zamyka się z podsumowaniem");
+        assert!(sr.dziennik("2026-10-30").contains("Podsumowanie dnia"));
     }
 
     // ---- krok 4: podsumowanie po zadaniu --------------------------------------------------------

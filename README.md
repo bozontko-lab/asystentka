@@ -290,8 +290,10 @@ asystentka/
   gdy polecenie nie ma sensu (np. Zmień plan w czasie pracy).
 - **Krótkie sesje:** „Przerwij” przed upływem minuty niczego nie zapisuje. „Zrobione”
   zapisuje zawsze.
-- **Północ:** trwająca sesja liczy się dalej i należy do dnia startu. Poprzedni dzień
-  zamyka się automatycznie z podsumowaniem (reakcja z tabeli B4).
+- **Północ:** trwająca sesja liczy się dalej i należy do dnia startu. Gratulacje po
+  „Zrobione” trwają swoje 10 s z przyciskiem Cofnij także po północy, a dzień zmienia
+  się po nich. Poprzedni dzień zamyka się automatycznie z podsumowaniem (reakcja z
+  tabeli B4).
 - **Dodatkowe dymki** w `src/kwestie.json`: `lista`, `blad_ustawien`. Test pilnuje,
   żeby każdy dymek z backendu miał tam wariant.
 - **Postać:** rozmiar, linie stóp i siedziska z `src/assets/postac/postac.json`;
