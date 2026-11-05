@@ -93,6 +93,38 @@ pub fn godzina_do_dymku(tekst: &str) -> String {
     }
 }
 
+/// Dłuższa przerwa między obrotami pętli niż to oznacza, że coś się stało.
+pub const PRZERWA_W_DZIALANIU_S: i64 = 90;
+
+/// Co oznacza długi odstęp między obrotami pętli terminów.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Przerwa {
+    Brak,
+    /// Uśpienie bez zdarzenia z Windows albo zamrożony proces: pauza od ostatniego obrotu.
+    Uspienie,
+    /// Zegar systemowy przesunął się do przodu (np. synchronizacja NTP), a program działał.
+    KorektaZegara,
+}
+
+/// Rozróżnia uśpienie od korekty zegara (Z-12) po odstępie zegara ściennego i zegara
+/// monotonicznego. Gdy zegar monotoniczny liczy też czas uśpienia (Windows), krótki
+/// odstęp monotoniczny przy dużym skoku ściennym znaczy korektę zegara. Bez takiego
+/// zegara (Linux) obu przypadków nie da się odróżnić, więc zostaje pauza, jak dotąd.
+pub fn przerwa_w_dzialaniu(
+    scienny: chrono::Duration,
+    monotoniczny: std::time::Duration,
+    monotoniczny_liczy_uspienie: bool,
+) -> Przerwa {
+    let prog = chrono::Duration::seconds(PRZERWA_W_DZIALANIU_S);
+    if scienny <= prog {
+        return Przerwa::Brak;
+    }
+    if monotoniczny_liczy_uspienie && monotoniczny.as_secs() as i64 <= PRZERWA_W_DZIALANIU_S {
+        return Przerwa::KorektaZegara;
+    }
+    Przerwa::Uspienie
+}
+
 #[cfg(test)]
 pub fn chwila(tekst: &str) -> Chwila {
     DateTime::parse_from_rfc3339(tekst).expect("poprawna data w teście")
@@ -101,6 +133,36 @@ pub fn chwila(tekst: &str) -> Chwila {
 #[cfg(test)]
 mod testy {
     use super::*;
+
+    const S: fn(u64) -> std::time::Duration = std::time::Duration::from_secs;
+
+    #[test]
+    fn zwykly_obrot_petli_to_nie_przerwa() {
+        assert_eq!(przerwa_w_dzialaniu(chrono::Duration::seconds(30), S(30), true), Przerwa::Brak);
+        assert_eq!(przerwa_w_dzialaniu(chrono::Duration::seconds(90), S(90), true), Przerwa::Brak);
+    }
+
+    #[test]
+    fn zegar_monotoniczny_z_uspieniem_odroznia_korekte_zegara_od_uspienia() {
+        // Windows: zegar monotoniczny liczy też czas uśpienia.
+        assert_eq!(
+            przerwa_w_dzialaniu(chrono::Duration::minutes(40), S(40 * 60), true),
+            Przerwa::Uspienie,
+            "uśpienie albo zamrożony proces"
+        );
+        assert_eq!(
+            przerwa_w_dzialaniu(chrono::Duration::minutes(10), S(2), true),
+            Przerwa::KorektaZegara,
+            "synchronizacja NTP przestawiła zegar o 10 min do przodu"
+        );
+        assert_eq!(przerwa_w_dzialaniu(chrono::Duration::minutes(-10), S(2), true), Przerwa::Brak, "zegar cofnięty");
+    }
+
+    #[test]
+    fn bez_takiego_zegara_skok_zegara_scian_to_uspienie_jak_dotad() {
+        // Linux: CLOCK_MONOTONIC stoi w uśpieniu, więc skoku nie da się odróżnić od uśpienia.
+        assert_eq!(przerwa_w_dzialaniu(chrono::Duration::minutes(10), S(2), false), Przerwa::Uspienie);
+    }
 
     #[test]
     fn minuty_jak_w_dzienniku() {

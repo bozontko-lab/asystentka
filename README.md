@@ -292,6 +292,10 @@ asystentka/
   gdy polecenie nie ma sensu (np. Zmień plan w czasie pracy).
 - **Krótkie sesje:** „Przerwij” przed upływem minuty niczego nie zapisuje. „Zrobione”
   zapisuje zawsze.
+- **Przerwa w działaniu:** gdy między obrotami pętli minie ponad 90 s, sesja pauzuje
+  się od ostatniego obrotu (uśpienie bez zdarzenia z Windows). Na Windows zegar
+  monotoniczny liczy też czas uśpienia, więc skok samego zegara systemowego (np.
+  synchronizacja NTP) jest tylko logowany jako korekta czasu i nie pauzuje sesji.
 - **Północ:** trwająca sesja liczy się dalej i należy do dnia startu. Gratulacje po
   „Zrobione” trwają swoje 10 s z przyciskiem Cofnij także po północy, a dzień zmienia
   się po nich. Poprzedni dzień zamyka się automatycznie z podsumowaniem (reakcja z
