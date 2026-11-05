@@ -957,6 +957,11 @@ impl Aplikacja {
 
     /// Plik z vaulta otwiera w Obsidianie, a gdy się nie uda, w domyślnym edytorze.
     pub fn otworz_plik(&self, plik: &Path) {
+        // Otwarcie w systemie uruchamia program przypisany do rozszerzenia, więc tylko Markdown.
+        if !ustawienia::to_plik_markdown(plik) {
+            log::warn!("nie otwieram {}: to nie jest plik Markdown", plik.display());
+            return;
+        }
         let vaulty = obsidian::vaulty(&self.katalog_konfiguracji());
         if obsidian::w_vaulcie(plik, &vaulty) {
             match self.app.opener().open_url(obsidian::adres_otwarcia(plik), None::<&str>) {

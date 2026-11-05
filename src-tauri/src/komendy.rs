@@ -174,7 +174,12 @@ pub async fn skrot_wstrzymaj(apl: Apl<'_>, wstrzymaj: bool) -> Result<(), String
 
 #[tauri::command]
 pub async fn plik_istnieje(sciezka: String) -> Result<bool, String> {
-    Ok(!sciezka.trim().is_empty() && std::path::Path::new(sciezka.trim()).is_file())
+    Ok(istnieje_plik(&sciezka))
+}
+
+/// Ścieżka czytana tak samo jak w ustawieniach: z rozwiniętymi zmiennymi, np. `%USERPROFILE%`.
+fn istnieje_plik(sciezka: &str) -> bool {
+    crate::ustawienia::sciezka(sciezka).is_some_and(|p| p.is_file())
 }
 
 #[tauri::command]
@@ -184,7 +189,7 @@ pub async fn ustaw_fokus(apl: Apl<'_>, wlacz: bool) -> Result<(), String> {
 }
 
 fn katalog_startowy(start: Option<&str>) -> Option<std::path::PathBuf> {
-    let sciezka = std::path::PathBuf::from(start?.trim());
+    let sciezka = crate::ustawienia::sciezka(start?)?;
     if sciezka.is_dir() {
         Some(sciezka)
     } else {
@@ -270,4 +275,25 @@ pub async fn dzwiek_odsluch(apl: Apl<'_>, poziom: u8) -> Result<(), String> {
 pub async fn menu_kontekstowe(apl: Apl<'_>) -> Result<(), String> {
     apl.inner().menu_kontekstowe();
     Ok(())
+}
+
+#[cfg(test)]
+mod testy {
+    use super::*;
+
+    #[test]
+    fn plik_istnieje_rozwija_zmienne_jak_ustawienia() {
+        let katalog = tempfile::tempdir().unwrap();
+        std::fs::write(katalog.path().join("Zadania.md"), "").unwrap();
+        std::env::set_var("ASYSTENTKA_TEST_KREATOR", katalog.path());
+        assert!(istnieje_plik("%ASYSTENTKA_TEST_KREATOR%/Zadania.md"), "%ZMIENNA% jak w Ustawienia::plik_zadan");
+        assert!(istnieje_plik(&format!("  {}  ", katalog.path().join("Zadania.md").display())));
+        assert!(!istnieje_plik("%ASYSTENTKA_TEST_KREATOR%/Brak.md"));
+        assert!(!istnieje_plik("   "));
+        assert_eq!(
+            katalog_startowy(Some("%ASYSTENTKA_TEST_KREATOR%/Nowy.md")).as_deref(),
+            Some(katalog.path()),
+            "okno wyboru pliku zaczyna w rozwiniętym folderze"
+        );
+    }
 }

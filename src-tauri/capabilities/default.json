@@ -1,15 +1,12 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Uprawnienia okna widgetu: zdarzenia, komendy aplikacji, przeciąganie okna i zapis błędów frontendu do logu.",
+  "description": "Uprawnienia okna widgetu: zdarzenia, komendy aplikacji i zapis błędów frontendu do logu. Przeciąganie okna robi komenda w Rust.",
   "windows": [
-    "main",
-    "ustawienia"
+    "main"
   ],
   "permissions": [
     "core:default",
-    "core:window:allow-start-dragging",
-    "core:window:allow-close",
     "log:allow-log"
   ]
 }
