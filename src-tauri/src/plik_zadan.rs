@@ -310,9 +310,7 @@ pub fn odznacz_zrobione(tekst: &str, klucz: &Klucz, data: Option<NaiveDate>) -> 
     let mut linie: Vec<String> = tekst.split_inclusive('\n').map(str::to_string).collect();
     let cel = data
         .and_then(|d| {
-            plik.zadania
-                .iter()
-                .rfind(|z| &z.klucz == klucz && z.zrobione && data_zrobienia(&linie[z.linia]) == Some(d))
+            plik.zadania.iter().rfind(|z| &z.klucz == klucz && z.zrobione && data_zrobienia(&linie[z.linia]) == Some(d))
         })
         .or_else(|| plik.zadania.iter().find(|z| &z.klucz == klucz && z.zrobione))
         .or_else(|| plik.zadania.iter().find(|z| &z.klucz == klucz))

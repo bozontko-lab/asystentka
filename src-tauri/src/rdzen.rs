@@ -1248,12 +1248,9 @@ impl Rdzen {
         // Ptaszek, który jeszcze czeka w kolejce (plik był zajęty), po prostu nie trafi do pliku.
         match self.dz.oczekujace.iter().rposition(|e| e.klucz == klucz && !e.odznacz && e.zrobione.is_some()) {
             Some(i) => self.dz.oczekujace[i].zrobione = None,
-            None => self.dz.oczekujace.push(Edycja {
-                klucz: klucz.clone(),
-                minuty: 0,
-                zrobione: Some(data),
-                odznacz: true,
-            }),
+            None => {
+                self.dz.oczekujace.push(Edycja { klucz: klucz.clone(), minuty: 0, zrobione: Some(data), odznacz: true })
+            }
         }
         self.zastosuj_edycje(teraz);
         self.zapisz_dziennik();
