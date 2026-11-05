@@ -250,9 +250,10 @@ export class Postac {
         return stoi;
       case "praca":
         if (this.przeciaga) return { a: "pause_stretch", tryb: "brak" };
-        if (this.blisko && g.ma("sit_watch_front")) return { a: "sit_watch_front", tryb: "brak" };
+        // Konsolki ani kubka kursor nie przerywa; spojrzenie dotyczy tylko patrzenia.
         if (this.wariant === "konsola") return this.konsolka();
         if (this.wariant === "kubek") return { a: "sit_drink", tryb: "brak" };
+        if (this.blisko && g.ma("sit_watch_front")) return { a: "sit_watch_front", tryb: "brak" };
         return { a: "sit_watch", b: "sit_watch_blink", tryb: "mrug" };
       case "pauza":
         // 0–5 s przeciąganie, do 15 min konsolka, potem drzemka (B4, B7).

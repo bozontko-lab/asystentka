@@ -300,6 +300,9 @@ asystentka/
   żeby każdy dymek z backendu miał tam wariant.
 - **Postać:** rozmiar, linie stóp i siedziska z `src/assets/postac/postac.json`;
   `concerned.png` służy reakcji „zmartwiona”.
+- **Spojrzenie na kursor** (B7 tego nie rozstrzyga, decyzja właściciela): w Pracy
+  `sit_watch_front` zastępuje tylko patrzenie (`sit_watch`). Gdy postać gra na
+  konsolce albo pije z kubka, zbliżenie kursora jej nie przerywa.
 - **Monitory:** widget pamięta monitor (nazwa, a gdy nazwy brak, położenie i rozmiar),
   jeden z czterech rogów obszaru roboczego i odstępy w pikselach logicznych. Okno
   rośnie od rogu w stronę środka monitora, odbicie lustrzane zależy od połowy
