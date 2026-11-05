@@ -78,7 +78,7 @@ function panelWyboru(w: WyborWidok, blad: string | null): HTMLElement {
           class: "przycisk glowny",
           type: "button",
           "data-akcja": "zatwierdz_wybor",
-          disabled: w.zaznaczonych === 0 && !w.mozna_wrocic,
+          disabled: !moznaZaczac(w),
         },
         "Zaczynamy",
       ),
@@ -88,17 +88,37 @@ function panelWyboru(w: WyborWidok, blad: string | null): HTMLElement {
 
 // ---- lista planu na dziś -------------------------------------------------------------------
 
+/** Czas w wierszu listy: ✓ dla zrobionego, czas względem szacunku albo sam szacunek. */
+export function czasWiersza(z: Pick<ZadanieWidok, "zrobione" | "czas_min" | "szac_min">): string {
+  if (z.zrobione) return "✓";
+  if (z.czas_min > 0) return szacunekTekst(z.czas_min, z.szac_min);
+  return z.szac_min != null ? `${z.szac_min} min` : "";
+}
+
+/** Po przekroczeniu szacunku czas jest koralowy, bez komunikatów o winie (B5, B7). */
+export function ponadSzacunkiem(z: Pick<ZadanieWidok, "zrobione" | "czas_min" | "szac_min">): boolean {
+  return !z.zrobione && z.szac_min != null && z.czas_min > z.szac_min;
+}
+
+/** „Zaczynamy” działa, gdy coś jest zaznaczone albo da się wrócić do istniejącego planu. */
+export function moznaZaczac(w: Pick<WyborWidok, "zaznaczonych" | "mozna_wrocic">): boolean {
+  return w.zaznaczonych > 0 || w.mozna_wrocic;
+}
+
+/** Część szacunku na pasku czasu; ponad 1 znaczy przekroczenie. Bez szacunku pasek stoi. */
+export function czescSzacunku(sekundy: number, szacMin: number | null): number {
+  return szacMin ? sekundy / (szacMin * 60) : 0;
+}
+
+/** Pełne minuty bez ruchu do „Przerwa (odejmij X min)”, co najmniej 1. */
+export function minutyBezczynnosci(bezczynnaOdMs: number, teraz: number): number {
+  return Math.max(1, Math.round((teraz - bezczynnaOdMs) / 60000));
+}
+
 function wierszListy(z: ZadanieWidok): HTMLElement {
-  const czas = z.zrobione
-    ? "✓"
-    : z.czas_min > 0
-      ? szacunekTekst(z.czas_min, z.szac_min)
-      : z.szac_min != null
-        ? `${z.szac_min} min`
-        : "";
+  const czas = czasWiersza(z);
   const klasy = ["zadanie", z.zrobione && "zrobione", z.w_toku && "w-toku"].filter(Boolean).join(" ");
-  // Po przekroczeniu szacunku czas jest koralowy, bez komunikatów o winie (B5, B7).
-  const ponad = !z.zrobione && z.szac_min != null && z.czas_min > z.szac_min;
+  const ponad = ponadSzacunkiem(z);
   return el(
     "li",
     {},
@@ -327,13 +347,13 @@ export function aktualizuj(korzen: ParentNode, m: Migawka, teraz: number): void 
   ustawTekst(korzen, "[data-szacunek]", szacunekTekst(naMinuty(sekundy), s.szac_min));
   if (s.pauza_od_ms != null) ustawTekst(korzen, "[data-pauza]", licznik((teraz - s.pauza_od_ms) / 1000));
   if (s.bezczynna_od_ms != null) {
-    const minuty = Math.max(1, Math.round((teraz - s.bezczynna_od_ms) / 60000));
+    const minuty = minutyBezczynnosci(s.bezczynna_od_ms, teraz);
     ustawTekst(korzen, "[data-bezczynnosc]", minutyTekst(minuty));
     ustawTekst(korzen, "[data-odejmij]", `Przerwa (odejmij ${minuty} min)`);
   }
   const pasek = korzen.querySelector<HTMLElement>("[data-pasek]");
   if (pasek) {
-    const czesc = s.szac_min ? sekundy / (s.szac_min * 60) : 0;
+    const czesc = czescSzacunku(sekundy, s.szac_min);
     pasek.style.transform = `scaleX(${Math.min(1, czesc).toFixed(4)})`;
     // Po przekroczeniu szacunku pasek robi się brzoskwiniowy, bez komunikatów o winie.
     pasek.classList.toggle("ponad", czesc > 1);
