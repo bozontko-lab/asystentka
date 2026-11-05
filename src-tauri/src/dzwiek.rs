@@ -16,7 +16,7 @@
 use std::fs::File;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
@@ -424,23 +424,21 @@ fn zrodlo_dzwieku(
 /// Cel i tempo zmiany głośności: wątek pisze, wątek audio czyta.
 #[derive(Debug, Default)]
 struct Sterowanie {
-    cel: AtomicU32,
-    nachylenie: AtomicU32,
+    /// Cel (starsze 32 bity) i nachylenie (młodsze) w jednym słowie: wątek audio czyta
+    /// zawsze parę z jednego zapisu, nigdy nowy cel ze starym, np. zerowym, tempem.
+    para: AtomicU64,
 }
 
 impl Sterowanie {
     fn ustaw(&self, cel: f32, nachylenie: f32) {
-        // Najpierw tempo, potem cel: nowy cel nigdy nie trafia na stare, zerowe tempo.
-        self.nachylenie.store(nachylenie.to_bits(), Ordering::Relaxed);
-        self.cel.store(cel.to_bits(), Ordering::Relaxed);
+        let para = (u64::from(cel.to_bits()) << 32) | u64::from(nachylenie.to_bits());
+        self.para.store(para, Ordering::Release);
     }
 
-    fn cel(&self) -> f32 {
-        f32::from_bits(self.cel.load(Ordering::Relaxed))
-    }
-
-    fn nachylenie(&self) -> f32 {
-        f32::from_bits(self.nachylenie.load(Ordering::Relaxed))
+    /// Cel i nachylenie z jednego zapisu.
+    fn para(&self) -> (f32, f32) {
+        let para = self.para.load(Ordering::Acquire);
+        (f32::from_bits((para >> 32) as u32), f32::from_bits(para as u32))
     }
 }
 
@@ -467,8 +465,8 @@ impl Iterator for Rampa {
     type Item = f32;
 
     fn next(&mut self) -> Option<f32> {
-        let cel = self.sterowanie.cel();
-        let krok = self.sterowanie.nachylenie() * self.na_probke;
+        let (cel, nachylenie) = self.sterowanie.para();
+        let krok = nachylenie * self.na_probke;
         if self.biezaca < cel {
             self.biezaca = (self.biezaca + krok).min(cel);
         } else if self.biezaca > cel {
@@ -1384,6 +1382,33 @@ mod testy {
     fn jedynki() -> Box<dyn Source + Send> {
         let jedynka = vec![1.0f32; 48_000];
         Box::new(SamplesBuffer::new(1.try_into().unwrap(), 48_000.try_into().unwrap(), jedynka).repeat_infinite())
+    }
+
+    #[test]
+    fn cel_i_nachylenie_czytane_przez_watek_audio_sa_zawsze_z_jednego_zapisu() {
+        let sterowanie = Arc::new(Sterowanie::default());
+        let koniec = Arc::new(AtomicBool::new(false));
+        let pisarz = {
+            let (sterowanie, koniec) = (Arc::clone(&sterowanie), Arc::clone(&koniec));
+            thread::spawn(move || {
+                let mut i = 0u32;
+                while !koniec.load(Ordering::SeqCst) {
+                    let cel = (i % 1000) as f32 + 1.0;
+                    sterowanie.ustaw(cel, cel * 10.0);
+                    i = i.wrapping_add(1);
+                }
+            })
+        };
+        let mut niezgodne = 0;
+        for _ in 0..2_000_000 {
+            let (cel, nachylenie) = sterowanie.para();
+            if cel != 0.0 && nachylenie != cel * 10.0 {
+                niezgodne += 1;
+            }
+        }
+        koniec.store(true, Ordering::SeqCst);
+        pisarz.join().unwrap();
+        assert_eq!(niezgodne, 0, "nowy cel ze starym nachyleniem");
     }
 
     #[test]
