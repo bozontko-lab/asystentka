@@ -4,23 +4,10 @@
 // druga klatka konsolki na 3 s co 2 min, fazy przerwy po 5 s i po 15 min.
 // Schowane okno nie ma żadnych zegarów: pokazanie układa je od nowa z czasu.
 
-import type { Grafiki, Poza } from "./grafiki";
+import type { Grafiki } from "./grafiki";
+import { type Klatki, klatkiPostaci, type Wariant } from "./pozy";
 import { doZmianyFazyPrzerwy, doZmianyKonsolki, fazaPrzerwy, konsolkaDwa, ROZCIAGANIE_MS } from "./przerwa";
 import type { KoniecWidok, Migawka, NazwaStanu } from "./typy";
-
-type Tryb = "brak" | "mrug" | "klatki";
-
-interface Klatki {
-  a: Poza;
-  b?: Poza;
-  tryb: Tryb;
-  /** Długość cyklu dwóch klatek, np. machania. */
-  cykl?: string;
-  /** Początek przerwy: jedno mocniejsze przeciągnięcie (skala w pionie do 1,03 i z powrotem). */
-  mocne?: boolean;
-}
-
-type Wariant = "patrzy" | "konsola" | "kubek";
 
 const MRUGNIECIE_MS = 130;
 const WSKAZYWANIE_MS = 3000;
@@ -249,67 +236,21 @@ export class Postac {
     }, za + ZAPAS_MS);
   }
 
-  private konsolka(): Klatki {
-    const dwa = this.konsolaOd !== null && konsolkaDwa(Date.now() - this.konsolaOd);
-    return { a: dwa ? "sit_console_2" : "sit_console_1", tryb: "brak" };
-  }
-
-  private dwie(a: Poza, b: Poza, cykl: string): Klatki {
-    return this.grafiki.ma(b) && this.grafiki.adres(a) !== this.grafiki.adres(b)
-      ? { a, b, tryb: "klatki", cykl }
-      : { a, tryb: "brak" };
-  }
-
-  /** Koniec dnia: reakcja z tabeli w B4 (pozy z postac.json), potem „bye”, a po schowaniu „pause_nap”. */
-  private klatkiKonca(): Klatki {
-    const k = this.koniec;
-    if (!k) return { a: "stand_idle", b: "stand_idle_blink", tryb: "mrug" };
-    if (k.etap === "pozegnanie") return { a: "bye", tryb: "brak" };
-    if (k.etap === "spi") return { a: "pause_nap", tryb: "brak" };
-    const [a, b] = (this.grafiki.reakcje[k.reakcja] ?? ["stand_idle"]) as Poza[];
-    if (a && b) return this.dwie(a, b, "0.8s");
-    return a === "stand_idle" ? { a, b: "stand_idle_blink", tryb: "mrug" } : { a: a ?? "stand_idle", tryb: "brak" };
-  }
-
   private klatki(): Klatki {
-    const g = this.grafiki;
-    const dwie = (a: Poza, b: Poza, cykl: string): Klatki => this.dwie(a, b, cykl);
-    const stoi: Klatki = { a: "stand_idle", b: "stand_idle_blink", tryb: "mrug" };
-    switch (this.stan) {
-      case "konfiguracja":
-        return this.krokKreatoraNr === 0 ? dwie("wave_1", "wave_2", "0.7s") : { a: "point", tryb: "brak" };
-      case "powitanie":
-        return dwie("wave_1", "wave_2", "0.7s");
-      case "wybor_zadan":
-        return this.wskazuje ? { a: "point", tryb: "brak" } : stoi;
-      case "lista":
-        return stoi;
-      case "praca":
-        if (this.przeciaga) return { a: "pause_stretch", tryb: "brak" };
-        // Konsolki ani kubka kursor nie przerywa; spojrzenie dotyczy tylko patrzenia.
-        if (this.wariant === "konsola") return this.konsolka();
-        if (this.wariant === "kubek") return { a: "sit_drink", tryb: "brak" };
-        if (this.blisko && g.ma("sit_watch_front")) return { a: "sit_watch_front", tryb: "brak" };
-        return { a: "sit_watch", b: "sit_watch_blink", tryb: "mrug" };
-      case "pauza":
-        // 0–5 s przeciąganie, do 15 min konsolka, potem drzemka (B4, B7).
-        switch (fazaPrzerwy(this.czasPrzerwyMs())) {
-          case "rozciaganie":
-            return { a: "pause_stretch", tryb: "brak", mocne: true };
-          case "konsola":
-            return this.konsolka();
-          case "drzemka":
-            return { a: "pause_nap", tryb: "brak" };
-        }
-      case "jestes":
-        return { a: "idle_check", tryb: "brak" };
-      case "gratulacje":
-        return dwie("cheer_1", "cheer_2", "0.8s");
-      case "koniec_dnia":
-        return this.klatkiKonca();
-      default:
-        return stoi;
-    }
+    return klatkiPostaci(
+      {
+        stan: this.stan,
+        krokKreatora: this.krokKreatoraNr,
+        wskazuje: this.wskazuje,
+        przeciaga: this.przeciaga,
+        blisko: this.blisko,
+        wariant: this.wariant,
+        czasPrzerwyMs: this.czasPrzerwyMs(),
+        konsolkaDwa: this.konsolaOd !== null && konsolkaDwa(Date.now() - this.konsolaOd),
+        koniec: this.koniec,
+      },
+      this.grafiki,
+    );
   }
 
   private odswiez(zanik: boolean): void {

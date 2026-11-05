@@ -175,3 +175,35 @@ describe("zanikanie (Z-19)", () => {
     expect(a.dataset.poza).toBe("sit_watch");
   });
 });
+
+describe("spojrzenie na kursor w Pracy", () => {
+  /** Zmiana pozy po 3–6 min: `Math.random` wskazuje konsolkę (0) albo kubek (0,99). */
+  function zmienPoze(wybor: number) {
+    vi.spyOn(Math, "random").mockReturnValue(wybor);
+    vi.advanceTimersByTime(6 * MIN + 200);
+    vi.restoreAllMocks();
+  }
+
+  it("przy patrzeniu kursor blisko daje sit_watch_front", () => {
+    const { postac, a } = nowa();
+    postac.ustaw(migawka("praca"));
+    postac.kursor(true);
+    vi.advanceTimersByTime(200);
+    expect(a.dataset.poza).toBe("sit_watch_front");
+  });
+
+  it("nie przerywa konsolki ani kubka", () => {
+    for (const [wybor, poza] of [
+      [0, "sit_console_1"],
+      [0.99, "sit_drink"],
+    ] as const) {
+      const { postac, a } = nowa();
+      postac.ustaw(migawka("praca"));
+      zmienPoze(wybor);
+      expect(a.dataset.poza).toBe(poza);
+      postac.kursor(true);
+      vi.advanceTimersByTime(200);
+      expect(a.dataset.poza, `kursor przy ${poza}`).toBe(poza);
+    }
+  });
+});
