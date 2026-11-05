@@ -1111,19 +1111,29 @@ impl Aplikacja {
         let mut cykl = start + CO_ILE_CYKL;
         let mut pelny_ekran = start;
         let mut kursor = start;
-        let mut ostatni_obrot = czas::teraz();
+        let mut ostatni_obrot = (czas::teraz(), Instant::now());
         loop {
             let teraz = czas::teraz();
-            // Uśpienie bez zdarzenia z Windows (albo zamrożony proces): pauza od ostatniego obrotu.
-            if teraz - ostatni_obrot > chrono::Duration::seconds(90) {
-                log::info!("przerwa w działaniu od {}", czas::rfc3339(ostatni_obrot));
-                let od = ostatni_obrot;
-                self.wykonaj(|r, t| {
-                    r.pauza_automatyczna(PowodPauzy::Uspienie, od);
-                    r.powrot(t);
-                });
+            let monotoniczny = ostatni_obrot.1.elapsed();
+            // Na Windows zegar monotoniczny (QPC) liczy też czas uśpienia, więc skok samego
+            // zegara ściennego to korekta czasu, a nie uśpienie.
+            match czas::przerwa_w_dzialaniu(teraz - ostatni_obrot.0, monotoniczny, cfg!(windows)) {
+                czas::Przerwa::Brak => {}
+                czas::Przerwa::KorektaZegara => log::info!(
+                    "zegar systemowy przesunął się o {} s (korekta czasu); sesja liczy się dalej",
+                    (teraz - ostatni_obrot.0).num_seconds() - monotoniczny.as_secs() as i64
+                ),
+                // Uśpienie bez zdarzenia z Windows (albo zamrożony proces): pauza od ostatniego obrotu.
+                czas::Przerwa::Uspienie => {
+                    log::info!("przerwa w działaniu od {}", czas::rfc3339(ostatni_obrot.0));
+                    let od = ostatni_obrot.0;
+                    self.wykonaj(|r, t| {
+                        r.pauza_automatyczna(PowodPauzy::Uspienie, od);
+                        r.powrot(t);
+                    });
+                }
             }
-            ostatni_obrot = teraz;
+            ostatni_obrot = (teraz, Instant::now());
 
             let chwila = Instant::now();
             if chwila >= pelny_ekran {
