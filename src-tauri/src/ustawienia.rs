@@ -7,6 +7,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, MutexGuard};
 
 use chrono::NaiveTime;
 use serde::{Deserialize, Serialize};
@@ -265,7 +266,16 @@ fn zamien_stary_skrot(sciezka: &Path, ustawienia: &mut Ustawienia) {
 
 /// Zapisuje ustawienia, zachowując klucze, których widget nie zna (także
 /// stare pola z wersji 1). Kolejność kluczy w nowym pliku jak w B7.
+/// Zapis ustawień to odczyt, zmiana i zapis całego pliku. Okno ustawień, menu zasobnika
+/// i etykieta dźwięku zapisują z różnych wątków, więc bez wspólnej blokady jeden zapis
+/// mógłby zgubić zmianę drugiego.
+fn blokada_zapisu() -> MutexGuard<'static, ()> {
+    static ZAPIS: Mutex<()> = Mutex::new(());
+    ZAPIS.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 pub fn zapisz(sciezka: &Path, ustawienia: &Ustawienia) -> Result<(), String> {
+    let _blokada = blokada_zapisu();
     let mut dokument = match wczytaj_dokument(sciezka) {
         Ok(d) if d.is_object() => d,
         _ if !sciezka.exists() => serde_json::Value::Object(Default::default()),
@@ -288,6 +298,7 @@ pub fn zapisz(sciezka: &Path, ustawienia: &Ustawienia) -> Result<(), String> {
 
 /// Zmienia jedno pole w pliku i zostawia resztę.
 pub fn zapisz_pole(sciezka: &Path, klucz: &str, wartosc: serde_json::Value) -> Result<(), String> {
+    let _blokada = blokada_zapisu();
     let mut dokument = match wczytaj_dokument(sciezka) {
         Ok(d) => d,
         Err(_) if !sciezka.exists() => serde_json::to_value(Ustawienia::default()).expect("domyślne ustawienia"),
@@ -444,6 +455,32 @@ mod testy {
                 "skrot_pokaz_ukryj"
             ]
         );
+    }
+
+    #[test]
+    fn rownolegle_zapisy_ustawien_nie_gubia_zmian() {
+        let katalog = tempfile::tempdir().unwrap();
+        let plik = std::sync::Arc::new(katalog.path().join("ustawienia.json"));
+        zapisz(&plik, &Ustawienia::default()).unwrap();
+        let watki: Vec<_> = (0..8)
+            .map(|nr| {
+                let plik = std::sync::Arc::clone(&plik);
+                std::thread::spawn(move || {
+                    for i in 0..20 {
+                        zapisz_pole(&plik, &format!("pole_{nr}_{i}"), serde_json::Value::Bool(true)).unwrap();
+                    }
+                })
+            })
+            .collect();
+        for w in watki {
+            w.join().unwrap();
+        }
+        let dokument = wczytaj_dokument(&plik).unwrap();
+        let brakujace: Vec<String> = (0..8)
+            .flat_map(|nr| (0..20).map(move |i| format!("pole_{nr}_{i}")))
+            .filter(|k| dokument.get(k).is_none())
+            .collect();
+        assert!(brakujace.is_empty(), "zgubione zmiany: {brakujace:?}");
     }
 
     #[test]
