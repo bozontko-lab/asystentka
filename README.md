@@ -303,6 +303,10 @@ asystentka/
   pusty checkbox `- [ ] `, „Dodaj zadanie” wpisuje nowe zadanie w jego miejsce, zamiast
   dopisywać je pod nim. Tak samo robi Hub w Obsidianie, więc oba programy zostawiają
   plik w tej samej postaci.
+- **Termin to dzień planowany.** `[termin:: RRRR-MM-DD]` oznacza dzień, na który zadanie
+  jest zaplanowane (terminy rozkłada m.in. Hub w Obsidianie). Przy pierwszym wyborze dnia
+  zadania z terminem na dziś albo zaległym są zaznaczone z góry, tak jak zadania w toku
+  i niedokończone z poprzedniego planu. SPEC (B3, B4, B9) jest do tego dopasowany.
 - **Plik zadań to Markdown:** ustawienia przyjmują tylko `.md` albo `.markdown`, a widget
   otwiera w systemie wyłącznie takie pliki. Ścieżki w kreatorze (sprawdzenie, czy plik
   istnieje, i folder startowy okna wyboru) rozwijają `%ZMIENNE%` tak jak ustawienia.

@@ -1042,15 +1042,19 @@ impl Rdzen {
     }
 
     /// Zadania zaznaczone z góry: w Wyborze po „Zmień plan” otwarte zadania
-    /// planu, a przy pierwszym wyborze dnia zadania w toku i niedokończone z
-    /// poprzedniego planu.
+    /// planu, a przy pierwszym wyborze dnia zadania w toku, niedokończone z
+    /// poprzedniego planu oraz te z terminem na dziś albo wcześniejszym
+    /// (termin to dzień, na który zadanie jest zaplanowane, np. w Hubie).
     fn domyslny_wybor(&self) -> BTreeSet<Klucz> {
         if !self.dz.plan.is_empty() {
             return self.dz.plan.iter().filter(|k| self.zadanie(k).is_some_and(|z| !z.zrobione)).cloned().collect();
         }
+        let dzis = self.dz.data;
         self.zadania
             .otwarte()
-            .filter(|z| z.w_toku() || self.dz.przeniesione.contains(&z.klucz))
+            .filter(|z| {
+                z.w_toku() || self.dz.przeniesione.contains(&z.klucz) || z.termin.is_some_and(|termin| termin <= dzis)
+            })
             .map(|z| z.klucz.clone())
             .collect()
     }

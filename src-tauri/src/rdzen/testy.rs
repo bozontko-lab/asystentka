@@ -233,6 +233,30 @@ fn kolejnosc_w_projekcie_zaznaczone_potem_termin_potem_plik() {
 }
 
 #[test]
+fn zadania_z_terminem_na_dzis_i_zalegle_sa_zaznaczone_z_gory() {
+    let sr = Srodowisko::nowe();
+    fs::write(
+        sr.plik(),
+        "## P\n- [ ] Bez terminu [szac:: 10]\n- [ ] Na jutro [szac:: 20] [termin:: 2026-10-31]\n- [ ] Na dziś [szac:: 30] [termin:: 2026-10-30]\n- [ ] Zaległe [szac:: 40] [termin:: 2026-10-28]\n- [x] Zrobione z terminem [termin:: 2026-10-29] ✅ 2026-10-29\n",
+    )
+    .unwrap();
+    let mut r = sr.rdzen(t("09:00:00"));
+    r.tick(t("09:00:06"));
+    let w = r.migawka().wybor.unwrap();
+    let zadania: Vec<(&str, bool)> = w.projekty[0].zadania.iter().map(|z| (z.zadanie.as_str(), z.zaznaczone)).collect();
+    assert_eq!(zadania, [("Zaległe", true), ("Na dziś", true), ("Na jutro", false), ("Bez terminu", false)]);
+    assert_eq!(w.suma_min, 70);
+    // „Zmień plan” w ciągu dnia pokazuje plan, a nie terminy: odznaczone zaległe zadanie nie wraca samo.
+    r.przelacz_wybor(&k("P", "Zaległe"));
+    r.zatwierdz_wybor(t("09:01:00"));
+    r.otworz_wybor();
+    let w = r.migawka().wybor.unwrap();
+    let zaznaczone: Vec<&str> =
+        w.projekty.iter().flat_map(|p| &p.zadania).filter(|z| z.zaznaczone).map(|z| z.zadanie.as_str()).collect();
+    assert_eq!(zaznaczone, ["Na dziś"]);
+}
+
+#[test]
 fn niedokonczone_z_poprzedniego_planu_sa_zaznaczone_z_gory() {
     let sr = Srodowisko::nowe();
     let mut r = sr.rdzen(t("09:00:00"));
