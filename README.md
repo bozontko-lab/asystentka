@@ -173,7 +173,7 @@ w okienku Ustawienia (działa od razu).
    po przekroczeniu celu o 20% suma robi się koralowa. Restart wraca do Listy.
 4. **Obserwacja pliku:** zapisz `Zadania.md` w Obsidianie, lista odświeża się w sekundę.
 5. **Zrobione i Przerwij:** zmienia dokładnie jedną linię w pliku; Przerwij tylko `[czas:: …]`.
-6. **Dodaj zadanie:** dopisuje linię pod wybranym nagłówkiem i do planu.
+6. **Dodaj zadanie:** dopisuje linię z dzisiejszym terminem pod wybranym nagłówkiem i do planu.
 7. **Koniec pracy na dziś:** podsumowanie, reakcja z tabeli, sekcja w dzienniku;
    „Wróć do pracy” usuwa ją z dziennika.
 8. **22:00:** ustaw `godzina_konca_dnia` kilka minut do przodu; dzień zamyka się
@@ -307,6 +307,11 @@ asystentka/
   jest zaplanowane (terminy rozkłada m.in. Hub w Obsidianie). Przy pierwszym wyborze dnia
   zadania z terminem na dziś albo zaległym są zaznaczone z góry, tak jak zadania w toku
   i niedokończone z poprzedniego planu. SPEC (B3, B4, B9) jest do tego dopasowany.
+- **Dodaj zadanie wpisuje termin.** Nowa linia ma postać
+  `- [ ] Nazwa [szac:: N] [termin:: RRRR-MM-DD]` z dniem planu jako terminem (bez szacunku
+  samo `[termin:: …]`). To ta sama postać, w jakiej zadanie na dziś dopisuje Hub w Obsidianie,
+  więc zadanie dodane w widgecie od razu widać w Hubie w dzisiejszym dniu. SPEC (B4, B9)
+  jest do tego dopasowany.
 - **Plik zadań to Markdown:** ustawienia przyjmują tylko `.md` albo `.markdown`, a widget
   otwiera w systemie wyłącznie takie pliki. Ścieżki w kreatorze (sprawdzenie, czy plik
   istnieje, i folder startowy okna wyboru) rozwijają `%ZMIENNE%` tak jak ustawienia.

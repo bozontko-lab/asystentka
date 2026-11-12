@@ -1134,15 +1134,17 @@ impl Rdzen {
     }
 
     /// „Dodaj zadanie”: dopisuje linię pod nagłówkiem projektu i od razu dodaje
-    /// zadanie do dzisiejszego planu (w Wyborze: do zaznaczonych).
+    /// zadanie do dzisiejszego planu (w Wyborze: do zaznaczonych). Linia dostaje
+    /// termin na dzień planu, tak jak zadanie dopisane na dziś w Hubie.
     pub fn dodaj_zadanie(&mut self, nazwa: &str, szac_min: Option<u32>, projekt: &str) -> Result<(), String> {
         if self.dz.zamkniety {
             return Err("Dzień jest zamknięty. Wróć do pracy, żeby dopisać zadanie.".into());
         }
         let sciezka = self.ust.plik_zadan().ok_or("Nie wskazano pliku zadań.")?;
         let projekt = if projekt.trim().is_empty() { plik_zadan::INBOX } else { projekt.trim() };
+        let dzis = self.dz.data;
         let klucz = plik_zadan::zmien_z_kopia(&sciezka, Some(&self.magazyn.kopie()), |t| {
-            plik_zadan::dopisz_zadanie(t, projekt, nazwa, szac_min)
+            plik_zadan::dopisz_zadanie(t, projekt, nazwa, szac_min, Some(dzis))
         })
         .map_err(|e| match e {
             BladZmiany::Edycja(plik_zadan::BladEdycji::PustaNazwa) => "Wpisz nazwę zadania.".to_string(),

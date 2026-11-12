@@ -458,7 +458,7 @@ Ukryta nakłada się na każdy inny stan przy pełnym ekranie, dlatego nie ma je
 - Pełne powitanie tylko przy pierwszym starcie dnia; kolejne starty tego dnia idą prosto do Listy z dymkiem „O, wróciłeś!”.
 - W Wyborze zadań zadania w toku, niedokończone z poprzedniego planu oraz zadania z terminem na dziś albo wcześniejszym są zaznaczone z góry. Dalej lista idzie według terminu, a potem według kolejności w pliku. „Zmień plan” w ciągu dnia zaznacza tylko otwarte zadania z planu.
 - Suma liczy pozostały czas: szacunek minus czas już przepracowany, co najmniej 10 min na zadanie. Gdy przekracza cel o ponad 20%, pole sumy robi się koralowe, a postać mówi „To sporo jak na jeden dzień. Na pewno?”.
-- „Dodaj zadanie” ma pola: nazwa, szacunek i projekt (nagłówek z pliku albo Inbox). Widget dopisuje linię pod wybranym nagłówkiem i od razu dodaje zadanie do dzisiejszego planu.
+- „Dodaj zadanie” ma pola: nazwa, szacunek i projekt (nagłówek z pliku albo Inbox). Widget dopisuje linię pod wybranym nagłówkiem, wpisuje jej dzisiejszy `[termin:: RRRR-MM-DD]` i od razu dodaje zadanie do dzisiejszego planu.
 - W Pracy jest zawsze jedno zadanie: zmiana zadania wymaga Przerwij albo Zrobione.
 - „Koniec pracy na dziś” jest w każdym stanie w menu pod prawym przyciskiem i w zasobniku (B6). Trwająca sesja zapisuje się wtedy jak przy Przerwij.
 - O godzinie zamknięcia dnia (domyślnie 22:00) widget kończy dzień sam. Jeśli komputer był wtedy wyłączony, robi to przy następnym uruchomieniu.
@@ -710,7 +710,7 @@ asystentka/
 - [ ] Zrobione zmienia w pliku `[ ]` na `[x]`, dopisuje `✅` z datą i aktualizuje `[czas:: …]`; reszta pliku zostaje bajt w bajt taka sama.
 - [ ] Przerwij aktualizuje `[czas:: …]` bez ptaszka.
 - [ ] Po zadaniu dymek pokazuje czas zadania, szacunek i czas całego dnia.
-- [ ] „Dodaj zadanie” dopisuje linię pod wybranym nagłówkiem i dodaje zadanie do planu.
+- [ ] „Dodaj zadanie” dopisuje linię z dzisiejszym terminem pod wybranym nagłówkiem i dodaje zadanie do planu.
 - [ ] „Koniec pracy na dziś” pokazuje podsumowanie i reakcję z tabeli w B4 we wszystkich sześciu przypadkach, a podsumowanie trafia do dziennika.
 - [ ] O 22:00 dzień zamyka się sam; jeśli komputer był wyłączony, podsumowanie wczorajszego dnia pojawia się przy następnym uruchomieniu.
 - [ ] „Wróć do pracy” otwiera dzień ponownie i usuwa podsumowanie z dziennika.
