@@ -137,6 +137,12 @@ fn re_szac() -> &'static Regex {
     R.get_or_init(|| Regex::new(r"(?i)\[szac::[^\]]*\]").expect("poprawny wzorzec"))
 }
 
+/// Pusty checkbox bez nazwy, np. `- [ ] `: miejsce zostawione na pierwsze zadanie sekcji.
+fn re_puste_zadanie() -> &'static Regex {
+    static R: OnceLock<Regex> = OnceLock::new();
+    R.get_or_init(|| Regex::new(r"^\s*[-*+]\s+\[ \]\s*$").expect("poprawny wzorzec"))
+}
+
 /// Tekst zadania bez pól `[x:: y]` i dat z wtyczki Tasks, z pojedynczymi spacjami.
 pub fn tekst_zadania(linia_po_checkboxie: &str) -> String {
     let bez_pol = re_pole().replace_all(linia_po_checkboxie, " ");
@@ -333,6 +339,8 @@ pub fn odznacz_zrobione(tekst: &str, klucz: &Klucz, data: Option<NaiveDate>) -> 
 
 /// Dopisuje linię `- [ ] nazwa [szac:: N]` pod nagłówkiem projektu (po jego
 /// ostatnim zadaniu). Brakujący projekt, np. Inbox, powstaje na końcu pliku.
+/// W sekcji bez zadań pusty checkbox `- [ ] ` w ostatniej niepustej linii
+/// jest zastępowany nowym zadaniem; tak samo robi Hub w Obsidianie.
 pub fn dopisz_zadanie(
     tekst: &str,
     projekt: &str,
@@ -378,6 +386,10 @@ pub fn dopisz_zadanie(
         None => {
             // Brak zadań: po ostatniej niepustej linii sekcji, a w pustej sekcji pod nagłówkiem.
             let ostatnia_niepusta = (poczatek..koniec).rev().find(|nr| !bez_konca_linii(&linie[*nr]).trim().is_empty());
+            if let Some(nr) = ostatnia_niepusta.filter(|nr| re_puste_zadanie().is_match(bez_konca_linii(&linie[*nr]))) {
+                linie[nr] = format!("{nowa}{eol}");
+                return Ok((linie.concat(), klucz));
+            }
             match (ostatnia_niepusta, projekt == BEZ_PROJEKTU) {
                 (Some(nr), _) => nr + 1,
                 (None, true) => poczatek,
@@ -656,6 +668,29 @@ mod testy {
         let (nowy, k) = dopisz_zadanie(t, BEZ_PROJEKTU, "Drugie luźne", None).unwrap();
         assert_eq!(nowy, "# Zadania\n- [ ] Luźne\n- [ ] Drugie luźne\n\n## A\n- [ ] W A\n");
         assert_eq!(k.projekt, BEZ_PROJEKTU);
+    }
+
+    #[test]
+    fn pusty_checkbox_w_sekcji_bez_zadan_jest_zastepowany_jak_w_hubie() {
+        // Oczekiwane wyniki są takie same jak z `dopiszDoTekstu` w view.js Hubu.
+        let dopisz = |tekst: &str, projekt: &str, nazwa: &str, szac: Option<u32>| {
+            dopisz_zadanie(tekst, projekt, nazwa, szac).unwrap().0
+        };
+        assert_eq!(
+            dopisz("# Zadania\n\n## A\n- [ ] \n\n## B\n- [ ] x\n", "A", "Nowe", Some(10)),
+            "# Zadania\n\n## A\n- [ ] Nowe [szac:: 10]\n\n## B\n- [ ] x\n"
+        );
+        // Bez spacji po nawiasie, pod zwykłym tekstem.
+        assert_eq!(dopisz("## A\nopis\n- [ ]\n", "A", "Nowe", None), "## A\nopis\n- [ ] Nowe\n");
+        // Wcięty, z gwiazdką, CRLF i bez końca pliku: nowa linia ma zwykłą postać i koniec linii pliku.
+        assert_eq!(dopisz("## A\r\n  * [ ] ", "A", "Nowe", Some(5)), "## A\r\n- [ ] Nowe [szac:: 5]\r\n");
+        // Zadania przed pierwszym nagłówkiem.
+        assert_eq!(dopisz("- [ ] \n\n## A\n", BEZ_PROJEKTU, "Luźne", None), "- [ ] Luźne\n\n## A\n");
+        // Sekcja, która ma już zadania: jak dotąd, pod ostatnim zadaniem; pusty checkbox zostaje.
+        assert_eq!(dopisz("## A\n- [ ] x\n- [ ] \n", "A", "Nowe", None), "## A\n- [ ] x\n- [ ] Nowe\n- [ ] \n");
+        // Pusty checkbox, pod którym jest jeszcze tekst, oraz odhaczony pusty checkbox: bez zastępowania.
+        assert_eq!(dopisz("## A\n- [ ] \nopis\n", "A", "Nowe", None), "## A\n- [ ] \nopis\n- [ ] Nowe\n");
+        assert_eq!(dopisz("## A\n- [x] \n", "A", "Nowe", None), "## A\n- [x] \n- [ ] Nowe\n");
     }
 
     #[test]
