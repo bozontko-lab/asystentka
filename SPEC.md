@@ -333,7 +333,7 @@ Widget pracuje na dwóch plikach w vaulcie i dwóch własnych w `%APPDATA%\Asyst
 
 - Nagłówek `##` to projekt. Zadania przed pierwszym nagłówkiem należą do projektu „Bez projektu”.
 - Zadanie to linia `- [ ]` (otwarte) albo `- [x]` (zrobione). Wcięte podzadania są zwykłymi zadaniami tego samego projektu.
-- `[szac:: minuty]` wpisujesz Ty. `[czas:: minuty]` to łączny czas ze wszystkich dni i dopisuje go widget. `[termin:: RRRR-MM-DD]` jest opcjonalny i służy tylko do kolejności podpowiedzi.
+- `[szac:: minuty]` wpisujesz Ty. `[czas:: minuty]` to łączny czas ze wszystkich dni i dopisuje go widget. `[termin:: RRRR-MM-DD]` jest opcjonalny: to dzień, na który planujesz zadanie (wpisujesz go Ty albo Hub w Obsidianie). Zadania z terminem na dziś albo wcześniejszym są w Wyborze zadań zaznaczone z góry (B4), a późniejsze terminy ustalają kolejność podpowiedzi.
 - Przy ukończeniu widget zmienia `[ ]` na `[x]` i dopisuje `✅ RRRR-MM-DD`, w formacie zgodnym z wtyczką Tasks. Robi to w chwili kliknięcia Zrobione (B5), a nie na koniec dnia.
 - „W toku” to otwarte zadanie z `czas` większym od zera, bez osobnego statusu.
 - Zadanie bez `szac` liczy się w sumie jako 0 i ma na liście znaczek „bez szacunku”.
@@ -456,7 +456,7 @@ Ukryta nakłada się na każdy inny stan przy pełnym ekranie, dlatego nie ma je
 | Ukryta | brak | okno schowane, licznik działa dalej | brak |
 
 - Pełne powitanie tylko przy pierwszym starcie dnia; kolejne starty tego dnia idą prosto do Listy z dymkiem „O, wróciłeś!”.
-- W Wyborze zadań zadania w toku i niedokończone z poprzedniego planu są zaznaczone z góry. Dalej lista idzie według terminu, a potem według kolejności w pliku.
+- W Wyborze zadań zadania w toku, niedokończone z poprzedniego planu oraz zadania z terminem na dziś albo wcześniejszym są zaznaczone z góry. Dalej lista idzie według terminu, a potem według kolejności w pliku. „Zmień plan” w ciągu dnia zaznacza tylko otwarte zadania z planu.
 - Suma liczy pozostały czas: szacunek minus czas już przepracowany, co najmniej 10 min na zadanie. Gdy przekracza cel o ponad 20%, pole sumy robi się koralowe, a postać mówi „To sporo jak na jeden dzień. Na pewno?”.
 - „Dodaj zadanie” ma pola: nazwa, szacunek i projekt (nagłówek z pliku albo Inbox). Widget dopisuje linię pod wybranym nagłówkiem i od razu dodaje zadanie do dzisiejszego planu.
 - W Pracy jest zawsze jedno zadanie: zmiana zadania wymaga Przerwij albo Zrobione.
@@ -704,7 +704,7 @@ asystentka/
 
 - [ ] Przy pierwszym uruchomieniu wersji 2 kreator pyta o formę zwracania się i plik zadań; nowy plik powstaje z szablonu i otwiera się w Obsidianie.
 - [ ] Zmiana w okienku ustawień działa od razu, bez restartu.
-- [ ] Pierwszy start dnia pokazuje Wybór zadań z zaznaczonymi zadaniami w toku; restart tego samego dnia wraca do Listy z tym samym planem.
+- [ ] Pierwszy start dnia pokazuje Wybór zadań z zaznaczonymi zadaniami w toku oraz zadaniami z terminem na dziś albo wcześniejszym; restart tego samego dnia wraca do Listy z tym samym planem.
 - [ ] Suma szacunków robi się koralowa, gdy wybór przekracza cel o ponad 20%.
 - [ ] Zapisanie `Zadania.md` w Obsidianie odświeża listę w widgecie bez restartu.
 - [ ] Zrobione zmienia w pliku `[ ]` na `[x]`, dopisuje `✅` z datą i aktualizuje `[czas:: …]`; reszta pliku zostaje bajt w bajt taka sama.
