@@ -291,6 +291,10 @@ asystentka/
   linii, zapis) zaczyna się od nowa na świeżej treści, do trzech razy; potem zapis
   czeka w kolejce ponowień. Wcześniej ponawiana była sama zamiana nazwy ze starą treścią.
 - **Klucz zadania** to projekt (nagłówek `##`) i tekst bez pól `[…:: …]`.
+- **Pusty checkbox.** Gdy sekcja nie ma jeszcze zadań, a jej ostatnia niepusta linia to
+  pusty checkbox `- [ ] `, „Dodaj zadanie” wpisuje nowe zadanie w jego miejsce, zamiast
+  dopisywać je pod nim. Tak samo robi Hub w Obsidianie, więc oba programy zostawiają
+  plik w tej samej postaci.
 - **Plik zadań to Markdown:** ustawienia przyjmują tylko `.md` albo `.markdown`, a widget
   otwiera w systemie wyłącznie takie pliki. Ścieżki w kreatorze (sprawdzenie, czy plik
   istnieje, i folder startowy okna wyboru) rozwijają `%ZMIENNE%` tak jak ustawienia.
