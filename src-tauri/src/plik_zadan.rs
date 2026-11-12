@@ -337,8 +337,9 @@ pub fn odznacz_zrobione(tekst: &str, klucz: &Klucz, data: Option<NaiveDate>) -> 
     Ok(linie.concat())
 }
 
-/// Dopisuje linię `- [ ] nazwa [szac:: N]` pod nagłówkiem projektu (po jego
-/// ostatnim zadaniu). Brakujący projekt, np. Inbox, powstaje na końcu pliku.
+/// Dopisuje linię `- [ ] nazwa [szac:: N] [termin:: RRRR-MM-DD]` pod nagłówkiem
+/// projektu (po jego ostatnim zadaniu); pola bez wartości odpadają. Brakujący
+/// projekt, np. Inbox, powstaje na końcu pliku.
 /// W sekcji bez zadań pusty checkbox `- [ ] ` w ostatniej niepustej linii
 /// jest zastępowany nowym zadaniem; tak samo robi Hub w Obsidianie.
 pub fn dopisz_zadanie(
@@ -346,16 +347,17 @@ pub fn dopisz_zadanie(
     projekt: &str,
     nazwa: &str,
     szac_min: Option<u32>,
+    termin: Option<NaiveDate>,
 ) -> Result<(String, Klucz), BladEdycji> {
     let nazwa = nazwa.split_whitespace().collect::<Vec<_>>().join(" ");
     if nazwa.is_empty() {
         return Err(BladEdycji::PustaNazwa);
     }
     let eol = koniec_linii(tekst);
-    let nowa = match szac_min.filter(|m| *m > 0) {
-        Some(m) => format!("- [ ] {nazwa} [szac:: {m}]"),
-        None => format!("- [ ] {nazwa}"),
-    };
+    // Ta sama postać linii co w Hubie: nazwa, szacunek, termin.
+    let szac = szac_min.filter(|m| *m > 0).map(|m| format!(" [szac:: {m}]")).unwrap_or_default();
+    let termin = termin.map(|dzien| format!(" [termin:: {}]", czas::data_iso(dzien))).unwrap_or_default();
+    let nowa = format!("- [ ] {nazwa}{szac}{termin}");
     let klucz = Klucz { projekt: projekt.to_string(), zadanie: tekst_zadania(&nazwa) };
     let plik = parsuj(tekst);
     let mut linie: Vec<String> = tekst.split_inclusive('\n').map(str::to_string).collect();
@@ -612,7 +614,7 @@ mod testy {
         let t = "# Zadania\r\n## P\r\n- [ ] A [szac:: 10]\r\n- [ ] B [szac:: 20]";
         let nowy = dopisz_czas(t, &Klucz::new("P", "B"), 5, None).unwrap();
         assert_eq!(nowy, "# Zadania\r\n## P\r\n- [ ] A [szac:: 10]\r\n- [ ] B [szac:: 20] [czas:: 5]");
-        let (z_nowym, k) = dopisz_zadanie(t, "P", "C", Some(15)).unwrap();
+        let (z_nowym, k) = dopisz_zadanie(t, "P", "C", Some(15), None).unwrap();
         assert_eq!(
             z_nowym,
             "# Zadania\r\n## P\r\n- [ ] A [szac:: 10]\r\n- [ ] B [szac:: 20]\r\n- [ ] C [szac:: 15]\r\n"
@@ -641,7 +643,7 @@ mod testy {
 
     #[test]
     fn dopisuje_zadanie_pod_naglowkiem_po_ostatnim_zadaniu() {
-        let (nowy, k) = dopisz_zadanie(PRZYKLAD, "Film #1 · FIFA", "Napisać opis", Some(20)).unwrap();
+        let (nowy, k) = dopisz_zadanie(PRZYKLAD, "Film #1 · FIFA", "Napisać opis", Some(20), None).unwrap();
         assert_eq!(k, Klucz::new("Film #1 · FIFA", "Napisać opis"));
         let oczekiwany = PRZYKLAD.replace("✅ 2026-10-29\n", "✅ 2026-10-29\n- [ ] Napisać opis [szac:: 20]\n");
         assert_eq!(nowy, oczekiwany);
@@ -652,29 +654,49 @@ mod testy {
     #[test]
     fn dopisuje_do_pustego_inboxu_i_zaklada_brakujacy_projekt() {
         let szablon = "# Zadania\n\n## Przykładowy projekt\n- [ ] Pierwsze [szac:: 30]\n\n## Inbox\n";
-        let (a, _) = dopisz_zadanie(szablon, INBOX, "Zadzwonić", None).unwrap();
+        let (a, _) = dopisz_zadanie(szablon, INBOX, "Zadzwonić", None, None).unwrap();
         assert!(a.ends_with("## Inbox\n- [ ] Zadzwonić\n"));
-        let (b, k) = dopisz_zadanie("# Zadania\n- [ ] A\n", INBOX, "Nowe", Some(5)).unwrap();
+        let (b, k) = dopisz_zadanie("# Zadania\n- [ ] A\n", INBOX, "Nowe", Some(5), None).unwrap();
         assert_eq!(b, "# Zadania\n- [ ] A\n\n## Inbox\n- [ ] Nowe [szac:: 5]\n");
         assert_eq!(k.projekt, INBOX);
-        let (c, _) = dopisz_zadanie("# Zadania", "Nowy", "X", None).unwrap();
+        let (c, _) = dopisz_zadanie("# Zadania", "Nowy", "X", None, None).unwrap();
         assert_eq!(c, "# Zadania\n\n## Nowy\n- [ ] X\n");
-        assert!(matches!(dopisz_zadanie(szablon, INBOX, "   ", None), Err(BladEdycji::PustaNazwa)));
+        assert!(matches!(dopisz_zadanie(szablon, INBOX, "   ", None, None), Err(BladEdycji::PustaNazwa)));
     }
 
     #[test]
     fn dopisuje_do_projektu_bez_projektu_przed_pierwszym_naglowkiem() {
         let t = "# Zadania\n- [ ] Luźne\n\n## A\n- [ ] W A\n";
-        let (nowy, k) = dopisz_zadanie(t, BEZ_PROJEKTU, "Drugie luźne", None).unwrap();
+        let (nowy, k) = dopisz_zadanie(t, BEZ_PROJEKTU, "Drugie luźne", None, None).unwrap();
         assert_eq!(nowy, "# Zadania\n- [ ] Luźne\n- [ ] Drugie luźne\n\n## A\n- [ ] W A\n");
         assert_eq!(k.projekt, BEZ_PROJEKTU);
+    }
+
+    #[test]
+    fn dopisane_zadanie_dostaje_termin_w_postaci_z_hubu() {
+        // Kolejność pól jak w `liniaZadania` w view.js Hubu: szacunek, potem termin.
+        let dzien = Some(data("2026-11-12"));
+        let (z_szacunkiem, k) = dopisz_zadanie("## P\r\n- [ ] A\r\n", "P", "Nowe", Some(25), dzien).unwrap();
+        assert_eq!(z_szacunkiem, "## P\r\n- [ ] A\r\n- [ ] Nowe [szac:: 25] [termin:: 2026-11-12]\r\n");
+        // Pola nie wchodzą do klucza, a parser czyta z powrotem to, co zostało wpisane.
+        assert_eq!(k, Klucz::new("P", "Nowe"));
+        let nowe = parsuj(&z_szacunkiem).zadania.into_iter().find(|z| z.klucz == k).unwrap();
+        assert_eq!((nowe.szac_min, nowe.czas_min, nowe.termin), (Some(25), 0, dzien));
+        // Bez szacunku, w nowym projekcie i w miejscu pustego checkboxa.
+        let (bez_szacunku, _) = dopisz_zadanie("# Zadania\n", INBOX, "Zadzwonić", None, dzien).unwrap();
+        assert_eq!(bez_szacunku, "# Zadania\n\n## Inbox\n- [ ] Zadzwonić [termin:: 2026-11-12]\n");
+        let (w_miejscu, _) = dopisz_zadanie("## A\n- [ ] \n", "A", "Nowe", Some(10), dzien).unwrap();
+        assert_eq!(w_miejscu, "## A\n- [ ] Nowe [szac:: 10] [termin:: 2026-11-12]\n");
+        // Późniejszy zapis czasu wstawia `[czas:: …]` między szacunek a termin.
+        let z_czasem = dopisz_czas(&z_szacunkiem, &k, 7, None).unwrap();
+        assert!(z_czasem.contains("- [ ] Nowe [szac:: 25] [czas:: 7] [termin:: 2026-11-12]\r\n"), "{z_czasem}");
     }
 
     #[test]
     fn pusty_checkbox_w_sekcji_bez_zadan_jest_zastepowany_jak_w_hubie() {
         // Oczekiwane wyniki są takie same jak z `dopiszDoTekstu` w view.js Hubu.
         let dopisz = |tekst: &str, projekt: &str, nazwa: &str, szac: Option<u32>| {
-            dopisz_zadanie(tekst, projekt, nazwa, szac).unwrap().0
+            dopisz_zadanie(tekst, projekt, nazwa, szac, None).unwrap().0
         };
         assert_eq!(
             dopisz("# Zadania\n\n## A\n- [ ] \n\n## B\n- [ ] x\n", "A", "Nowe", Some(10)),

@@ -316,12 +316,18 @@ fn dodaj_zadanie_dopisuje_linie_i_dodaje_do_planu() {
     let mut r = sr.rdzen(t("09:00:00"));
     zacznij_dzien(&mut r, "09:00:00");
     r.dodaj_zadanie("Napisać opis", Some(20), "Film #1 · FIFA").unwrap();
-    assert_eq!(sr.zadania(), ZADANIA.replace("✅ 2026-10-29\n", "✅ 2026-10-29\n- [ ] Napisać opis [szac:: 20]\n"));
+    // Linia dostaje termin na dzień planu (30.10), w tej samej postaci co w Hubie.
+    assert_eq!(
+        sr.zadania(),
+        ZADANIA.replace("✅ 2026-10-29\n", "✅ 2026-10-29\n- [ ] Napisać opis [szac:: 20] [termin:: 2026-10-30]\n")
+    );
     let nazwy: Vec<String> = r.migawka().lista.unwrap().zadania.into_iter().map(|z| z.zadanie).collect();
     assert_eq!(nazwy, ["Montaż: plansze 1–5", "Napisać opis"]);
     // Do pustego Inboxu, bez szacunku.
     r.dodaj_zadanie("Zadzwonić", None, "Inbox").unwrap();
-    assert!(sr.zadania().contains("- [ ] Odpisać na maila od montażysty [szac:: 15]\n- [ ] Zadzwonić\n"));
+    assert!(sr
+        .zadania()
+        .contains("- [ ] Odpisać na maila od montażysty [szac:: 15]\n- [ ] Zadzwonić [termin:: 2026-10-30]\n"));
     assert!(r.dodaj_zadanie("  ", None, "Inbox").unwrap_err().contains("nazwę"));
 }
 
@@ -1333,7 +1339,7 @@ fn przed_kazdym_zapisem_pliku_zadan_zostaje_kopia_w_folderze_widgetu() {
     assert_eq!(kopie().len(), 2);
     let druga = fs::read_to_string(&kopie()[1]).unwrap();
     assert!(druga.contains(MINIATURA_ZROBIONA) && !druga.contains("Nowe zadanie"), "{druga}");
-    assert!(sr.zadania().contains("- [ ] Nowe zadanie [szac:: 10]"));
+    assert!(sr.zadania().contains("- [ ] Nowe zadanie [szac:: 10] [termin:: 2026-10-30]"));
     assert!(fs::read_dir(&sr.vault).unwrap().all(|w| w.unwrap().file_name() != "kopie"), "w vaulcie nie ma kopii");
 }
 
