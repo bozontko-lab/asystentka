@@ -1291,6 +1291,29 @@ fn zrobione_zapisuje_ptaszka_w_pliku_od_razu_bez_czekania_na_dymek_i_koniec_dnia
 }
 
 #[test]
+fn przed_kazdym_zapisem_pliku_zadan_zostaje_kopia_w_folderze_widgetu() {
+    let sr = Srodowisko::nowe();
+    let kopie = || {
+        let mut n: Vec<PathBuf> =
+            fs::read_dir(sr.lokalny.join("kopie")).map(|d| d.map(|w| w.unwrap().path()).collect()).unwrap_or_default();
+        n.sort();
+        n
+    };
+    let mut r = zaczynamy_miniature(&sr);
+    assert!(kopie().is_empty(), "samo wybranie zadania niczego nie zapisuje");
+    r.zrobione(t("12:10:00"));
+    assert_eq!(kopie().len(), 1);
+    assert_eq!(fs::read_to_string(&kopie()[0]).unwrap(), ZADANIA, "kopia to plik sprzed „Zrobione”");
+    // „Dodaj zadanie” też zmienia plik, więc też odkłada kopię: plik z ptaszkiem, bez nowego zadania.
+    r.dodaj_zadanie("Nowe zadanie", Some(10), "Inbox").unwrap();
+    assert_eq!(kopie().len(), 2);
+    let druga = fs::read_to_string(&kopie()[1]).unwrap();
+    assert!(druga.contains(MINIATURA_ZROBIONA) && !druga.contains("Nowe zadanie"), "{druga}");
+    assert!(sr.zadania().contains("- [ ] Nowe zadanie [szac:: 10]"));
+    assert!(fs::read_dir(&sr.vault).unwrap().all(|w| w.unwrap().file_name() != "kopie"), "w vaulcie nie ma kopii");
+}
+
+#[test]
 fn zajety_plik_jest_ponawiany_po_sekundzie_a_nie_po_30_sekundach() {
     let sr = Srodowisko::nowe();
     let mut r = zaczynamy_miniature(&sr);

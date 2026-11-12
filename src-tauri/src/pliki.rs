@@ -77,6 +77,42 @@ pub fn zapisz_atomowo_bez_zmian(sciezka: &Path, tresc: &[u8], oczekiwana: &[u8])
     wynik
 }
 
+/// Ile kopii jednego pliku zostaje w folderze kopii. Plik zadań ma kilka
+/// kilobajtów, więc to kilka tygodni historii w około megabajcie.
+pub const KOPII_MAX: usize = 200;
+
+/// Odkłada kopię zapasową pliku: `tresc` trafia do `folder` jako
+/// `<nazwa>-<znacznik>-<numer>.<rozszerzenie>`, np. `Zadania-20261112-124501-0003.md`.
+/// Nazwy ułożone alfabetycznie są ułożone w czasie. Treść taka sama jak
+/// w najnowszej kopii nie jest odkładana drugi raz, a w folderze zostaje
+/// `zostaw` najnowszych kopii tego pliku.
+pub fn odloz_kopie(folder: &Path, plik: &Path, tresc: &[u8], znacznik: &str, zostaw: usize) -> io::Result<()> {
+    let nazwa =
+        plik.file_stem().ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "ścieżka bez nazwy pliku"))?;
+    let poczatek = format!("{}-", nazwa.to_string_lossy());
+    let koniec = plik.extension().map(|r| format!(".{}", r.to_string_lossy())).unwrap_or_default();
+    fs::create_dir_all(folder)?;
+    let mut kopie: Vec<String> = fs::read_dir(folder)?
+        .filter_map(|wpis| wpis.ok()?.file_name().into_string().ok())
+        .filter(|n| n.starts_with(&poczatek) && n.ends_with(&koniec) && !n.starts_with('.'))
+        .collect();
+    kopie.sort();
+    if let Some(najnowsza) = kopie.last() {
+        if fs::read(folder.join(najnowsza)).is_ok_and(|stara| stara == tresc) {
+            return Ok(());
+        }
+    }
+    // Numer rozróżnia kopie z tej samej sekundy.
+    static NUMER: AtomicU64 = AtomicU64::new(0);
+    let numer = NUMER.fetch_add(1, Ordering::Relaxed);
+    zapisz_atomowo(&folder.join(format!("{poczatek}{znacznik}-{numer:04}{koniec}")), tresc)?;
+    let za_duzo = (kopie.len() + 1).saturating_sub(zostaw.max(1));
+    for stara in kopie.iter().take(za_duzo) {
+        let _ = fs::remove_file(folder.join(stara));
+    }
+    Ok(())
+}
+
 /// Czyta plik tekstowy i usuwa BOM, który dopisuje Notatnik.
 pub fn czytaj_tekst(sciezka: &Path) -> io::Result<String> {
     let tekst = fs::read_to_string(sciezka)?;
@@ -186,6 +222,38 @@ mod testy {
         assert!(!zapisz_atomowo_bez_zmian(&plik, b"jeszcze nowsze", b"nowe").unwrap());
         assert_eq!(fs::read_to_string(&plik).unwrap(), "cudzy zapis");
         assert_eq!(fs::read_dir(katalog.path()).unwrap().count(), 1, "plik tymczasowy znika");
+    }
+
+    #[test]
+    fn kopie_bez_powtorek_w_kolejnosci_i_z_limitem() {
+        let katalog = tempfile::tempdir().unwrap();
+        let folder = katalog.path().join("kopie");
+        let plik = katalog.path().join("vault").join("Zadania.md");
+        let nazwy = || {
+            let mut n: Vec<String> =
+                fs::read_dir(&folder).unwrap().map(|w| w.unwrap().file_name().into_string().unwrap()).collect();
+            n.sort();
+            n
+        };
+        odloz_kopie(&folder, &plik, b"wersja 1", "20261112-090000", 3).unwrap();
+        // Ta sama treść drugi raz (np. ponowiony zapis): bez nowej kopii.
+        odloz_kopie(&folder, &plik, b"wersja 1", "20261112-090001", 3).unwrap();
+        assert_eq!(nazwy().len(), 1);
+        assert!(nazwy()[0].starts_with("Zadania-20261112-090000-") && nazwy()[0].ends_with(".md"), "{:?}", nazwy());
+        // Obcy plik w folderze kopii zostaje nietknięty i nie liczy się do limitu.
+        fs::write(folder.join("notatka.txt"), "moje").unwrap();
+        for (i, znacznik) in ["20261112-090002", "20261112-090002", "20261113-080000"].iter().enumerate() {
+            odloz_kopie(&folder, &plik, format!("wersja {}", i + 2).as_bytes(), znacznik, 3).unwrap();
+        }
+        let kopie: Vec<String> = nazwy().into_iter().filter(|n| n.starts_with("Zadania-")).collect();
+        assert_eq!(kopie.len(), 3, "zostają trzy najnowsze: {kopie:?}");
+        let tresci: Vec<String> = kopie.iter().map(|n| fs::read_to_string(folder.join(n)).unwrap()).collect();
+        assert_eq!(
+            tresci,
+            ["wersja 2", "wersja 3", "wersja 4"],
+            "najstarsza znika, kolejność nazw to kolejność w czasie"
+        );
+        assert_eq!(fs::read_to_string(folder.join("notatka.txt")).unwrap(), "moje");
     }
 
     #[test]

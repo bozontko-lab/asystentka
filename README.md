@@ -229,6 +229,7 @@ gdy coś działa inaczej niż powinno.
 | `%APPDATA%\Asystentka\ustawienia.json` | ustawienia z B7; zmieniane w okienku Ustawienia |
 | `%APPDATA%\Asystentka\dzien.json` | plan dnia, trwająca sesja, sesje dnia, kolejka zapisów |
 | `%APPDATA%\Asystentka\okno.json` | monitor, róg i odstępy okna (stare `strona` i `odstep_dol` są przejmowane) |
+| `%APPDATA%\Asystentka\kopie\Zadania-RRRRMMDD-GGMMSS-NNNN.md` | kopie pliku zadań sprzed każdego zapisu widgetu; zostaje 200 najnowszych |
 | `%APPDATA%\Asystentka\skupienie.wav` lub `.mp3` | opcjonalnie: własny dźwięk skupienia zamiast wbudowanego |
 | `Zadania.md` | zadania; widget dopisuje `[czas:: N]`, `[x]` i `✅ data` |
 | `<folder dziennika>\RRRR-MM-DD.md` | dziennik z blokiem widgetu i podsumowaniem dnia |
@@ -290,6 +291,13 @@ asystentka/
   przeczytał. Gdy plik się zmienił albo jest zajęty, cały cykl (odczyt, zmiana jednej
   linii, zapis) zaczyna się od nowa na świeżej treści, do trzech razy; potem zapis
   czeka w kolejce ponowień. Wcześniej ponawiana była sama zamiana nazwy ze starą treścią.
+- **Kopie pliku zadań.** Przed każdym zapisem `Zadania.md` (czas, ptaszek, Cofnij, „Dodaj
+  zadanie”) widget odkłada dotychczasową treść pliku w `%APPDATA%\Asystentka\kopie\`,
+  bajt w bajt. Zostaje 200 najnowszych kopii, ta sama treść nie jest odkładana dwa razy,
+  a nieudana kopia nie wstrzymuje zapisu (ostrzeżenie w logu). Żeby wrócić do starszej
+  wersji, skopiuj wybrany plik w miejsce `Zadania.md`. Kopie powstają tylko przy zapisach
+  widgetu: zmiana zrobiona w Obsidianie albo w Hubie trafia do kopii przy następnym
+  zapisie widgetu. SPEC B3 tego folderu jeszcze nie wymienia.
 - **Klucz zadania** to projekt (nagłówek `##`) i tekst bez pól `[…:: …]`.
 - **Plik zadań to Markdown:** ustawienia przyjmują tylko `.md` albo `.markdown`, a widget
   otwiera w systemie wyłącznie takie pliki. Ścieżki w kreatorze (sprawdzenie, czy plik

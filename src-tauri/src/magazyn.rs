@@ -34,6 +34,11 @@ impl Magazyn {
         self.katalog.join("okno.json")
     }
 
+    /// Folder kopii pliku zadań, odkładanych przed każdym zapisem widgetu.
+    pub fn kopie(&self) -> PathBuf {
+        self.katalog.join("kopie")
+    }
+
     /// Brak pliku to pierwszy start. Uszkodzony plik zostaje odłożony obok
     /// jako `dzien.json.uszkodzony`, żeby dało się go obejrzeć.
     pub fn wczytaj_dzien(&self) -> Option<DzienStan> {
