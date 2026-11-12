@@ -456,8 +456,16 @@ const PROBY_ZMIANY: u64 = 3;
 /// w międzyczasie zmienił albo zamiana nazwy się nie udała (plik zajęty), cały
 /// cykl zaczyna się od świeżego odczytu, zamiast nadpisać cudzy zapis starą
 /// treścią. `zmiana` może więc być wywołana kilka razy.
-pub fn zmien<T>(
+pub fn zmien<T>(sciezka: &Path, zmiana: impl FnMut(&str) -> Result<(String, T), BladEdycji>) -> Result<T, BladZmiany> {
+    zmien_z_kopia(sciezka, None, zmiana)
+}
+
+/// Jak [`zmien`], a gdy podano folder `kopie`, przed zapisem odkłada w nim
+/// dotychczasową treść pliku (`pliki::odloz_kopie`). Kopia jest dodatkiem:
+/// gdy się nie uda, zmiana pliku idzie dalej, a w logu zostaje ostrzeżenie.
+pub fn zmien_z_kopia<T>(
     sciezka: &Path,
+    kopie: Option<&Path>,
     mut zmiana: impl FnMut(&str) -> Result<(String, T), BladEdycji>,
 ) -> Result<T, BladZmiany> {
     let mut blad = io::Error::other("plik zadań zmieniał się w trakcie zapisu");
@@ -467,7 +475,14 @@ pub fn zmien<T>(
         if nowy == odczyt.tekst {
             return Ok(wynik);
         }
-        match pliki::zapisz_atomowo_bez_zmian(sciezka, &odczyt.bajty(&nowy), &odczyt.bajty(&odczyt.tekst)) {
+        let stare = odczyt.bajty(&odczyt.tekst);
+        if let Some(folder) = kopie {
+            let znacznik = czas::teraz().format("%Y%m%d-%H%M%S").to_string();
+            if let Err(e) = pliki::odloz_kopie(folder, sciezka, &stare, &znacznik, pliki::KOPII_MAX) {
+                log::warn!("nie mogę odłożyć kopii {} w {}: {e}", sciezka.display(), folder.display());
+            }
+        }
+        match pliki::zapisz_atomowo_bez_zmian(sciezka, &odczyt.bajty(&nowy), &stare) {
             Ok(true) => return Ok(wynik),
             // Ktoś zapisał plik po naszym odczycie: od razu jeszcze raz, na świeżej treści.
             Ok(false) => {}
@@ -718,6 +733,40 @@ mod testy {
         assert!(po.contains("[szac:: 15] [termin:: 2026-11-20]"), "zapis z zewnątrz przeżył");
         assert!(po.contains("- [ ] Miniatura [szac:: 30] [czas:: 7]\n"), "czas sesji jest w pliku");
         assert_eq!(fs::read_dir(k.path()).unwrap().count(), 1, "plik tymczasowy znika");
+    }
+
+    #[test]
+    fn zmiana_z_kopia_odklada_tresc_sprzed_kazdego_zapisu() {
+        let k = tempfile::tempdir().unwrap();
+        let plik = k.path().join("vault").join("Zadania.md");
+        let kopie = k.path().join("AppData").join("kopie");
+        fs::create_dir_all(plik.parent().unwrap()).unwrap();
+        fs::write(&plik, format!("\u{feff}{PRZYKLAD}")).unwrap();
+        let klucz = Klucz::new("Film #1 · FIFA", "Miniatura");
+        let odlozone = || {
+            let mut n: Vec<_> =
+                fs::read_dir(&kopie).map(|d| d.map(|w| w.unwrap().path()).collect()).unwrap_or_default();
+            n.sort();
+            n
+        };
+        // Brak zmiany treści: ani zapisu, ani kopii.
+        zmien_z_kopia(&plik, Some(&kopie), |t| Ok((t.to_string(), ()))).unwrap();
+        assert!(odlozone().is_empty());
+        // Pierwsza zmiana: kopia to plik sprzed zmiany, bajt w bajt (z BOM-em).
+        let przed = fs::read(&plik).unwrap();
+        zmien_z_kopia(&plik, Some(&kopie), |t| Ok((dopisz_czas(t, &klucz, 7, None)?, ()))).unwrap();
+        assert_eq!(odlozone().len(), 1);
+        assert_eq!(fs::read(&odlozone()[0]).unwrap(), przed);
+        // Druga zmiana: druga kopia, już z czasem z pierwszej.
+        zmien_z_kopia(&plik, Some(&kopie), |t| Ok((dopisz_czas(t, &klucz, 3, None)?, ()))).unwrap();
+        assert_eq!(odlozone().len(), 2);
+        assert!(String::from_utf8(fs::read(&odlozone()[1]).unwrap()).unwrap().contains("[czas:: 7]"));
+        assert!(fs::read_to_string(&plik).unwrap().contains("[czas:: 10]"));
+        // Folder kopii, którego nie da się założyć (jego miejsce zajmuje plik), nie blokuje zapisu.
+        let zajete = k.path().join("zajete");
+        fs::write(&zajete, "plik zamiast folderu").unwrap();
+        zmien_z_kopia(&plik, Some(&zajete), |t| Ok((dopisz_czas(t, &klucz, 5, None)?, ()))).unwrap();
+        assert!(fs::read_to_string(&plik).unwrap().contains("[czas:: 15]"));
     }
 
     #[test]

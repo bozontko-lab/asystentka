@@ -1137,13 +1137,13 @@ impl Rdzen {
         }
         let sciezka = self.ust.plik_zadan().ok_or("Nie wskazano pliku zadań.")?;
         let projekt = if projekt.trim().is_empty() { plik_zadan::INBOX } else { projekt.trim() };
-        let klucz =
-            plik_zadan::zmien(&sciezka, |t| plik_zadan::dopisz_zadanie(t, projekt, nazwa, szac_min)).map_err(|e| {
-                match e {
-                    BladZmiany::Edycja(plik_zadan::BladEdycji::PustaNazwa) => "Wpisz nazwę zadania.".to_string(),
-                    e => format!("Nie mogę dopisać zadania do pliku: {e}"),
-                }
-            })?;
+        let klucz = plik_zadan::zmien_z_kopia(&sciezka, Some(&self.magazyn.kopie()), |t| {
+            plik_zadan::dopisz_zadanie(t, projekt, nazwa, szac_min)
+        })
+        .map_err(|e| match e {
+            BladZmiany::Edycja(plik_zadan::BladEdycji::PustaNazwa) => "Wpisz nazwę zadania.".to_string(),
+            e => format!("Nie mogę dopisać zadania do pliku: {e}"),
+        })?;
         self.wczytaj_zadania();
         if matches!(self.faza, Faza::Wybor) {
             self.wybor.insert(klucz);
@@ -1444,8 +1444,9 @@ impl Rdzen {
         let poczatek = std::time::Instant::now();
         let mut zmiana = false;
         let mut blad_zapisu = false;
+        let kopie = self.magazyn.kopie();
         while let Some(e) = self.dz.oczekujace.first().cloned() {
-            let wynik = plik_zadan::zmien(&sciezka, |t| {
+            let wynik = plik_zadan::zmien_z_kopia(&sciezka, Some(&kopie), |t| {
                 let nowy = if e.odznacz {
                     plik_zadan::odznacz_zrobione(t, &e.klucz, e.zrobione)?
                 } else {
