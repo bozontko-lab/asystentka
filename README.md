@@ -285,6 +285,11 @@ asystentka/
   CRLF (także w dzienniku), jedna blokada dla zapisów `ustawienia.json`, zmiana
   jednej linii, kolejka ponowień co 30 s, gdy plik jest zajęty. Obserwację zmian robi
   crate `notify` (opóźnienie 300 ms).
+- **Plik zadań zapisuje też Hub w Obsidianie**, więc widget nie nadpisuje cudzych
+  zmian: tuż przed zamianą nazwy sprawdza, czy `Zadania.md` jest wciąż taki, jak go
+  przeczytał. Gdy plik się zmienił albo jest zajęty, cały cykl (odczyt, zmiana jednej
+  linii, zapis) zaczyna się od nowa na świeżej treści, do trzech razy; potem zapis
+  czeka w kolejce ponowień. Wcześniej ponawiana była sama zamiana nazwy ze starą treścią.
 - **Klucz zadania** to projekt (nagłówek `##`) i tekst bez pól `[…:: …]`.
 - **Plik zadań to Markdown:** ustawienia przyjmują tylko `.md` albo `.markdown`, a widget
   otwiera w systemie wyłącznie takie pliki. Ścieżki w kreatorze (sprawdzenie, czy plik
