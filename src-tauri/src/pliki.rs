@@ -2,15 +2,14 @@
 
 use std::fs;
 use std::io::{self, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread;
 use std::time::Duration;
 
-/// Zapis atomowy z SPEC.md (B3): najpierw plik tymczasowy w tym samym
-/// folderze, potem zamiana nazwy, żeby Dysk Google ani Obsidian nie
-/// zobaczyły połowy pliku.
-pub fn zapisz_atomowo(sciezka: &Path, tresc: &[u8]) -> io::Result<()> {
+/// Zapisuje treść do pliku tymczasowego w folderze pliku docelowego i zwraca
+/// jego ścieżkę. Zamianę nazwy robi wywołujący.
+fn zapisz_tymczasowy(sciezka: &Path, tresc: &[u8]) -> io::Result<PathBuf> {
     let folder = match sciezka.parent() {
         Some(p) if !p.as_os_str().is_empty() => p,
         _ => Path::new("."),
@@ -26,11 +25,22 @@ pub fn zapisz_atomowo(sciezka: &Path, tresc: &[u8]) -> io::Result<()> {
     static NUMER: AtomicU64 = AtomicU64::new(0);
     let numer = NUMER.fetch_add(1, Ordering::Relaxed);
     let tymczasowy = folder.join(format!(".{nazwa}.{}.{numer}.tmp", std::process::id()));
-    {
-        let mut plik = fs::File::create(&tymczasowy)?;
+    let zapis = fs::File::create(&tymczasowy).and_then(|mut plik| {
         plik.write_all(tresc)?;
-        plik.sync_all()?;
+        plik.sync_all()
+    });
+    if let Err(e) = zapis {
+        let _ = fs::remove_file(&tymczasowy);
+        return Err(e);
     }
+    Ok(tymczasowy)
+}
+
+/// Zapis atomowy z SPEC.md (B3): najpierw plik tymczasowy w tym samym
+/// folderze, potem zamiana nazwy, żeby Dysk Google ani Obsidian nie
+/// zobaczyły połowy pliku.
+pub fn zapisz_atomowo(sciezka: &Path, tresc: &[u8]) -> io::Result<()> {
+    let tymczasowy = zapisz_tymczasowy(sciezka, tresc)?;
     // Dysk albo Obsidian mogą na chwilę trzymać plik docelowy, więc są
     // trzy szybkie próby; dłuższe ponawianie robi kolejka zapisów co 30 s.
     let mut blad = None;
@@ -45,6 +55,26 @@ pub fn zapisz_atomowo(sciezka: &Path, tresc: &[u8]) -> io::Result<()> {
     }
     let _ = fs::remove_file(&tymczasowy);
     Err(blad.unwrap_or_else(|| io::Error::other("nieudana zamiana nazwy")))
+}
+
+/// Zapis atomowy pod warunkiem, że plik docelowy ma wciąż treść `oczekiwana`,
+/// czyli tę, z której powstała `tresc`. Sprawdzenie jest tuż przed zamianą
+/// nazwy, a zamiana ma jedną próbę: gdy plik zmienił w międzyczasie ktoś inny
+/// (Hub w Obsidianie, synchronizacja) albo plik jest zajęty, wywołujący czyta
+/// go od nowa i powtarza całą zmianę, zamiast nadpisać cudzy zapis starą treścią.
+///
+/// `Ok(false)` znaczy: plik się zmienił i nic nie zostało zapisane.
+pub fn zapisz_atomowo_bez_zmian(sciezka: &Path, tresc: &[u8], oczekiwana: &[u8]) -> io::Result<bool> {
+    let tymczasowy = zapisz_tymczasowy(sciezka, tresc)?;
+    let wynik = match fs::read(sciezka) {
+        Ok(obecna) if obecna == oczekiwana => fs::rename(&tymczasowy, sciezka).map(|()| true),
+        Ok(_) => Ok(false),
+        Err(e) => Err(e),
+    };
+    if !matches!(wynik, Ok(true)) {
+        let _ = fs::remove_file(&tymczasowy);
+    }
+    wynik
 }
 
 /// Czyta plik tekstowy i usuwa BOM, który dopisuje Notatnik.
@@ -141,6 +171,21 @@ mod testy {
         assert_eq!(fs::read_to_string(&plik).unwrap(), "drugi");
         let pliki: Vec<_> = fs::read_dir(katalog.path()).unwrap().collect();
         assert_eq!(pliki.len(), 1, "plik tymczasowy powinien zniknąć");
+    }
+
+    #[test]
+    fn zapis_bez_zmian_odmawia_gdy_plik_zmienil_sie_od_odczytu() {
+        let katalog = tempfile::tempdir().unwrap();
+        let plik = katalog.path().join("Zadania.md");
+        fs::write(&plik, b"odczytane").unwrap();
+        // Plik jest taki, jak przy odczycie: zapis przechodzi.
+        assert!(zapisz_atomowo_bez_zmian(&plik, b"nowe", b"odczytane").unwrap());
+        assert_eq!(fs::read_to_string(&plik).unwrap(), "nowe");
+        // Ktoś zapisał plik po odczycie: nic nie nadpisujemy.
+        fs::write(&plik, b"cudzy zapis").unwrap();
+        assert!(!zapisz_atomowo_bez_zmian(&plik, b"jeszcze nowsze", b"nowe").unwrap());
+        assert_eq!(fs::read_to_string(&plik).unwrap(), "cudzy zapis");
+        assert_eq!(fs::read_dir(katalog.path()).unwrap().count(), 1, "plik tymczasowy znika");
     }
 
     #[test]

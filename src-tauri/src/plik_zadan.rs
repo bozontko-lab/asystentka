@@ -9,6 +9,8 @@ use std::fs;
 use std::io;
 use std::path::Path;
 use std::sync::OnceLock;
+use std::thread;
+use std::time::Duration;
 
 use chrono::NaiveDate;
 use regex::Regex;
@@ -411,6 +413,18 @@ pub fn wczytaj(sciezka: &Path) -> io::Result<Odczyt> {
     Ok(Odczyt { tekst, bom })
 }
 
+impl Odczyt {
+    /// Bajty pliku dla podanej treści: z BOM-em, jeśli miał go plik przy odczycie.
+    fn bajty(&self, tekst: &str) -> Vec<u8> {
+        let mut bajty = Vec::with_capacity(tekst.len() + 3);
+        if self.bom {
+            bajty.extend_from_slice(&[0xEF, 0xBB, 0xBF]);
+        }
+        bajty.extend_from_slice(tekst.as_bytes());
+        bajty
+    }
+}
+
 pub fn wczytaj_i_parsuj(sciezka: &Path) -> io::Result<PlikZadan> {
     Ok(parsuj(&wczytaj(sciezka)?.tekst))
 }
@@ -430,20 +444,41 @@ impl std::fmt::Display for BladZmiany {
     }
 }
 
+/// Ile razy `zmien` powtarza cały cykl odczyt, zmiana, zapis, zanim odda błąd
+/// (dłuższe ponawianie robi kolejka zapisów w rdzeniu).
+const PROBY_ZMIANY: u64 = 3;
+
 /// Zmienia plik: czyta go od nowa, wywołuje `zmiana` i zapisuje wynik przez
 /// plik tymczasowy z zamianą nazwy, ale tylko wtedy, gdy treść się zmieniła.
-pub fn zmien<T>(sciezka: &Path, zmiana: impl FnOnce(&str) -> Result<(String, T), BladEdycji>) -> Result<T, BladZmiany> {
-    let odczyt = wczytaj(sciezka).map_err(BladZmiany::Io)?;
-    let (nowy, wynik) = zmiana(&odczyt.tekst).map_err(BladZmiany::Edycja)?;
-    if nowy != odczyt.tekst {
-        let mut bajty = Vec::with_capacity(nowy.len() + 3);
-        if odczyt.bom {
-            bajty.extend_from_slice(&[0xEF, 0xBB, 0xBF]);
+///
+/// Plik zadań zapisuje też Hub w Obsidianie, więc tuż przed zamianą nazwy
+/// widget sprawdza, czy plik jest wciąż taki, jak go przeczytał. Gdy ktoś go
+/// w międzyczasie zmienił albo zamiana nazwy się nie udała (plik zajęty), cały
+/// cykl zaczyna się od świeżego odczytu, zamiast nadpisać cudzy zapis starą
+/// treścią. `zmiana` może więc być wywołana kilka razy.
+pub fn zmien<T>(
+    sciezka: &Path,
+    mut zmiana: impl FnMut(&str) -> Result<(String, T), BladEdycji>,
+) -> Result<T, BladZmiany> {
+    let mut blad = io::Error::other("plik zadań zmieniał się w trakcie zapisu");
+    for proba in 0..PROBY_ZMIANY {
+        let odczyt = wczytaj(sciezka).map_err(BladZmiany::Io)?;
+        let (nowy, wynik) = zmiana(&odczyt.tekst).map_err(BladZmiany::Edycja)?;
+        if nowy == odczyt.tekst {
+            return Ok(wynik);
         }
-        bajty.extend_from_slice(nowy.as_bytes());
-        pliki::zapisz_atomowo(sciezka, &bajty).map_err(BladZmiany::Io)?;
+        match pliki::zapisz_atomowo_bez_zmian(sciezka, &odczyt.bajty(&nowy), &odczyt.bajty(&odczyt.tekst)) {
+            Ok(true) => return Ok(wynik),
+            // Ktoś zapisał plik po naszym odczycie: od razu jeszcze raz, na świeżej treści.
+            Ok(false) => {}
+            // Dysk albo Obsidian mogą na chwilę trzymać plik: krótka przerwa i od nowa.
+            Err(e) => {
+                blad = e;
+                thread::sleep(Duration::from_millis(50 * (proba + 1)));
+            }
+        }
     }
-    Ok(wynik)
+    Err(BladZmiany::Io(blad))
 }
 
 #[cfg(test)]
@@ -659,6 +694,50 @@ mod testy {
         let po = fs::read_to_string(&plik).unwrap();
         assert!(po.contains("Dopisane w Obsidianie"));
         assert!(po.contains("[czas:: 50]"));
+    }
+
+    #[test]
+    fn zapis_z_zewnatrz_w_trakcie_zmiany_nie_ginie() {
+        // Hub w Obsidianie zapisał termin innego zadania po tym, jak widget przeczytał
+        // plik, a przed zamianą nazwy: w pliku muszą zostać obie zmiany.
+        let k = tempfile::tempdir().unwrap();
+        let plik = k.path().join("Zadania.md");
+        fs::write(&plik, PRZYKLAD).unwrap();
+        let klucz = Klucz::new("Film #1 · FIFA", "Miniatura");
+        let mut wywolania = 0;
+        zmien(&plik, |t| {
+            wywolania += 1;
+            if wywolania == 1 {
+                fs::write(&plik, t.replace("[szac:: 15]", "[szac:: 15] [termin:: 2026-11-20]")).unwrap();
+            }
+            Ok((dopisz_czas(t, &klucz, 7, None)?, ()))
+        })
+        .unwrap();
+        assert_eq!(wywolania, 2, "zmiana policzona od nowa na świeżej treści");
+        let po = fs::read_to_string(&plik).unwrap();
+        assert!(po.contains("[szac:: 15] [termin:: 2026-11-20]"), "zapis z zewnątrz przeżył");
+        assert!(po.contains("- [ ] Miniatura [szac:: 30] [czas:: 7]\n"), "czas sesji jest w pliku");
+        assert_eq!(fs::read_dir(k.path()).unwrap().count(), 1, "plik tymczasowy znika");
+    }
+
+    #[test]
+    fn plik_zmieniany_przy_kazdej_probie_oddaje_blad_i_zostaje_caly() {
+        let k = tempfile::tempdir().unwrap();
+        let plik = k.path().join("Zadania.md");
+        fs::write(&plik, PRZYKLAD).unwrap();
+        let klucz = Klucz::new("Film #1 · FIFA", "Miniatura");
+        let mut wywolania = 0;
+        let wynik = zmien(&plik, |t| {
+            wywolania += 1;
+            fs::write(&plik, format!("{t}- [ ] Dopisane {wywolania}\n")).unwrap();
+            Ok((dopisz_czas(t, &klucz, 7, None)?, ()))
+        });
+        // Błąd wejścia-wyjścia trafia do kolejki ponowień w rdzeniu, więc czas sesji nie przepada.
+        assert!(matches!(wynik, Err(BladZmiany::Io(_))));
+        let po = fs::read_to_string(&plik).unwrap();
+        assert!(po.contains("- [ ] Dopisane 3\n"), "ostatni zapis z zewnątrz jest cały");
+        assert!(!po.contains("[czas:: 7]"), "widget niczego nie nadpisał");
+        assert_eq!(fs::read_dir(k.path()).unwrap().count(), 1, "plik tymczasowy znika");
     }
 
     #[test]
